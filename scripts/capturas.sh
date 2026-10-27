@@ -42,6 +42,7 @@ while read -r nome aba tema larg alt; do
 done <<'LISTA'
 resumo resumo light 1280 1080
 resumo-escuro resumo dark 1280 1080
+analises analises light 1280 1500
 ativos ativos light 1280 820
 proventos proventos light 1280 900
 rebalancear rebalancear light 1280 900

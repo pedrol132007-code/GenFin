@@ -266,6 +266,56 @@ await atualizarIndices();
 ok(indices.cdi.serie["2026-03-03"]===0.05 && buscandoIndices===false, "sem rede mantém as séries e libera nova busca");
 mem[LS_CHAVE] = "";
 
+// 12. análises por regras e resumo com IA
+buscandoIndices = false; delete mem[LS_INDICES]; indices = lerIndices(); delete mem[LS_BACKUP];
+S = vazio(); S.atualizado = 1;
+const hj = hojeISO(), mesAtual = hj.slice(0,7), dAnt = somarDias(mesAtual+"-01", -10), d200 = somarDias(hj, -200);
+add({classe:"acao",tipo:"compra",data:d200,ticker:"PETR4",qtd:"1000",preco:"30"});
+add({classe:"acao",tipo:"compra",data:d200,ticker:"VALE3",qtd:"300",preco:"70"});
+add({classe:"fii",tipo:"compra",data:d200,ticker:"HGLG11",qtd:"50",preco:"160"});
+add({classe:"rf",tipo:"compra",data:d200,ticker:"CDB W",valor:"20000"});
+add({classe:"acao",tipo:"venda",data:dAnt,ticker:"VALE3",qtd:"300",preco:"80"});           // 24 mil no mês passado: paga IR
+add({classe:"acao",tipo:"venda",data:hj,ticker:"PETR4",qtd:"500",preco:"34"});             // 17 mil neste mês: perto do limite
+S.precos = { PETR4:{v:34.56,em:hj}, HGLG11:{v:150,em:somarDias(hj,-10)}, "CDB W":{v:21000,em:somarDias(hj,-90)} };
+S.metas = {acao:20,etf:0,fii:30,rf:50,cripto:0};
+S.provs.push({id:"q1",data:somarDias(hj,-40),ticker:"HGLG11",tipo:"rendimento",valor:400});
+const leit = analisar(), achar = r => leit.find(i=>r.test(i.titulo));
+ok(achar(/PETR4 é \\d+% da carteira/) && achar(/PETR4 é/).nivel==="atencao", "concentração acima de 20%: "+(achar(/PETR4 é/)||{}).titulo);
+ok(achar(/Renda fixa abaixo da meta/) || achar(/Ações acima da meta/), "distância da meta");
+ok(achar(/cotação antiga/) && /HGLG11/.test(achar(/cotação antiga/).detalhe) && !/PETR4/.test(achar(/cotação antiga/).detalhe), "cotação antiga só de quem passou de 3 dias");
+ok(achar(/valor da renda fixa/) && /CDB W/.test(achar(/valor da renda fixa/).detalhe), "renda fixa sem atualização há mais de 45 dias");
+ok(achar(/perto do limite de isenção/) && /faltam R\\$/.test(achar(/perto do limite/).detalhe), "vendas de ações perto dos 20 mil");
+ok(achar(/^DARF de R\\$\\s.* vence em/), "DARF do mês passado a vencer: "+(achar(/^DARF/)||{}).titulo);
+ok(achar(/Proventos de .* sobre o custo/), "proventos dos últimos 12 meses");
+ok(achar(/Nenhum backup/) && achar(/Nenhum backup/).acao.act==="backup", "lembra do backup");
+ok(leit.findIndex(i=>i.nivel!=="atencao") > leit.map(i=>i.nivel).lastIndexOf("atencao"), "atenção vem primeiro");
+mem[LS_BACKUP] = String(Date.now()); ok(!analisar().some(i=>/backup/i.test(i.titulo)), "backup recente some da lista");
+
+const dIA = dadosParaIA(), jIA = JSON.stringify(dIA), totalAgora = calcular().total;
+ok(!/R\\$/.test(jIA) && !jIA.includes(String(Math.round(totalAgora))) && !jIA.includes(brl(totalAgora).replace("R$","").trim()), "dados para a IA sem valores em reais");
+ok(dIA.posicoes[0].ativo && typeof dIA.posicoes[0].peso_pct==="number" && dIA.leituras.length>0, "dados para a IA com pesos e leituras");
+
+let corpoIA = null; chamadas = [];
+globalThis.__fetch = (url, op={}) => {
+  chamadas.push(url);
+  if(url.endsWith("/models")) return op.headers.Authorization==="Bearer gsk-boa" ? resp(200, {data:[{id:"whisper-large-v3"},{id:"llama-3.3-70b-versatile"},{id:"openai/gpt-oss-120b"}]}) : resp(401, {});
+  if(url.endsWith("/chat/completions")){ corpoIA = JSON.parse(op.body); return resp(200, {choices:[{message:{content:"- **Concentração**: PETR4 pesa muito.\\n- Renda fixa abaixo da meta.\\nTexto final <script>x</script>"}}]}); }
+  return resp(404, {});
+};
+avisos2 = []; mem[LS_GROQ] = "gsk-ruim"; await gerarResumoIA();
+ok(/recusou a chave/.test(avisos2[0]||"") && !mem[LS_IA] && gerandoIA===false, "chave do Groq recusada avisa e libera");
+mem[LS_GROQ] = "gsk-boa"; await gerarResumoIA();
+ok(corpoIA && corpoIA.model==="openai/gpt-oss-120b", "escolhe o maior modelo de texto disponível: "+(corpoIA&&corpoIA.model));
+ok(corpoIA && !/R\\$/.test(JSON.stringify(corpoIA)) && /Não recomende comprar ou vender/.test(corpoIA.messages[0].content), "requisição para o Groq sem reais e com a instrução de não recomendar");
+const guardado = JSON.parse(mem[LS_IA]||"{}");
+ok(guardado.modelo==="openai/gpt-oss-120b" && /PETR4/.test(guardado.texto), "guarda o último resumo");
+const html = textoIA(guardado.texto);
+ok(/<ul><li>Concentração: PETR4 pesa muito\\.<\\/li><li>Renda fixa abaixo da meta\\.<\\/li><\\/ul><p>Texto final &lt;script&gt;x&lt;\\/script&gt;<\\/p>/.test(html), "texto da IA vira lista e é escapado: "+html);
+const elA2 = fakeEl(); rAnalises(elA2);
+ok(/Atenção/.test(elA2.innerHTML) && /Gerar de novo/.test(elA2.innerHTML) && /O que vai para o Groq/.test(elA2.innerHTML), "aba Análises mostra leituras, IA e o que é enviado");
+ok(!JSON.stringify(S).includes("gsk-boa"), "a chave do Groq não vai para o backup");
+mem[LS_GROQ] = "";
+
 console.log(falhas? falhas+" falha(s)" : "todos passaram");
 return falhas;
 `;

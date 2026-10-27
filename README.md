@@ -45,6 +45,7 @@ Preço médio, alocação, proventos, rebalanceamento e imposto de renda para qu
 | | |
 |---|---|
 | 📊 **Resumo** | Patrimônio, valorização em aberto, lucro realizado, proventos e resultado sobre o total aportado. Alocação atual comparada com a meta, gráfico de evolução e comparação com o CDI e o Ibovespa. |
+| 🔎 **Análises** | Leituras automáticas feitas no aparelho: concentração, distância das metas, cotações antigas, limites de isenção e DARF do mês, desempenho contra o CDI, proventos e lembrete de backup. Resumo opcional escrito por IA (Groq, plano gratuito). |
 | 💹 **Ativos e cotações** | Posição por classe com quantidade, preço médio, valor de mercado, resultado e peso na carteira. Cotações automáticas de ações, ETFs, FIIs e cripto; renda fixa e correções, à mão. |
 | 🧾 **Lançamentos** | Compras e vendas com taxas da nota de corretagem. Aplicações e resgates de renda fixa. Editar e excluir, sempre impedindo vendas maiores que o saldo, inclusive em datas retroativas. |
 | 💰 **Proventos** | Dividendos, JCP e rendimentos de FIIs, com gráfico dos últimos 12 meses e rendimento sobre o custo por ativo. |
@@ -58,11 +59,14 @@ Cinco classes de ativo: **ações**, **ETFs**, **FIIs**, **renda fixa** e **crip
 
 <table>
   <tr>
+    <td width="50%"><img src="docs/img/analises.png" alt="Análises"><p align="center"><sub>Análises</sub></p></td>
     <td width="50%"><img src="docs/img/ativos.png" alt="Ativos e cotações"><p align="center"><sub>Ativos e cotações</sub></p></td>
-    <td width="50%"><img src="docs/img/proventos.png" alt="Proventos"><p align="center"><sub>Proventos</sub></p></td>
   </tr>
   <tr>
+    <td width="50%"><img src="docs/img/proventos.png" alt="Proventos"><p align="center"><sub>Proventos</sub></p></td>
     <td width="50%"><img src="docs/img/rebalancear.png" alt="Rebalancear"><p align="center"><sub>Rebalancear</sub></p></td>
+  </tr>
+  <tr>
     <td width="50%"><img src="docs/img/ir.png" alt="Imposto de renda"><p align="center"><sub>Imposto de renda</sub></p></td>
   </tr>
 </table>
@@ -126,7 +130,8 @@ flowchart LR
 ```
 
 - **Sempre no navegador**, na chave `carteira-v1` do `localStorage`. Fora do claude.ai, a carteira não sai do seu computador. Para as cotações, só os **códigos** dos ativos (como `PETR4` ou `BTC`) vão para a brapi e o Mercado Bitcoin; quantidades e valores nunca são enviados.
-- **A chave da brapi** fica só no navegador, separada da carteira. Ela não entra no backup nem vai para a conta.
+- **As chaves da brapi e do Groq** ficam só no navegador, separadas da carteira. Elas não entram no backup nem vão para a conta.
+- **Resumo com IA (opcional):** só vai para o [Groq](https://console.groq.com) o que aparece em "O que vai para o Groq", na aba Análises: percentuais, códigos dos ativos e as leituras escritas sem valores em reais. Quantidades, preços e o patrimônio não saem do aparelho. O app pede à IA que explique os números e não recomende compra ou venda.
 - **No claude.ai**, também na conta do usuário, em quatro documentos (`carteira`, `lancamentos`, `proventos` e `historico`). Cada salvamento leva data e hora. Ao abrir, o lado mais recente vence, para não perder alterações feitas sem conexão.
 - **Backup:** o botão no topo exporta tudo em `.json`, exporta os lançamentos em `.csv` e restaura um backup. Os arquivos exportados estão no `.gitignore`, para não irem parar no repositório por engano.
 

@@ -132,6 +132,22 @@ details.chave summary{cursor:pointer;color:var(--focus);width:max-content;max-wi
 .linha-chave input{flex:1 1 220px;min-width:0;border:1px solid var(--line);border-radius:8px;padding:8px 10px;background:var(--bg);color:var(--ink)}
 .altura{max-height:460px;overflow:auto}
 tr.sel{background:var(--soft)}
+
+/* Análises */
+.leituras{display:grid;gap:10px;max-width:760px}
+.leitura{background:var(--surface);border:1px solid var(--line);border-left:4px solid var(--line);border-radius:8px;padding:12px 16px}
+.leitura.atencao{border-left-color:var(--warn)}
+.leitura.positivo{border-left-color:var(--pos)}
+.leitura .nivel{display:block;font-size:.78rem;color:var(--muted)}
+.leitura.atencao .nivel{color:var(--warn)}
+.leitura.positivo .nivel{color:var(--pos)}
+.leitura p{margin:2px 0 6px;color:var(--muted);font-size:.92rem}
+.card.ia{max-width:760px}
+.texto-ia ul{margin:12px 0;padding-left:20px}
+.texto-ia li{margin:6px 0}
+details.enviado{margin-top:8px}
+details.enviado summary{cursor:pointer;color:var(--focus);width:max-content;max-width:100%}
+details.enviado pre{font:12px/1.4 ui-monospace,Menlo,monospace;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:10px;overflow:auto;max-height:260px;white-space:pre-wrap}
 .acoes-linha{display:inline-flex;gap:6px}
 form.card.editando{border-color:var(--focus);box-shadow:0 0 0 1px var(--focus)}
 .editando-rot{margin:0 0 12px;font-size:.92rem}
@@ -196,6 +212,7 @@ textarea{width:100%;min-height:140px;font:12px/1.4 ui-monospace,Menlo,monospace;
     </div>
     <nav class="abas" role="tablist" id="abas">
       <button role="tab" data-aba="resumo">Resumo</button>
+      <button role="tab" data-aba="analises">Análises</button>
       <button role="tab" data-aba="ativos">Ativos e cotações</button>
       <button role="tab" data-aba="lancamentos">Lançamentos</button>
       <button role="tab" data-aba="proventos">Proventos</button>
@@ -208,6 +225,7 @@ textarea{width:100%;min-height:140px;font:12px/1.4 ui-monospace,Menlo,monospace;
 
 <main class="wrap">
   <section id="v-resumo"></section>
+  <section id="v-analises" hidden></section>
   <section id="v-ativos" hidden></section>
   <section id="v-lancamentos" hidden></section>
   <section id="v-proventos" hidden></section>
@@ -251,7 +269,7 @@ const ORDEM = ["acao","etf","fii","rf","cripto"];
 const MESES = ["jan","fev","mar","abr","mai","jun","jul","ago","set","out","nov","dez"];
 const TIPOS_PROV = { dividendo:"Dividendo", jcp:"JCP", rendimento:"Rendimento", outro:"Outro" };
 const LS_KEY = "carteira-v1";
-const ABAS = ["resumo","ativos","lancamentos","proventos","rebalancear","ir","noticias"];
+const ABAS = ["resumo","analises","ativos","lancamentos","proventos","rebalancear","ir","noticias"];
 
 const BRL = new Intl.NumberFormat("pt-BR",{style:"currency",currency:"BRL"});
 const brl = v => BRL.format(Number.isFinite(v)?v:0);
@@ -500,7 +518,7 @@ function irPara(aba){
 }
 function renderTudo(){ atualizarDatalist(); render(abaAtual); $("#aviso-demo").classList.toggle("oculto", !demo); }
 function render(aba){
-  const f = { resumo:rResumo, ativos:rAtivos, lancamentos:rLancamentos, proventos:rProventos, rebalancear:rRebalancear, ir:rIR, noticias:rNoticias }[aba];
+  const f = { resumo:rResumo, analises:rAnalises, ativos:rAtivos, lancamentos:rLancamentos, proventos:rProventos, rebalancear:rRebalancear, ir:rIR, noticias:rNoticias }[aba];
   f($("#v-"+aba));
 }
 function atualizarDatalist(){
@@ -794,6 +812,183 @@ function comparacao(){
   const fl = fluxosCaixa(); if(!fl.length) return null;
   const cdi = Object.keys(indices.cdi.serie).length && indices.cdi.desde && indices.cdi.desde<=fl[0].data ? simularCDI(fl, indices.cdi.serie) : null;
   return {desde: fl[0].data, cdi, ibov: simularIbov(fl, indices.ibov.serie)};
+}
+
+/* ---------- Análises ---------- */
+// Leituras da carteira feitas por regras, no próprio aparelho: nada sai daqui.
+// Cada leitura tem o texto da tela e "ia", uma versão sem valores em reais, a única que pode ir para a IA.
+const LS_BACKUP = "genfin-backup-em";
+const NIVEIS = { atencao:"Atenção", positivo:"Bom sinal", info:"Para acompanhar" };
+function diasDesde(iso){ return Math.round((Date.parse(hojeISO()+"T12:00") - Date.parse(iso+"T12:00"))/864e5); }
+function analisar(){
+  const out = []; if(!temDados(S)) return out;
+  const add = (nivel, titulo, detalhe, ia, acao) => out.push({nivel, titulo, detalhe, ia, acao});
+  const c = calcular(), total = c.total, abertas = c.lista.filter(p=>p.qtd>0);
+  const peso = p => total>0 ? p.valor/total : 0;
+
+  const prob = vendaSemSaldo(S.txs);
+  if(prob) add("atencao", "Há um lançamento inconsistente", `${descreverVenda(prob.tx)} passa do saldo que havia na data. Preço médio e imposto desse ativo ficam errados até corrigir.`, null, {aba:"lancamentos", rotulo:"Ver lançamentos"});
+
+  // Concentração: um ativo de renda variável acima de 20% do total (renda fixa tem outra natureza de risco)
+  abertas.filter(p=>p.classe!=="rf" && peso(p)>0.2).sort((a,b)=>b.valor-a.valor).forEach(p=>
+    add("atencao", `${p.ticker} é ${pct(peso(p),0)} da carteira`, "Um único ativo acima de 20% do total concentra o risco: um problema nele pesa na carteira inteira.", `${p.ticker} representa ${pct(peso(p),0)} da carteira`));
+
+  // Metas de alocação
+  const soma = ORDEM.reduce((s,k)=>s+(S.metas[k]||0),0);
+  if(Math.abs(soma-100)<0.01 && total>0){
+    ORDEM.forEach(k=>{
+      const atual = c.porClasse[k]/total, meta = (S.metas[k]||0)/100, pp = (atual-meta)*100;
+      if(Math.abs(pp)>=5) add(Math.abs(pp)>=10?"atencao":"info", `${CLASSES[k].nome} ${pp<0?"abaixo":"acima"} da meta em ${Math.abs(pp).toLocaleString("pt-BR",{maximumFractionDigits:0})} p.p.`,
+        `Hoje ${pct(atual)}, meta de ${pct(meta,0)}. ${pp<0?`Faltam ${brl(total*meta-c.porClasse[k])} para chegar lá.`:"Novos aportes nas outras classes aproximam da meta sem precisar vender."}`,
+        `${CLASSES[k].nome}: ${pct(atual)} da carteira contra meta de ${pct(meta,0)}`, {aba:"rebalancear", rotulo:"Rebalancear"});
+    });
+  } else if(soma===0) add("info", "Sem metas de alocação", "Com metas por classe, o app mostra o quanto a carteira se afastou delas e como dividir cada aporte.", null, {aba:"rebalancear", rotulo:"Definir metas"});
+
+  // Cotações antigas: renda variável com mais de 3 dias, renda fixa com mais de 45
+  const rvVelhas = abertas.filter(p=>p.classe!=="rf" && (!S.precos[p.ticker] || diasDesde(S.precos[p.ticker].em)>3)).map(p=>p.ticker);
+  if(rvVelhas.length) add("atencao", `${rvVelhas.length===1?"1 ativo está":rvVelhas.length+" ativos estão"} com cotação antiga ou sem cotação`, `${rvVelhas.join(", ")}. Sem cotação, o ativo entra pelo preço médio e o patrimônio fica impreciso.`, null, {aba:"ativos", rotulo:"Atualizar cotações"});
+  const rfVelhas = abertas.filter(p=>p.classe==="rf" && (!S.precos[p.ticker] || diasDesde(S.precos[p.ticker].em)>45)).map(p=>p.ticker);
+  if(rfVelhas.length) add("info", "Atualize o valor da renda fixa", `${rfVelhas.join(", ")}: sem atualização há mais de 45 dias, o título aparece pelo último valor informado ou pelo valor aplicado.`, null, {aba:"ativos", rotulo:"Atualizar valores"});
+
+  // Imposto de renda do mês: perto dos limites de isenção e DARF a vencer
+  const mes = hojeISO().slice(0,7), doMes = cl => c.vendas.filter(v=>v.mes===mes && v.classe===cl);
+  const vAcao = doMes("acao").reduce((s,v)=>s+v.venda,0), lAcao = doMes("acao").reduce((s,v)=>s+v.lucro,0);
+  if(vAcao>=15000 && vAcao<=20000) add("atencao", "Vendas de ações perto do limite de isenção", `${brl(vAcao)} vendidos em ações neste mês. Até ${brl(20000)}, o lucro é isento; faltam ${brl(20000-vAcao)}.`, `vendas de ações do mês em ${pct(vAcao/20000,0)} do limite de isenção de IR`, {aba:"ir", rotulo:"Ver imposto"});
+  else if(vAcao>20000 && lAcao>0) add("atencao", "Vendas de ações passaram do limite de isenção", `${brl(vAcao)} vendidos neste mês: o lucro de ${brl(lAcao)} paga 15%, com DARF até o fim do mês que vem.`, "vendas de ações do mês passaram do limite de isenção, com lucro tributável", {aba:"ir", rotulo:"Ver imposto"});
+  const vCr = doMes("cripto").reduce((s,v)=>s+v.venda,0);
+  if(vCr>=25000 && vCr<=35000) add("atencao", "Vendas de cripto perto do limite de isenção", `${brl(vCr)} vendidos em cripto neste mês. Até ${brl(35000)}, o ganho é isento; faltam ${brl(35000-vCr)}.`, `vendas de cripto do mês em ${pct(vCr/35000,0)} do limite de isenção de IR`, {aba:"ir", rotulo:"Ver imposto"});
+  const apur = apurarIR(), [ya, ma] = mes.split("-").map(Number);
+  const ant = ma===1 ? `${ya-1}-12` : `${ya}-${String(ma-1).padStart(2,"0")}`;
+  const darf = apur[ant] ? apur[ant].pagar6015 + apur[ant].pagar4600 : 0;
+  if(darf>0) add("atencao", `DARF de ${brl(darf)} vence em ${dataBR(isoLocal(ultimoDiaUtil(ya, ma)))}`, `Imposto das vendas de ${mesBR(ant)}. O vencimento mostrado não considera feriados.`, "há DARF de imposto sobre vendas a pagar neste mês", {aba:"ir", rotulo:"Ver apuração"});
+  const ultMes = Object.keys(apur).sort().pop();
+  if(ultMes && (apur[ultMes].prejRV>0 || apur[ultMes].prejFII>0)) add("info", "Prejuízo para abater de lucros futuros", `${apur[ultMes].prejRV>0?brl(apur[ultMes].prejRV)+" em ações e ETFs":""}${apur[ultMes].prejRV>0&&apur[ultMes].prejFII>0?" e ":""}${apur[ultMes].prejFII>0?brl(apur[ultMes].prejFII)+" em FIIs":""}. Ele reduz o imposto de vendas com lucro mais à frente.`, "há prejuízo acumulado em renda variável para compensar no imposto");
+
+  // Desempenho contra o CDI e o Ibovespa
+  const comp = comparacao();
+  if(comp && comp.cdi && Math.abs(comp.cdi.saldo)>0){
+    const rel = (total-comp.cdi.saldo)/Math.abs(comp.cdi.saldo);
+    add(rel>=0?"positivo":"atencao", `Carteira ${rel>=0?"à frente":"atrás"} do CDI em ${pct(Math.abs(rel))}`, `Com os mesmos aportes, vendas e proventos desde ${dataBR(comp.desde)}, o CDI teria ${brl(comp.cdi.saldo)}; a carteira tem ${brl(total)}.`, `carteira ${pctSinal(rel)} em relação ao mesmo dinheiro no CDI desde ${dataBR(comp.desde)}`);
+  }
+  if(comp && comp.ibov && Math.abs(comp.ibov.saldo)>0){
+    const rel = (total-comp.ibov.saldo)/Math.abs(comp.ibov.saldo);
+    add("info", `Carteira ${rel>=0?"à frente":"atrás"} do Ibovespa em ${pct(Math.abs(rel))}${comp.ibov.aproximado?" (aproximado)":""}`, `O mesmo dinheiro no índice teria ${brl(comp.ibov.saldo)}.`, `carteira ${pctSinal(rel)} em relação ao mesmo dinheiro no Ibovespa${comp.ibov.aproximado?" (aproximado)":""}`);
+  }
+
+  // Ativos muito acima ou abaixo do preço médio
+  abertas.filter(p=>p.classe!=="rf" && p.custo>0 && p.cot!=null && p.resultado/p.custo<=-0.2).sort((a,b)=>a.resultado/a.custo-b.resultado/b.custo).slice(0,3).forEach(p=>
+    add("info", `${p.ticker} está ${pct(-p.resultado/p.custo,0)} abaixo do preço médio`, `Preço médio ${brl(p.pm)}, cotação ${brl(p.cot)}. Vale rever se o motivo da compra continua de pé.`, `${p.ticker} ${pctSinal(p.resultado/p.custo)} contra o preço médio`));
+  abertas.filter(p=>p.classe!=="rf" && p.custo>0 && p.cot!=null && p.resultado/p.custo>=0.5).sort((a,b)=>b.resultado/b.custo-a.resultado/a.custo).slice(0,3).forEach(p=>
+    add("positivo", `${p.ticker} valorizou ${pct(p.resultado/p.custo,0)}`, `Preço médio ${brl(p.pm)}, cotação ${brl(p.cot)}. Com a alta, o peso dele na carteira também cresceu: hoje ${pct(peso(p))}.`, `${p.ticker} ${pctSinal(p.resultado/p.custo)} contra o preço médio, peso de ${pct(peso(p))}`));
+
+  // Proventos: últimos 12 meses contra os 12 anteriores
+  const hoje = hojeISO(), lim1 = somarDias(hoje,-365), lim2 = somarDias(hoje,-730);
+  const p12 = S.provs.filter(p=>p.data>lim1).reduce((s,p)=>s+p.valor,0), p24 = S.provs.filter(p=>p.data>lim2 && p.data<=lim1).reduce((s,p)=>s+p.valor,0);
+  const custoRV = abertas.filter(p=>p.classe!=="rf").reduce((s,p)=>s+p.custo,0);
+  if(p12>0 && custoRV>0) add("info", `Proventos de ${pct(p12/custoRV)} sobre o custo em 12 meses`, `${brl(p12)} recebidos, ${brl(p12/12)} por mês em média.${p24>0?` Nos 12 meses anteriores foram ${brl(p24)} (${pctSinal(p12/p24-1)}).`:""}`, `proventos dos últimos 12 meses equivalem a ${pct(p12/custoRV)} do custo da renda variável${p24>0?`, ${pctSinal(p12/p24-1)} contra os 12 meses anteriores`:""}`, {aba:"proventos", rotulo:"Ver proventos"});
+
+  // Backup: cada aparelho guarda os próprios dados
+  const bk = Number(lerLS(LS_BACKUP)||0), dBk = bk ? Math.floor((Date.now()-bk)/864e5) : null;
+  if(S.txs.length && (dBk===null || dBk>30)) add("info", dBk===null ? "Nenhum backup feito neste aparelho" : `Último backup há ${dBk} dias`, "Os dados ficam só neste aparelho. Um backup recente evita perder tudo se o navegador for limpo ou o celular trocado.", null, {act:"backup", rotulo:"Fazer backup"});
+
+  const ordem = {atencao:0, positivo:1, info:2};
+  return out.sort((a,b)=>ordem[a.nivel]-ordem[b.nivel]);
+}
+
+/* Resumo com IA (opcional): Groq, com a chave gratuita da pessoa, guardada só neste navegador.
+   Vão só percentuais, códigos e as leituras acima na versão sem valores em reais. */
+const LS_GROQ = "genfin-groq-chave", LS_IA = "genfin-ia-resumo";
+let gerandoIA = false;
+function dadosParaIA(){
+  const c = calcular(), total = c.total, comp = comparacao();
+  const soma = ORDEM.reduce((s,k)=>s+(S.metas[k]||0),0);
+  const r1 = v => Math.round(v*1000)/10;   // fração -> percentual com 1 casa
+  const ganho = (c.total-c.custo)+c.realizado+c.provs;
+  return {
+    data: hojeISO(),
+    classes: ORDEM.filter(k=>c.porClasse[k]>0 || S.metas[k]>0).map(k=>({classe:CLASSES[k].nome, carteira_pct: total>0?r1(c.porClasse[k]/total):0, meta_pct: soma>0?r1((S.metas[k]||0)/soma):null})),
+    posicoes: c.lista.filter(p=>p.qtd>0).sort((a,b)=>b.valor-a.valor).slice(0,15).map(p=>({ativo:p.ticker, classe:CLASSES[p.classe].nome, peso_pct: total>0?r1(p.valor/total):0, resultado_pct: p.custo>0?r1(p.resultado/p.custo):null})),
+    resultado_sobre_aportado_pct: c.aportado>0 ? r1(ganho/c.aportado) : null,
+    contra_cdi_pct: comp && comp.cdi && comp.cdi.saldo ? r1((total-comp.cdi.saldo)/Math.abs(comp.cdi.saldo)) : null,
+    contra_ibovespa_pct: comp && comp.ibov && comp.ibov.saldo ? r1((total-comp.ibov.saldo)/Math.abs(comp.ibov.saldo)) : null,
+    desde: comp ? comp.desde : null,
+    leituras: analisar().filter(a=>a.ia).map(a=>a.ia)
+  };
+}
+const INSTRUCAO_IA = "Você ajuda uma pessoa física no Brasil a entender a própria carteira de investimentos. Responda em português do Brasil, em no máximo 6 tópicos curtos, cada um começando com \"- \". Explique o que os números mostram (concentração, distância das metas, desempenho contra o CDI e o Ibovespa, proventos, pontos de imposto de renda) e o que vale a pessoa verificar. Não recomende comprar ou vender ativos específicos, não faça previsão de preços e não invente dados que não estejam na mensagem. Os dados vêm só em percentuais, sem valores em reais.";
+async function modeloGroq(chave){
+  let r; try{ r = await fetch("https://api.groq.com/openai/v1/models", {headers:{Authorization:"Bearer "+chave}, ...comPrazo()}); }
+  catch(e){ throw erroCot("rede"); }
+  if(r.status===401) throw erroCot("chave");
+  if(!r.ok) throw erroCot("servico");
+  const ids = ((await r.json()).data||[]).map(m=>m.id);
+  // Os modelos do Groq mudam; prefere os maiores de texto e evita os de áudio, moderação e busca
+  for(const p of [/^openai\/gpt-oss-120b$/, /^llama-3\.3-70b/, /llama-4-maverick/, /^qwen/, /llama/])
+    { const m = ids.find(id=>p.test(id)); if(m) return m; }
+  return ids.find(id=>!/whisper|guard|tts|embed|playai|compound|prompt/i.test(id)) || null;
+}
+async function gerarResumoIA(){
+  if(gerandoIA) return;
+  const chave = lerLS(LS_GROQ); if(!chave){ toast("Cole a chave do Groq antes de gerar o resumo."); return; }
+  if(demo){ toast("No modo exemplo os dados são fictícios; saia do exemplo para gerar o resumo."); return; }
+  gerandoIA = true; if(abaAtual==="analises") render("analises");
+  let res;
+  try{
+    const modelo = await modeloGroq(chave);
+    if(!modelo) throw erroCot("servico");
+    let r; try{
+      r = await fetch("https://api.groq.com/openai/v1/chat/completions", {method:"POST", headers:{Authorization:"Bearer "+chave, "Content-Type":"application/json"},
+        body: JSON.stringify({model:modelo, temperature:0.3, max_tokens:900, messages:[{role:"system", content:INSTRUCAO_IA}, {role:"user", content:"Dados da carteira:\n"+JSON.stringify(dadosParaIA())}]}), ...comPrazo()});
+    }catch(e){ throw erroCot("rede"); }
+    if(r.status===401) throw erroCot("chave");
+    if(r.status===429) throw erroCot("limite");
+    if(!r.ok) throw erroCot("servico");
+    const j = await r.json(), texto = j.choices && j.choices[0] && j.choices[0].message && j.choices[0].message.content;
+    if(!texto) throw erroCot("servico");
+    res = {texto: String(texto).trim(), modelo, em: Date.now()};
+    gravarLS(LS_IA, JSON.stringify(res));
+  }catch(e){
+    toast({chave:"O Groq recusou a chave. Confira a chave e cole de novo.", limite:"O Groq atingiu o limite do plano gratuito. Tente daqui a pouco.", rede:"Não foi possível acessar o Groq. Confira a internet."}[e.tipo] || "O Groq não respondeu como esperado. Tente de novo.");
+  }finally{ gerandoIA = false; if(abaAtual==="analises") render("analises"); }
+}
+// Texto da IA: escapado e com os tópicos "- " virando lista
+function textoIA(t){
+  const linhas = String(t).replace(/\*\*/g,"").split("\n").map(l=>l.trim()).filter(Boolean);
+  let html = "", lista = false;
+  for(const l of linhas){
+    const item = /^[-•*]\s+/.test(l);
+    if(item && !lista){ html += "<ul>"; lista = true; } else if(!item && lista){ html += "</ul>"; lista = false; }
+    html += item ? `<li>${esc(l.replace(/^[-•*]\s+/,""))}</li>` : `<p>${esc(l)}</p>`;
+  }
+  return html + (lista ? "</ul>" : "");
+}
+function rAnalises(el){
+  if(!temDados(S)){ el.innerHTML = `<h2>Análises</h2><p class="sub">As leituras aparecem depois do primeiro lançamento. <button class="link" data-act="ir-aba" data-aba="lancamentos">Adicionar lançamento</button></p>`; return; }
+  const itens = analisar(), chave = lerLS(LS_GROQ);
+  let ult = null; try{ ult = JSON.parse(lerLS(LS_IA)||"null"); }catch(e){}
+  el.innerHTML = `<h2>Análises</h2>
+  <p class="sub">Leituras automáticas da carteira, feitas neste aparelho com as regras do app. Servem para chamar atenção, não são recomendação de investimento.</p>
+  <div class="leituras">${itens.length ? itens.map(i=>`<div class="leitura ${i.nivel}">
+    <span class="nivel">${NIVEIS[i.nivel]}</span><strong>${esc(i.titulo)}</strong><p>${esc(i.detalhe)}</p>
+    ${i.acao ? (i.acao.aba ? `<button class="link" data-act="ir-aba" data-aba="${i.acao.aba}">${esc(i.acao.rotulo)}</button>` : `<button class="link" data-act="${i.acao.act}">${esc(i.acao.rotulo)}</button>`) : ""}
+  </div>`).join("") : `<p class="nota">Nada chamando atenção agora.</p>`}</div>
+
+  <h3>Resumo com IA</h3>
+  <div class="card ia">
+    ${chave ? `<div class="cotbar"><button class="btn pri" data-act="gerar-ia"${gerandoIA?" disabled":""}>${gerandoIA?"Gerando resumo…":(ult?"Gerar de novo":"Gerar resumo")}</button>
+      <span class="nota">${ult ? `Gerado ${new Date(ult.em).toLocaleDateString("pt-BR")} às ${new Date(ult.em).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})}, modelo ${esc(ult.modelo)}` : "Leva alguns segundos."}</span></div>
+      ${ult ? `<div class="texto-ia">${textoIA(ult.texto)}</div><p class="nota">Texto gerado por IA a partir dos dados abaixo; pode conter erros. Confira antes de decidir qualquer coisa.</p>` : ""}`
+    : `<p class="nota" style="margin-top:0">Opcional: um texto curto escrito por IA a partir das leituras acima, pelo <a href="https://console.groq.com/keys" target="_blank" rel="noopener noreferrer">Groq</a>, que tem plano gratuito. Crie uma chave lá e cole aqui. Ela fica só neste navegador.</p>`}
+    <details class="chave"${chave?"":" open"}>
+      <summary>${chave?"Chave do Groq configurada":"Configurar a chave do Groq"}</summary>
+      <div class="linha-chave"><input id="chave-groq" type="password" autocomplete="off" spellcheck="false" placeholder="${chave?"Cole uma nova chave para trocar":"Cole a chave aqui"}" aria-label="Chave do Groq">
+        <button class="btn" data-act="salvar-groq">Salvar chave</button>${chave?`<button class="btn perigo" data-act="remover-groq" data-armar="Confirmar">Remover</button>`:""}</div>
+    </details>
+    <details class="enviado"><summary>O que vai para o Groq</summary>
+      <p class="nota">Só percentuais, códigos dos ativos e as leituras na versão sem valores em reais. Quantidades, preços e o patrimônio não saem do aparelho.</p>
+      <pre>${esc(JSON.stringify(dadosParaIA(), null, 1))}</pre>
+    </details>
+  </div>`;
 }
 
 /* ---------- Ativos e cotações ---------- */
@@ -1322,7 +1517,7 @@ document.addEventListener("click", e=>{
   else if(a==="del-prov"){ if(demo){ toast("No modo exemplo nada é alterado."); return; } delProv(b.dataset.id); }
   else if(a==="backup"){ $("#backup-texto").classList.add("oculto"); $("#backup-msg").textContent=""; $("#dlg-backup").showModal(); }
   else if(a==="fechar-backup") $("#dlg-backup").close();
-  else if(a==="exportar-json") baixar("carteira-backup-"+hojeISO()+".json", JSON.stringify(demo?realGuardado:S,null,1));
+  else if(a==="exportar-json"){ gravarLS(LS_BACKUP, String(Date.now())); baixar("carteira-backup-"+hojeISO()+".json", JSON.stringify(demo?realGuardado:S,null,1)); }
   else if(a==="exportar-csv") baixar("lancamentos-"+hojeISO()+".csv", csvLanc());
   else if(a==="atualizar-cot") atualizarCotacoes();
   else if(a==="salvar-chave"){
@@ -1331,6 +1526,13 @@ document.addEventListener("click", e=>{
     gravarLS(LS_CHAVE, v); toast("Chave salva. Buscando cotações…"); atualizarCotacoes();
   }
   else if(a==="remover-chave"){ gravarLS(LS_CHAVE, ""); render("ativos"); toast("Chave removida"); }
+  else if(a==="gerar-ia") gerarResumoIA();
+  else if(a==="salvar-groq"){
+    const v = $("#chave-groq").value.trim();
+    if(!v){ toast("Cole a chave antes de salvar."); return; }
+    gravarLS(LS_GROQ, v); render("analises"); toast("Chave do Groq salva");
+  }
+  else if(a==="remover-groq"){ gravarLS(LS_GROQ, ""); render("analises"); toast("Chave do Groq removida"); }
   else if(a==="apagar-tudo"){ if(demo) sairDemo(); S=vazio(); salvar(...TODOS_DOCS); renderTudo(); b.classList.remove("armado"); b.textContent="Apagar todos os dados"; $("#backup-msg").textContent="Todos os dados foram apagados."; }
 });
 document.addEventListener("change", e=>{
@@ -1340,6 +1542,7 @@ document.addEventListener("change", e=>{
 document.addEventListener("keydown", e=>{
   if(e.key==="Enter" && e.target.matches("input.cot")) e.target.blur();
   if(e.key==="Enter" && e.target.id==="chave-brapi") $('[data-act="salvar-chave"]').click();
+  if(e.key==="Enter" && e.target.id==="chave-groq") $('[data-act="salvar-groq"]').click();
 });
 window.addEventListener("hashchange", ()=>{ const h=location.hash.slice(1); if(ABAS.includes(h)) irPara(h); });
 
