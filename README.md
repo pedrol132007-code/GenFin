@@ -1,6 +1,11 @@
 <div align="center">
 
-# GenFin
+<h1>
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/logo/genfin-escuro.svg">
+    <img src="docs/logo/genfin.svg" alt="GenFin" width="340">
+  </picture>
+</h1>
 
 **Sua carteira de investimentos num arquivo só.**
 Preço médio, alocação, proventos, rebalanceamento e imposto de renda para quem investe na bolsa brasileira.
@@ -127,8 +132,11 @@ Operações comuns de pessoa física, sem day trade:
 ├── tests/
 │   └── carteira.test.js   # testes da lógica, com um DOM falso
 ├── scripts/
-│   └── capturas.sh        # gera as imagens de docs/img
-└── docs/img/              # capturas usadas neste README
+│   ├── capturas.sh        # gera as imagens de docs/img
+│   └── logo.js            # gera os SVGs de docs/logo
+└── docs/
+    ├── img/               # capturas usadas neste README
+    └── logo/              # logo, ícone e prévia social
 ```
 
 Os testes rodam no Node 18 ou mais recente, sem instalar nada:
@@ -144,6 +152,28 @@ Para regenerar as capturas depois de mudar a interface (precisa do Chrome ou do 
 ```bash
 npm run capturas
 ```
+
+Para regenerar o logo, o ícone e o favicon embutido no app (baixa a fonte do Google Fonts na primeira vez):
+
+```bash
+npm install
+npm run logo
+```
+
+## Identidade visual
+
+<img src="docs/logo/icone.svg" alt="Ícone do GenFin" width="72" align="right">
+
+O logo é o nome pintado pela **faixa de alocação**, a barra que abre o resumo do app. As cinco cores são as das classes (ações, ETFs, FIIs, renda fixa e cripto), e entre elas fica a mesma fresta fina da barra. No app, o logo usa as variáveis de cor do tema e troca sozinho no modo escuro. O ícone usa a mesma faixa, com o G vazado por cima.
+
+| Arquivo | Uso |
+|---|---|
+| [`docs/logo/genfin.svg`](docs/logo/genfin.svg) | Logo para fundo claro |
+| [`docs/logo/genfin-escuro.svg`](docs/logo/genfin-escuro.svg) | Logo para fundo escuro |
+| [`docs/logo/icone.svg`](docs/logo/icone.svg) | Ícone e favicon |
+| [`docs/logo/social.png`](docs/logo/social.png) | Prévia de link (1280×640) |
+
+Fonte: [Bricolage Grotesque](https://fonts.google.com/specimen/Bricolage+Grotesque) 800, convertida em contornos por [`scripts/logo.js`](scripts/logo.js).
 
 ## Próximos passos
 

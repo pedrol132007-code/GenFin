@@ -52,3 +52,22 @@ LISTA
 preparar celular-app resumo light
 printf '<!doctype html><body style="margin:0;background:#EEF2EF"><iframe src="celular-app.html" style="border:0;width:390px;height:844px;display:block"></iframe></body>' > "$TMP/celular.html"
 capturar celular 390 844 "$TMP/celular.html"
+
+# Prévia social do repositório (1280x640), com o logo e a frase do README
+cat > "$TMP/social.html" <<HTML
+<!doctype html><meta charset="utf-8">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..700&display=swap" rel="stylesheet">
+<style>
+html,body{margin:0;width:1280px;height:640px;background:#EEF2EF;overflow:hidden}
+body{display:flex;flex-direction:column;justify-content:center;padding:0 120px;box-sizing:border-box;font-family:"Bricolage Grotesque",sans-serif;color:#16232B}
+img{width:720px;display:block;margin-left:-6px}
+p{font-size:38px;line-height:1.25;letter-spacing:-.015em;margin:44px 0 0;max-width:24ch;font-weight:500}
+span{display:block;color:#5A6970;font-size:24px;font-weight:400;margin-top:18px;letter-spacing:0}
+</style>
+<img src="file:///$(caminho "$RAIZ/docs/logo/genfin.svg")">
+<p>Sua carteira de investimentos num arquivo só.<span>Preço médio, alocação, proventos, rebalanceamento e imposto de renda.</span></p>
+HTML
+"$NAVEGADOR" --headless=new --disable-gpu --hide-scrollbars --force-device-scale-factor=1 \
+  --virtual-time-budget=4000 --window-size=1280,640 --user-data-dir="$TMP/perfil" \
+  --screenshot="$(caminho "$RAIZ/docs/logo/social.png")" "file:///$(caminho "$TMP/social.html")" 2>/dev/null
+echo "  ../logo/social.png"
