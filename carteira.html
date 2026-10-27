@@ -121,6 +121,11 @@ details.chave summary{cursor:pointer;color:var(--focus);width:max-content;max-wi
 .linha-chave{display:flex;gap:8px;flex-wrap:wrap}
 .linha-chave input{flex:1 1 220px;min-width:0;border:1px solid var(--line);border-radius:8px;padding:8px 10px;background:var(--bg);color:var(--ink)}
 .altura{max-height:460px;overflow:auto}
+tr.sel{background:var(--soft)}
+.acoes-linha{display:inline-flex;gap:6px}
+form.card.editando{border-color:var(--focus);box-shadow:0 0 0 1px var(--focus)}
+.editando-rot{margin:0 0 12px;font-size:.92rem}
+label select:disabled,label input:disabled{opacity:.6;cursor:not-allowed}
 
 /* Formulários */
 form .campos{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px}
@@ -475,6 +480,7 @@ function corDe(c){ return CLASSES[c].cor; }
 
 function irPara(aba){
   if(!ABAS.includes(aba)) aba="resumo";
+  if(aba!=="lancamentos") editando = null;   // sair da aba descarta a edição em andamento
   abaAtual = aba;
   document.querySelectorAll("#abas button").forEach(b=>b.setAttribute("aria-selected", b.dataset.aba===aba ? "true":"false"));
   ABAS.forEach(a=>{ $("#v-"+a).hidden = a!==aba; });
@@ -721,9 +727,12 @@ function salvarCotacao(inp){
 function rLancamentos(el){
   const lista = ordenarTxs(S.txs).reverse();
   const opts = ORDEM.map(k=>`<option value="${k}">${CLASSES[k].nome}</option>`).join("");
+  const ed = editando && S.txs.find(x=>x.id===editando);
+  if(!ed) editando = null;
   el.innerHTML = `<h2>Lançamentos</h2>
   <p class="sub">Registre cada compra e venda, incluindo as taxas da nota de corretagem. O preço médio e o imposto saem daqui.</p>
-  <form id="f-tx" class="card" novalidate>
+  <form id="f-tx" class="card${ed?" editando":""}" novalidate>
+    ${ed?`<p class="editando-rot">Editando ${ed.classe==="rf"?(ed.tipo==="compra"?"a aplicação":"o resgate"):(ed.tipo==="compra"?"a compra":"a venda")} de <strong>${esc(ed.ticker)}</strong> de ${dataBR(ed.data)}${ed.classe==="rf"?". Na renda fixa, dá para mudar a data e o valor.":""}</p>`:""}
     <div class="campos">
       <label>Classe<select name="classe">${opts}</select></label>
       <label>Operação<select name="tipo"><option value="compra">Compra</option><option value="venda">Venda</option></select></label>
@@ -734,7 +743,8 @@ function rLancamentos(el){
       <label data-so="rv">Taxas (R$)<input name="taxas" inputmode="decimal" placeholder="0,00"></label>
       <label data-so="rf" class="oculto"><span data-rot="valor">Valor aplicado (R$)</span><input name="valor" inputmode="decimal" placeholder="5.000,00"></label>
     </div>
-    <div class="rodape"><button class="btn pri" type="submit">Adicionar lançamento</button><span id="tx-msg" aria-live="polite"></span></div>
+    <div class="rodape">${ed?`<button class="btn pri" type="submit">Salvar alterações</button><button class="btn" type="button" data-act="cancelar-edicao">Cancelar</button>`
+      :`<button class="btn pri" type="submit">Adicionar lançamento</button>`}<span id="tx-msg" aria-live="polite"></span></div>
   </form>
   <h3>Histórico <span class="mini" style="display:inline">${lista.length} ${lista.length===1?"lançamento":"lançamentos"}</span></h3>
   ${(()=>{ const p=vendaSemSaldo(S.txs); return p?`<p class="erro">Atenção: ${esc(descreverVenda(p.tx))} passa do saldo que havia na data. Os cálculos e o imposto desse ativo ficam errados até você corrigir os lançamentos.</p>`:""; })()}
@@ -743,9 +753,9 @@ function rLancamentos(el){
     <tbody>${lista.map(t=>{
       const rf=t.classe==="rf"; const tot = rf?t.valor:t.qtd*t.preco+(t.tipo==="compra"?1:-1)*(t.taxas||0);
       const op = rf ? (t.tipo==="compra"?"Aplicação":"Resgate") : (t.tipo==="compra"?"Compra":"Venda");
-      return `<tr><td>${dataBR(t.data)}</td><td class="esq"><i class="pinta" style="background:${corDe(t.classe)};margin-right:8px"></i><span class="tk">${esc(t.ticker)}</span></td><td class="esq">${op}</td>
+      return `<tr${t.id===editando?' class="sel"':""}><td>${dataBR(t.data)}</td><td class="esq"><i class="pinta" style="background:${corDe(t.classe)};margin-right:8px"></i><span class="tk">${esc(t.ticker)}</span></td><td class="esq">${op}</td>
       <td>${rf?"—":qtdFmt(t.qtd)}</td><td>${rf?"—":brl(t.preco)}</td><td>${rf?"—":brl(t.taxas||0)}</td><td>${brl(tot)}</td>
-      <td><button class="btn peq perigo" data-act="del-tx" data-id="${esc(t.id)}" data-armar="Confirmar">Excluir</button></td></tr>`;}).join("")}</tbody></table></div>`
+      <td><span class="acoes-linha"><button class="btn peq" data-act="edit-tx" data-id="${esc(t.id)}">Editar</button><button class="btn peq perigo" data-act="del-tx" data-id="${esc(t.id)}" data-armar="Confirmar">Excluir</button></span></td></tr>`;}).join("")}</tbody></table></div>`
   :`<p class="nota">Nada registrado ainda.</p>`}`;
   const f = $("#f-tx", el);
   const ajustar = ()=>{
@@ -759,23 +769,53 @@ function rLancamentos(el){
   };
   f.elements.namedItem("classe").addEventListener("change",ajustar); f.elements.namedItem("tipo").addEventListener("change",ajustar);
   f.elements.namedItem("ticker").addEventListener("change",()=>{ const t=f.elements.namedItem("ticker").value.trim(); const a=S.ativos[t]||S.ativos[t.toUpperCase()]; if(a){ f.elements.namedItem("classe").value=a.classe; ajustar(); } });
-  f.addEventListener("submit", e=>{ e.preventDefault(); addTx(f); });
+  f.addEventListener("submit", e=>{ e.preventDefault(); if(editando) salvarEdicao(f); else addTx(f); });
+  if(ed){
+    const preencher = (n,v) => { f.elements.namedItem(n).value = v; };
+    preencher("classe", ed.classe); preencher("tipo", ed.tipo); preencher("data", ed.data); preencher("ticker", ed.ticker);
+    if(ed.classe==="rf") preencher("valor", numInput(ed.valor));
+    else { preencher("qtd", numInput(ed.qtd)); preencher("preco", numInput(ed.preco)); preencher("taxas", numInput(ed.taxas||0)); }
+    // Renda fixa só muda data e valor; nos outros tipos, não dá para virar renda fixa
+    if(ed.classe==="rf") ["classe","tipo","ticker"].forEach(n=>{ f.elements.namedItem(n).disabled = true; });
+    else f.elements.namedItem("classe").querySelector('option[value="rf"]').disabled = true;
+  }
   ajustar();
+}
+// Lê e valida o formulário de lançamento. Devolve os campos ou null, com o erro já escrito em msg.
+// idIgnorar: na edição, o próprio lançamento não conta como conflito de classe.
+function lerFormTx(f, msg, idIgnorar){
+  const campo = n => f.elements.namedItem(n).value;
+  const classe=campo("classe"), tipo=campo("tipo"), data=campo("data"), ticker=normTicker(campo("ticker"), classe);
+  if(!data){ msg.textContent="Informe a data."; return null; }
+  if(!ticker){ msg.textContent = classe==="rf"?"Informe o nome do título.":"Informe o código do ativo."; return null; }
+  const outro = S.txs.find(x=>x.id!==idIgnorar && x.ticker===ticker);
+  const classeAtual = outro ? outro.classe : (!idIgnorar && S.ativos[ticker] ? S.ativos[ticker].classe : null);
+  if(classeAtual && classeAtual!==classe){ msg.textContent=`${ticker} já está cadastrado como ${CLASSES[classeAtual].nome}.`; return null; }
+  const d = {data, tipo, classe, ticker};
+  if(classe==="rf"){
+    const valor = parseNum(campo("valor"));
+    if(!(valor>0)){ msg.textContent="Informe um valor maior que zero."; return null; }
+    d.valor = valor;
+  } else {
+    const qtd=parseNum(campo("qtd")), preco=parseNum(campo("preco")), taxas=campo("taxas").trim()?parseNum(campo("taxas")):0;
+    if(!(qtd>0)){ msg.textContent="Informe uma quantidade maior que zero."; return null; }
+    if(!(preco>0)){ msg.textContent="Informe o preço por unidade."; return null; }
+    if(!(taxas>=0)){ msg.textContent="Taxas inválidas."; return null; }
+    if(classe!=="cripto" && !Number.isInteger(qtd)){ msg.textContent="Para ações, ETFs e FIIs a quantidade é um número inteiro."; return null; }
+    Object.assign(d, {qtd, preco, taxas});
+  }
+  return d;
 }
 function addTx(f){
   const msg = $("#tx-msg"); msg.className="erro";
   if(demo){ msg.textContent="No modo exemplo nada é salvo. Saia do exemplo para registrar seus dados."; return; }
-  const classe=f.elements.namedItem("classe").value, tipo=f.elements.namedItem("tipo").value, data=f.elements.namedItem("data").value, ticker=normTicker(f.elements.namedItem("ticker").value, classe);
-  if(!data){ msg.textContent="Informe a data."; return; }
-  if(!ticker){ msg.textContent = classe==="rf"?"Informe o nome do título.":"Informe o código do ativo."; return; }
-  if(S.ativos[ticker] && S.ativos[ticker].classe!==classe){ msg.textContent=`${ticker} já está cadastrado como ${CLASSES[S.ativos[ticker].classe].nome}.`; return; }
+  const d = lerFormTx(f, msg); if(!d) return;
+  const {classe, tipo, data, ticker} = d;
   const c = calcular(); const pos = c.lista.find(p=>p.ticker===ticker);
-  const tx = {id:uid(), criado:Date.now(), data, tipo, classe, ticker};
+  const tx = Object.assign({id:uid(), criado:Date.now()}, d);
   let novoPreco; // na renda fixa, o valor atual do título muda junto com a aplicação ou o resgate
   if(classe==="rf"){
-    const valor = parseNum(f.elements.namedItem("valor").value);
-    if(!(valor>0)){ msg.textContent="Informe um valor maior que zero."; return; }
-    tx.valor = valor;
+    const valor = d.valor;
     if(tipo==="venda"){
       if(!pos || pos.qtd<=0){ msg.textContent="Não há saldo aplicado nesse título."; return; }
       const atual = pos.valor;
@@ -786,13 +826,6 @@ function addTx(f){
       const pr = S.precos[ticker];
       if(pr) novoPreco = {v:pr.v+valor, em:pr.em};
     }
-  } else {
-    const qtd=parseNum(f.elements.namedItem("qtd").value), preco=parseNum(f.elements.namedItem("preco").value), taxas=f.elements.namedItem("taxas").value.trim()?parseNum(f.elements.namedItem("taxas").value):0;
-    if(!(qtd>0)){ msg.textContent="Informe uma quantidade maior que zero."; return; }
-    if(!(preco>0)){ msg.textContent="Informe o preço por unidade."; return; }
-    if(!(taxas>=0)){ msg.textContent="Taxas inválidas."; return; }
-    if(classe!=="cripto" && !Number.isInteger(qtd)){ msg.textContent="Para ações, ETFs e FIIs a quantidade é um número inteiro."; return; }
-    Object.assign(tx,{qtd,preco,taxas});
   }
   if(tipo==="venda"){
     const prob = vendaSemSaldo([...S.txs, tx]);
@@ -814,12 +847,59 @@ function addTx(f){
   const nf = $("#f-tx"); nf.elements.namedItem("classe").value=keep.classe; nf.elements.namedItem("tipo").value=keep.tipo; nf.elements.namedItem("data").value=keep.data; nf.elements.namedItem("classe").dispatchEvent(new Event("change"));
   const m=$("#tx-msg"); m.className="ok"; m.textContent=`Lançamento de ${ticker} adicionado.`;
 }
+/* Edição: o lançamento mantém id e ordem de criação; a validação de saldo é a mesma do lançamento novo */
+let editando = null;
+function editarTx(id){
+  if(!S.txs.some(x=>x.id===id)) return;
+  editando = id; render("lancamentos");
+  const f = $("#f-tx"); if(f.scrollIntoView) f.scrollIntoView({block:"start"});
+  f.elements.namedItem("data").focus();
+}
+function cancelarEdicao(){ editando = null; render("lancamentos"); }
+function salvarEdicao(f){
+  const msg = $("#tx-msg"); msg.className="erro";
+  if(demo){ msg.textContent="No modo exemplo nada é alterado."; return; }
+  const velho = S.txs.find(x=>x.id===editando);
+  if(!velho){ editando = null; render("lancamentos"); return; }
+  const rf = velho.classe==="rf";
+  if(rf !== (f.elements.namedItem("classe").value==="rf")){ msg.textContent="Para trocar entre renda fixa e os outros tipos, exclua o lançamento e lance de novo."; return; }
+  const d = lerFormTx(f, msg, velho.id); if(!d) return;
+  if(rf && (d.tipo!==velho.tipo || d.ticker!==velho.ticker)){ msg.textContent="Na renda fixa dá para mudar a data e o valor. Para trocar a operação ou o título, exclua e lance de novo."; return; }
+  const novo = Object.assign({id:velho.id, criado:velho.criado}, d);
+  // Renda fixa: o resgate baixa a mesma proporção, escalada pelo novo valor; o valor atual do título muda pela diferença
+  let ajuste = 0;
+  if(rf){
+    if(d.tipo==="venda") novo.frac = Math.min(1, (velho.frac||1) * d.valor / velho.valor);
+    ajuste = (d.tipo==="compra" ? 1 : -1) * (d.valor - velho.valor);
+  }
+  const lista = S.txs.map(x=>x.id===velho.id ? novo : x);
+  const prob = vendaSemSaldo(lista);
+  if(prob && !vendaSemSaldo(S.txs)){
+    msg.textContent = prob.tx!==novo ? `Com essa alteração, ${descreverVenda(prob.tx)} ficaria sem saldo. Confira a quantidade ou a data.`
+      : rf ? `Não havia saldo aplicado em ${d.ticker} nessa data. Confira a data.`
+      : `Você tinha ${qtdFmt(prob.tinha)} de ${d.ticker} nessa data. Confira a quantidade ou a data.`;
+    return;
+  }
+  const docs = ["lancamentos","carteira","historico"];
+  if(ajuste && S.precos[d.ticker]){ const v = S.precos[d.ticker].v + ajuste; if(v>0.01) S.precos[d.ticker].v = v; else delete S.precos[d.ticker]; }
+  // Código corrigido: se o antigo não tem mais lançamentos, a cotação e os proventos passam para o novo
+  if(velho.ticker!==d.ticker && !lista.some(x=>x.ticker===velho.ticker)){
+    if(S.precos[velho.ticker] && !S.precos[d.ticker]) S.precos[d.ticker] = S.precos[velho.ticker];
+    delete S.precos[velho.ticker]; delete S.ativos[velho.ticker];
+    if(S.provs.some(p=>p.ticker===velho.ticker)){ S.provs.forEach(p=>{ if(p.ticker===velho.ticker) p.ticker = d.ticker; }); docs.push("proventos"); }
+  }
+  S.ativos[d.ticker] = {classe:d.classe};
+  S.txs = lista; editando = null;
+  registrarHist(); salvar(...docs); atualizarDatalist();
+  render("lancamentos");
+  const m = $("#tx-msg"); m.className="ok"; m.textContent=`Lançamento de ${d.ticker} atualizado.`;
+}
 function delTx(id){
   const t = S.txs.find(x=>x.id===id); if(!t) return;
   const resto = S.txs.filter(x=>x.id!==id);
   const prob = vendaSemSaldo(resto);
   if(prob && !vendaSemSaldo(S.txs)){ toast(`Não dá para excluir: ${descreverVenda(prob.tx)} ficaria sem saldo. Exclua a venda antes.`); return; }
-  S.txs = resto;
+  S.txs = resto; if(editando===id) editando = null;
   if(!S.txs.some(x=>x.ticker===t.ticker)){ delete S.ativos[t.ticker]; delete S.precos[t.ticker]; }
   registrarHist(); salvar("lancamentos","carteira","historico"); atualizarDatalist();
   render("lancamentos"); toast("Lançamento excluído");
@@ -1102,6 +1182,8 @@ document.addEventListener("click", e=>{
   else if(a==="entrar-demo") entrarDemo();
   else if(a==="sair-demo") sairDemo();
   else if(a==="del-tx"){ if(demo){ toast("No modo exemplo nada é alterado."); return; } delTx(b.dataset.id); }
+  else if(a==="edit-tx"){ if(demo){ toast("No modo exemplo nada é alterado."); return; } editarTx(b.dataset.id); }
+  else if(a==="cancelar-edicao") cancelarEdicao();
   else if(a==="del-prov"){ if(demo){ toast("No modo exemplo nada é alterado."); return; } delProv(b.dataset.id); }
   else if(a==="backup"){ $("#backup-texto").classList.add("oculto"); $("#backup-msg").textContent=""; $("#dlg-backup").showModal(); }
   else if(a==="fechar-backup") $("#dlg-backup").close();

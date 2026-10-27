@@ -165,6 +165,59 @@ __baixados = []; await baixar("x.json", "{}");
 ok(__baixados.length===0 && $("#backup-area").value==="{}", "no claude.ai sem serviço de downloads, mostra a caixa de texto");
 delete window.claude; URL.createObjectURL = criarURL;
 
+// 10. edição de lançamentos
+S = vazio(); S.atualizado = 1; editando = null;
+add({classe:"acao",tipo:"compra",data:"2025-01-10",ticker:"PETR4",qtd:"100",preco:"30"});
+add({classe:"acao",tipo:"venda",data:"2025-03-01",ticker:"PETR4",qtd:"80",preco:"35"});
+const compraP = S.txs[0], vendaP = S.txs[1];
+const editar = (tx, v) => { editarTx(tx.id); salvarEdicao(form(Object.assign({classe:tx.classe, tipo:tx.tipo, data:tx.data, ticker:tx.ticker, qtd:String(tx.qtd||""), preco:String(tx.preco||""), taxas:"", valor:String(tx.valor||"")}, v))); };
+
+editar(compraP, {qtd:"50"});
+ok(S.txs[0].qtd===100 && /Com essa alteração, a venda de PETR4 em 01\\/03\\/2025 ficaria sem saldo/.test(msg()), "não deixa a compra ficar menor que a venda posterior: "+msg());
+ok(editando===compraP.id, "edição recusada continua aberta");
+editar(compraP, {qtd:"120", preco:"31"});
+const c1 = S.txs.find(t=>t.id===compraP.id);
+ok(c1.qtd===120 && c1.preco===31 && c1.criado===compraP.criado && S.txs.length===2 && editando===null, "salva a alteração mantendo id e ordem de criação");
+ok(Math.abs(calcular().lista.find(p=>p.ticker==="PETR4").pm-31)<1e-9 && /atualizado/.test(msg()), "preço médio recalculado depois da edição");
+editar(vendaP, {qtd:"130"});
+ok(S.txs.find(t=>t.id===vendaP.id).qtd===80 && /Você tinha 120 de PETR4/.test(msg()), "venda editada não passa do saldo: "+msg());
+editar(vendaP, {data:"2025-01-05"});
+ok(S.txs.find(t=>t.id===vendaP.id).data==="2025-03-01" && /Você tinha 0 de PETR4/.test(msg()), "venda não pode ir para antes da compra");
+
+// código corrigido leva cotação e proventos junto
+add({classe:"acao",tipo:"compra",data:"2025-02-01",ticker:"ITSA3",qtd:"10",preco:"9"});
+const itsa = S.txs.find(t=>t.ticker==="ITSA3");
+S.precos.ITSA3 = {v:10, em:"2025-02-02"}; S.provs.push({id:"pv",data:"2025-02-20",ticker:"ITSA3",tipo:"dividendo",valor:5});
+editar(itsa, {ticker:"itsa4"});
+ok(S.txs.find(t=>t.id===itsa.id).ticker==="ITSA4" && S.precos.ITSA4.v===10 && !S.precos.ITSA3 && S.provs[0].ticker==="ITSA4" && !S.ativos.ITSA3 && S.ativos.ITSA4, "corrigir o código move cotação e proventos");
+editar(S.txs.find(t=>t.id===itsa.id), {classe:"fii", ticker:"PETR4"});
+ok(S.txs.find(t=>t.id===itsa.id).ticker==="ITSA4" && /PETR4 já está cadastrado como Ações/.test(msg()), "não mistura classes no mesmo código: "+msg());
+editar(compraP, {classe:"etf"});
+ok(/PETR4 já está cadastrado como Ações/.test(msg()), "não troca a classe se outros lançamentos do código são de outra");
+
+// renda fixa: data e valor; o valor atual do título acompanha a diferença
+add({classe:"rf",tipo:"compra",data:"2025-01-02",ticker:"CDB Z",valor:"1000"});
+const apl = S.txs.find(t=>t.ticker==="CDB Z"); S.precos["CDB Z"] = {v:1100, em:"2025-06-01"};
+add({classe:"rf",tipo:"venda",data:"2025-07-01",ticker:"CDB Z",valor:"550"});
+const resg = S.txs.find(t=>t.ticker==="CDB Z" && t.tipo==="venda");
+ok(Math.abs(resg.frac-0.5)<1e-9 && Math.abs(S.precos["CDB Z"].v-550)<0.01, "resgate de metade do título");
+editar(apl, {valor:"1500"});
+ok(S.txs.find(t=>t.id===apl.id).valor===1500 && Math.abs(S.precos["CDB Z"].v-1050)<0.01, "aplicação maior soma a diferença ao valor atual");
+editar(resg, {valor:"275"});
+const r2 = S.txs.find(t=>t.id===resg.id);
+ok(Math.abs(r2.frac-0.25)<1e-9 && Math.abs(S.precos["CDB Z"].v-1325)<0.01, "resgate menor baixa proporção menor e devolve a diferença ao título");
+editar(resg, {tipo:"compra"});
+ok(S.txs.find(t=>t.id===resg.id).tipo==="venda" && /Na renda fixa dá para mudar a data e o valor/.test(msg()), "renda fixa não troca a operação");
+editar(apl, {classe:"acao", qtd:"1", preco:"1"});
+ok(/Para trocar entre renda fixa/.test(msg()), "não converte renda fixa em outro tipo");
+
+// estado da edição
+editarTx(compraP.id); irPara("resumo"); ok(editando===null, "sair da aba descarta a edição");
+editarTx(vendaP.id); delTx(vendaP.id); ok(editando===null && !S.txs.some(t=>t.id===vendaP.id), "excluir o lançamento em edição encerra a edição");
+entrarDemo(); editando = S.txs[0].id; const antesDemo = JSON.stringify(S.txs);
+salvarEdicao(form({classe:"acao",tipo:"compra",data:"2020-01-01",ticker:"AAAA3",qtd:"1",preco:"1",taxas:"",valor:""}));
+ok(JSON.stringify(S.txs)===antesDemo && /modo exemplo/.test(msg()), "modo exemplo não edita"); sairDemo(); editando = null;
+
 console.log(falhas? falhas+" falha(s)" : "todos passaram");
 return falhas;
 `;

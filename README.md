@@ -46,7 +46,7 @@ Preço médio, alocação, proventos, rebalanceamento e imposto de renda para qu
 |---|---|
 | 📊 **Resumo** | Patrimônio, valorização em aberto, lucro realizado, proventos e resultado sobre o total aportado. Alocação atual comparada com a meta e gráfico de evolução. |
 | 💹 **Ativos e cotações** | Posição por classe com quantidade, preço médio, valor de mercado, resultado e peso na carteira. Cotações automáticas de ações, ETFs, FIIs e cripto; renda fixa e correções, à mão. |
-| 🧾 **Lançamentos** | Compras e vendas com taxas da nota de corretagem. Aplicações e resgates de renda fixa. Impede vendas maiores que o saldo, inclusive em datas retroativas. |
+| 🧾 **Lançamentos** | Compras e vendas com taxas da nota de corretagem. Aplicações e resgates de renda fixa. Editar e excluir, sempre impedindo vendas maiores que o saldo, inclusive em datas retroativas. |
 | 💰 **Proventos** | Dividendos, JCP e rendimentos de FIIs, com gráfico dos últimos 12 meses e rendimento sobre o custo por ativo. |
 | ⚖️ **Rebalancear** | Metas por classe e sugestão de como dividir um novo aporte para se aproximar delas, só com compras. |
 | 🦁 **Imposto de renda** | Apuração mensal com isenções, compensação de prejuízo e DARF; bens e direitos em 31/12; proventos do ano separados por tipo. |
@@ -159,7 +159,7 @@ Os testes rodam no Node 18 ou mais recente, sem instalar nada:
 npm test
 ```
 
-Eles cobrem a validação de saldo (vendas e resgates retroativos, exclusão de compras), a sincronização entre o navegador e a conta, o aviso de dividendos acima de R$ 50 mil e as cotações automáticas, com as APIs simuladas (chave recusada, ativo inexistente, falta de rede e modo exemplo).
+Eles cobrem a validação de saldo (vendas e resgates retroativos, exclusão de compras), a sincronização entre o navegador e a conta, o aviso de dividendos acima de R$ 50 mil e as cotações automáticas, com as APIs simuladas (chave recusada, ativo inexistente, falta de rede e modo exemplo), a edição de lançamentos e o download do backup.
 
 Para regenerar as capturas depois de mudar a interface (precisa do Chrome ou do Edge instalado):
 
@@ -192,7 +192,7 @@ Fonte: [Bricolage Grotesque](https://fonts.google.com/specimen/Bricolage+Grotesq
 ## Próximos passos
 
 - [x] Cotações automáticas (brapi.dev para a B3, Mercado Bitcoin para cripto), mantendo a digitação manual
-- [ ] Editar lançamentos, não só excluir
+- [x] Editar lançamentos, não só excluir
 - [x] Download real do backup fora do claude.ai
 - [ ] Publicar no GitHub Pages
 
