@@ -45,7 +45,7 @@ Preço médio, alocação, proventos, rebalanceamento e imposto de renda para qu
 | | |
 |---|---|
 | 📊 **Resumo** | Patrimônio, valorização em aberto, lucro realizado, proventos e resultado sobre o total aportado. Alocação atual comparada com a meta e gráfico de evolução. |
-| 💹 **Ativos e cotações** | Posição por classe com quantidade, preço médio, valor de mercado, resultado e peso na carteira. Você informa a cotação; sem ela, o ativo entra pelo preço médio. |
+| 💹 **Ativos e cotações** | Posição por classe com quantidade, preço médio, valor de mercado, resultado e peso na carteira. Cotações automáticas de ações, ETFs, FIIs e cripto; renda fixa e correções, à mão. |
 | 🧾 **Lançamentos** | Compras e vendas com taxas da nota de corretagem. Aplicações e resgates de renda fixa. Impede vendas maiores que o saldo, inclusive em datas retroativas. |
 | 💰 **Proventos** | Dividendos, JCP e rendimentos de FIIs, com gráfico dos últimos 12 meses e rendimento sobre o custo por ativo. |
 | ⚖️ **Rebalancear** | Metas por classe e sugestão de como dividir um novo aporte para se aproximar delas, só com compras. |
@@ -78,7 +78,20 @@ Não há instalação nem build. O app inteiro é o [`carteira.html`](carteira.h
 
 1. Abra o `carteira.html` no navegador.
 2. Clique em **Ver com dados de exemplo** para conhecer as telas sem registrar nada, ou em **Adicionar lançamento** para começar a sua carteira.
-3. Atualize as cotações na aba **Ativos e cotações** sempre que quiser ver a carteira a preço de mercado.
+3. Para cotações automáticas de ações, ETFs e FIIs, crie uma chave gratuita na [brapi.dev](https://brapi.dev) e cole na aba **Ativos e cotações**. Cripto funciona sem chave.
+
+### Cotações automáticas
+
+| Classe | Fonte | Chave | Atualização |
+|---|---|---|---|
+| Ações, ETFs e FIIs | [brapi.dev](https://brapi.dev) | Gratuita, 15 mil consultas por mês | Dados a cada 30 minutos |
+| Cripto | [Mercado Bitcoin](https://www.mercadobitcoin.com.br) | Não precisa | Último negócio em reais |
+| Renda fixa | Você digita o valor atual do título | — | — |
+
+- O app busca sozinho ao abrir, no máximo a cada 30 minutos, e há um botão **Atualizar cotações**.
+- No plano gratuito, a brapi responde um ativo por consulta; o app faz quatro de cada vez.
+- Ações fracionárias (como `ITSA4F`) usam a cotação do lote (`ITSA4`).
+- O que não for encontrado continua com a última cotação, ou pelo preço médio, e aparece na mensagem da busca.
 
 O app também roda como **Artifact no claude.ai**. Lá ele usa o login e o banco de dados da conta para guardar os dados e sincronizar entre aparelhos.
 
@@ -92,7 +105,8 @@ flowchart LR
     S --> B[Backup<br>.json / .csv]
 ```
 
-- **Sempre no navegador**, na chave `carteira-v1` do `localStorage`. Fora do claude.ai, os dados não saem do seu computador.
+- **Sempre no navegador**, na chave `carteira-v1` do `localStorage`. Fora do claude.ai, a carteira não sai do seu computador. Para as cotações, só os **códigos** dos ativos (como `PETR4` ou `BTC`) vão para a brapi e o Mercado Bitcoin; quantidades e valores nunca são enviados.
+- **A chave da brapi** fica só no navegador, separada da carteira. Ela não entra no backup nem vai para a conta.
 - **No claude.ai**, também na conta do usuário, em quatro documentos (`carteira`, `lancamentos`, `proventos` e `historico`). Cada salvamento leva data e hora. Ao abrir, o lado mais recente vence, para não perder alterações feitas sem conexão.
 - **Backup:** o botão no topo exporta tudo em `.json`, exporta os lançamentos em `.csv` e restaura um backup. Os arquivos exportados estão no `.gitignore`, para não irem parar no repositório por engano.
 
@@ -145,7 +159,7 @@ Os testes rodam no Node 18 ou mais recente, sem instalar nada:
 npm test
 ```
 
-Eles cobrem a validação de saldo (vendas e resgates retroativos, exclusão de compras), a sincronização entre o navegador e a conta e o aviso de dividendos acima de R$ 50 mil.
+Eles cobrem a validação de saldo (vendas e resgates retroativos, exclusão de compras), a sincronização entre o navegador e a conta, o aviso de dividendos acima de R$ 50 mil e as cotações automáticas, com as APIs simuladas (chave recusada, ativo inexistente, falta de rede e modo exemplo).
 
 Para regenerar as capturas depois de mudar a interface (precisa do Chrome ou do Edge instalado):
 
@@ -177,7 +191,7 @@ Fonte: [Bricolage Grotesque](https://fonts.google.com/specimen/Bricolage+Grotesq
 
 ## Próximos passos
 
-- [ ] Cotações automáticas (brapi.dev para a B3, CoinGecko para cripto), mantendo a digitação manual
+- [x] Cotações automáticas (brapi.dev para a B3, Mercado Bitcoin para cripto), mantendo a digitação manual
 - [ ] Editar lançamentos, não só excluir
 - [ ] Download real do backup fora do claude.ai
 - [ ] Publicar no GitHub Pages

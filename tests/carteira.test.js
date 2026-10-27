@@ -15,8 +15,10 @@ const mem = {};
 const ambiente = {
   document:{ querySelector:q, querySelectorAll:()=>[], addEventListener(){} },
   window:{ addEventListener(){}, scrollTo(){}, scrollY:0 },
-  localStorage:{ getItem:k=>mem[k]??null, setItem:(k,v)=>{mem[k]=v;} },
-  location:{hash:""}, fakeEl
+  localStorage:{ getItem:k=>mem[k]??null, setItem:(k,v)=>{mem[k]=v;}, removeItem:k=>{delete mem[k];} },
+  location:{hash:""}, fakeEl, mem,
+  // fetch simulado: cada teste troca globalThis.__fetch
+  fetch:(...a)=>globalThis.__fetch(...a)
 };
 const testes = `
 let falhas=0; const ok=(c,m)=>{ if(!c){falhas++; console.log("FALHOU:",m);} else console.log("ok:",m); };
@@ -81,6 +83,72 @@ ok(/acima de R\\$ 50 mil no mês: BBAS3 em mar\\/26\\./.test(el.innerHTML), "avi
 ok(/isentos até R\\$ 50 mil/.test(el.innerHTML), "rótulo novo em 2026");
 anoIR="2025"; S.txs.push({id:"c",criado:0,data:"2025-01-01",tipo:"compra",classe:"acao",ticker:"BBAS3",qtd:1,preco:1,taxas:0});
 const el2=fakeEl(); rIR(el2); ok(!/Lei 15.270/.test(el2.innerHTML) && /rendimentos isentos/.test(el2.innerHTML), "2025 mantém texto antigo");
+
+// 8. cotações automáticas
+const resp = (status, corpo) => Promise.resolve({ ok: status<400, status, json: async()=>corpo });
+const B3P = { PETR4:53.25, ITSA4:10.5, HGLG11:160.4 };
+let chamadas = [];
+const mercado = url => {
+  chamadas.push(url);
+  if(url.includes("mercadobitcoin")){
+    const pedidos = decodeURIComponent(url.split("symbols=")[1]).split(",");
+    return resp(200, pedidos.filter(s=>s==="BTC-BRL").map(s=>({pair:s, last:"430325.00000000"})));
+  }
+  const sim = decodeURIComponent(url.split("/quote/")[1].split("?")[0]);
+  if(!url.includes("token=chave-boa")) return resp(401, {error:true, code:"INVALID_TOKEN"});
+  return B3P[sim] ? resp(200, {results:[{symbol:sim, regularMarketPrice:B3P[sim]}]}) : resp(404, {error:true, message:"Não encontramos"});
+};
+let avisos2 = []; toast = m=>avisos2.push(m);
+abaAtual = "ir";
+S = vazio(); S.atualizado = 1;
+[["acao","PETR4",100,30],["acao","ITSA4F",37,9],["fii","HGLG11",10,150],["acao","XPTO3",5,10],["cripto","BTC",0.01,300000],["cripto","FAKECOIN",3,1]].forEach(([classe,ticker,qtd,preco])=>
+  add({classe, tipo:"compra", data:"2026-01-05", ticker, qtd:String(qtd).replace(".",","), preco:String(preco)}));
+add({classe:"rf",tipo:"compra",data:"2026-01-05",ticker:"CDB Y",valor:"1000"});
+ok(S.txs.length===7, "monta carteira para cotações");
+
+globalThis.__fetch = mercado; chamadas = [];
+await atualizarCotacoes({auto:true});
+ok(chamadas.length===1 && chamadas[0].includes("mercadobitcoin") && S.precos.BTC.v===430325, "sem chave busca só cripto, sem chamar a brapi");
+ok(ultimaBusca.falhas.includes("FAKECOIN") && !S.precos.FAKECOIN, "cripto inexistente fica sem cotação");
+
+mem[LS_CHAVE] = "chave-ruim"; chamadas = []; avisos2 = [];
+await atualizarCotacoes({auto:true});
+ok(ultimaBusca.erro==="chave" && !S.precos.PETR4 && /recusou a chave/.test(avisos2[0]||""), "chave recusada avisa mesmo na busca automática: "+avisos2[0]);
+ok(chamadas.filter(u=>u.includes("brapi")).length<=4, "para de consultar a brapi depois da chave recusada");
+
+mem[LS_CHAVE] = "chave-boa"; chamadas = []; avisos2 = [];
+const histAntes = S.hist.length; S.hist = [];
+await atualizarCotacoes();
+ok(S.precos.PETR4.v===53.25 && S.precos.HGLG11.v===160.4 && S.precos.PETR4.em===hojeISO(), "atualiza ações e FIIs com a data de hoje");
+ok(S.precos.ITSA4F.v===10.5 && chamadas.some(u=>u.includes("/quote/ITSA4?")), "fracionário usa a cotação do lote");
+ok(ultimaBusca.falhas.join()==="FAKECOIN,XPTO3" || ultimaBusca.falhas.sort().join()==="FAKECOIN,XPTO3", "lista o que ficou sem cotação: "+ultimaBusca.falhas.join());
+ok(!("CDB Y" in S.precos) && !chamadas.some(u=>u.includes("CDB")), "renda fixa não é consultada");
+ok(S.hist.length===1 && mem[LS_BUSCA], "registra o patrimônio do dia e a hora da busca");
+ok(/4 cotações atualizadas\\. Sem cotação: /.test(avisos2[0]||""), "resumo da busca manual: "+avisos2[0]);
+
+ok(!JSON.stringify(S).includes("chave-boa") && !JSON.stringify(DOCS.carteira(S)).includes("chave-boa"), "a chave não vai para o backup nem para a conta");
+mem[LS_BUSCA] = String(Date.now()); ok(!precisaBuscar(), "não busca de novo antes de 30 minutos");
+mem[LS_BUSCA] = String(Date.now()-31*60*1000); ok(precisaBuscar(), "busca de novo depois de 30 minutos");
+
+globalThis.__fetch = ()=>Promise.reject(new TypeError("Failed to fetch")); avisos2 = [];
+const antes = JSON.stringify(S.precos);
+await atualizarCotacoes({auto:true});
+ok(ultimaBusca.erro==="rede" && JSON.stringify(S.precos)===antes && avisos2.length===0, "sem rede não muda nada e não incomoda na busca automática");
+await atualizarCotacoes();
+ok(/Não foi possível acessar/.test(avisos2[0]||""), "sem rede avisa na busca manual");
+
+const elA = fakeEl(); rAtivos(elA);
+ok(/Atualizar cotações/.test(elA.innerHTML) && /Chave da brapi configurada/.test(elA.innerHTML) && /Última busca hoje às/.test(elA.innerHTML), "aba Ativos mostra botão, chave e última busca");
+
+entrarDemo(); chamadas = []; globalThis.__fetch = mercado;
+await atualizarCotacoes(); ok(chamadas.length===0, "modo exemplo não consulta cotações"); sairDemo();
+
+// busca começa na carteira real e o modo exemplo abre no meio dela
+let soltar; globalThis.__fetch = url => new Promise(r=>{ soltar = ()=>r(mercado(url)); });
+delete S.precos.BTC; mem[LS_CHAVE] = "";
+const busca = atualizarCotacoes(); entrarDemo(); soltar(); await busca;
+ok(S.precos.BTC.v===345000 && realGuardado.precos.BTC && realGuardado.precos.BTC.v===430325, "cotação que chega no modo exemplo vai para a carteira real");
+sairDemo();
 
 console.log(falhas? falhas+" falha(s)" : "todos passaram");
 return falhas;
