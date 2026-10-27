@@ -1,0 +1,8 @@
+node_modules/
+.DS_Store
+Thumbs.db
+*.log
+
+# Backups exportados pelo app podem ter dados reais da carteira
+carteira-backup-*.json
+lancamentos-*.csv
