@@ -3,7 +3,7 @@
 <h1>
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="docs/logo/genfin-escuro.svg">
-    <img src="docs/logo/genfin.svg" alt="GenFin" width="340">
+    <img src="docs/logo/genfin.svg" alt="GenFin" width="380">
   </picture>
 </h1>
 
@@ -164,7 +164,7 @@ npm run logo
 
 <img src="docs/logo/icone.svg" alt="Ícone do GenFin" width="72" align="right">
 
-O logo é o nome pintado pela **faixa de alocação**, a barra que abre o resumo do app. As cinco cores são as das classes (ações, ETFs, FIIs, renda fixa e cripto), e entre elas fica a mesma fresta fina da barra. No app, o logo usa as variáveis de cor do tema e troca sozinho no modo escuro. O ícone usa a mesma faixa, com o G vazado por cima.
+O ícone é a **faixa de alocação**, a barra que abre o resumo do app, com o G vazado por cima. As cinco cores são as das classes (ações, ETFs, FIIs, renda fixa e cripto), separadas pela mesma fresta fina da barra. Toda a cor fica no ícone; o nome ao lado vai numa cor só, a da tinta do app, e no app troca sozinho no modo escuro.
 
 | Arquivo | Uso |
 |---|---|

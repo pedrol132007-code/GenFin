@@ -60,7 +60,7 @@ cat > "$TMP/social.html" <<HTML
 <style>
 html,body{margin:0;width:1280px;height:640px;background:#EEF2EF;overflow:hidden}
 body{display:flex;flex-direction:column;justify-content:center;padding:0 120px;box-sizing:border-box;font-family:"Bricolage Grotesque",sans-serif;color:#16232B}
-img{width:720px;display:block;margin-left:-6px}
+img{width:720px;display:block}
 p{font-size:38px;line-height:1.25;letter-spacing:-.015em;margin:44px 0 0;max-width:24ch;font-weight:500}
 span{display:block;color:#5A6970;font-size:24px;font-weight:400;margin-top:18px;letter-spacing:0}
 </style>
