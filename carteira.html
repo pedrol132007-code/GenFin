@@ -1053,12 +1053,25 @@ async function baixar(nome, conteudo){
     try{ await dl.save({filename:nome, data:conteudo}); msg.textContent="Arquivo pronto."; return; }
     catch(e){ if(e&&e.code==="declined"){ msg.textContent="Download cancelado."; return; } }
   }
+  // Fora do claude.ai, o navegador baixa o arquivo direto; dentro dele, sem o serviço de downloads, fica a caixa de texto
+  if(!window.claude){
+    try{ baixarNoNavegador(nome, conteudo); msg.textContent="Arquivo baixado: "+nome; return; }catch(e){}
+  }
   $("#backup-texto").classList.remove("oculto"); $("#backup-area").value=conteudo;
 }
+function baixarNoNavegador(nome, conteudo){
+  const csv = nome.endsWith(".csv");
+  // O BOM faz o Excel abrir o CSV em UTF-8, com acentos certos
+  const blob = new Blob([csv ? "﻿"+conteudo : conteudo], {type: csv ? "text/csv;charset=utf-8" : "application/json"});
+  const url = URL.createObjectURL(blob), a = document.createElement("a");
+  a.href = url; a.download = nome; document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url), 1000);
+}
 function csvLanc(){
+  // Padrão brasileiro: ponto e vírgula entre colunas e vírgula decimal, como o Excel em português espera
   const L=[["data","classe","ativo","operacao","quantidade","preco","taxas","valor"]];
   ordenarTxs(S.txs).forEach(t=>L.push([t.data,t.classe,t.ticker,t.tipo,t.qtd??"",t.preco??"",t.taxas??"",t.valor??""]));
-  return L.map(r=>r.map(v=>{ const s=String(v); return /[;"\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s; }).join(";")).join("\n");
+  return L.map(r=>r.map(v=>{ const s = typeof v==="number" ? String(v).replace(".",",") : String(v); return /[;"\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s; }).join(";")).join("\n");
 }
 function importar(arquivo){
   const r=new FileReader();

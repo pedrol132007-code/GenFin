@@ -13,7 +13,9 @@ function fakeEl(){ return { textContent:"", innerHTML:"", className:"", value:""
 function q(s){ return cache[s] || (cache[s]=fakeEl()); }
 const mem = {};
 const ambiente = {
-  document:{ querySelector:q, querySelectorAll:()=>[], addEventListener(){} },
+  document:{ querySelector:q, querySelectorAll:()=>[], addEventListener(){},
+    createElement:()=>{ const a={ click(){ globalThis.__baixados.push({nome:a.download, href:a.href}); }, remove(){} }; return a; },
+    body:{ appendChild(){} } },
   window:{ addEventListener(){}, scrollTo(){}, scrollY:0 },
   localStorage:{ getItem:k=>mem[k]??null, setItem:(k,v)=>{mem[k]=v;}, removeItem:k=>{delete mem[k];} },
   location:{hash:""}, fakeEl, mem,
@@ -149,6 +151,19 @@ delete S.precos.BTC; mem[LS_CHAVE] = "";
 const busca = atualizarCotacoes(); entrarDemo(); soltar(); await busca;
 ok(S.precos.BTC.v===345000 && realGuardado.precos.BTC && realGuardado.precos.BTC.v===430325, "cotação que chega no modo exemplo vai para a carteira real");
 sairDemo();
+
+// 9. backup fora do claude.ai baixa o arquivo; CSV no padrão brasileiro
+delete window.claude;   // a seção de sincronização deixou um claude falso
+globalThis.__baixados = []; let blobs = [];
+const criarURL = URL.createObjectURL; URL.createObjectURL = b => { blobs.push(b); return "blob:teste"; };
+await baixar("lancamentos-teste.csv", csvLanc());
+const bytes = new Uint8Array(await blobs[0].arrayBuffer()), csvTxt = await blobs[0].text();   // text() descarta o BOM
+ok(__baixados.length===1 && __baixados[0].nome==="lancamentos-teste.csv" && /Arquivo baixado/.test($("#backup-msg").textContent), "fora do claude.ai o backup é baixado direto");
+ok(bytes[0]===0xEF && bytes[1]===0xBB && bytes[2]===0xBF && /;0,01;300000;/.test(csvTxt) && csvTxt.split("\\n")[0]==="data;classe;ativo;operacao;quantidade;preco;taxas;valor", "CSV com BOM, ponto e vírgula e vírgula decimal");
+window.claude = { use: async ()=>{ throw new Error("sem downloads"); } };
+__baixados = []; await baixar("x.json", "{}");
+ok(__baixados.length===0 && $("#backup-area").value==="{}", "no claude.ai sem serviço de downloads, mostra a caixa de texto");
+delete window.claude; URL.createObjectURL = criarURL;
 
 console.log(falhas? falhas+" falha(s)" : "todos passaram");
 return falhas;

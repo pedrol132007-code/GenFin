@@ -193,7 +193,7 @@ Fonte: [Bricolage Grotesque](https://fonts.google.com/specimen/Bricolage+Grotesq
 
 - [x] Cotações automáticas (brapi.dev para a B3, Mercado Bitcoin para cripto), mantendo a digitação manual
 - [ ] Editar lançamentos, não só excluir
-- [ ] Download real do backup fora do claude.ai
+- [x] Download real do backup fora do claude.ai
 - [ ] Publicar no GitHub Pages
 
 ## Aviso
