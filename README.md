@@ -84,17 +84,20 @@ Não há instalação nem build. O app inteiro é o [`carteira.html`](carteira.h
 2. Clique em **Ver com dados de exemplo** para conhecer as telas sem registrar nada, ou em **Adicionar lançamento** para começar a sua carteira.
 3. Para cotações automáticas de ações, ETFs e FIIs, crie uma chave gratuita na [brapi.dev](https://brapi.dev) e cole na aba **Ativos e cotações**. Cripto funciona sem chave.
 
-### No celular
+### No celular (Android)
 
-O GenFin é um app instalável (PWA): funciona sem internet e abre como app, sem barra do navegador. Ele fica hospedado de graça na Vercel, ligado a este repositório, e cada `git push` publica a versão nova.
+O GenFin tem um app Android de verdade (APK), que abre sem internet e guarda os dados no aparelho. Ele é compilado pelo GitHub Actions a cada mudança e publicado em **[Releases](../../releases/latest)**.
 
-1. Na [Vercel](https://vercel.com), entre com a conta do GitHub, clique em **Add New → Project** e importe o repositório **GenFin**. Não há build: deixe o *Framework Preset* em **Other** e clique em **Deploy**.
-2. Abra o endereço que a Vercel mostrar (algo como `genfin.vercel.app`) no celular.
-   - **Android (Chrome):** menu ⋮ → **Instalar app**.
-   - **iPhone (Safari):** botão de compartilhar → **Adicionar à Tela de Início**.
-3. Cada aparelho guarda os próprios dados. Para levar a carteira do computador para o celular, use **Backup → Exportar backup** num e **Restaurar backup** no outro. A chave da brapi não vai no backup: cole de novo no celular.
+1. No celular, abra a página de Releases do repositório (logado no GitHub, porque ele é privado) e toque em `GenFin-<versão>.apk`.
+2. Quando o Android pedir, permita instalar apps dessa origem (o navegador ou o app do GitHub).
+3. Versões novas instalam por cima e mantêm os dados, porque todas são assinadas com a mesma chave.
+4. Para levar a carteira do computador para o celular: **Backup → Exportar backup** num e **Restaurar backup** no outro. No app, exportar abre a folha de compartilhar do Android (Drive, Arquivos, WhatsApp). As chaves da brapi e do Groq não vão no backup: cole de novo no celular.
 
-O `.vercelignore` publica só o app (página, manifesto, service worker e ícones). O endereço é público, mas não aparece em buscadores e não contém dados: a carteira fica no navegador de quem usa.
+Como o app é montado: `npm run www` copia o `carteira.html` para `www/` com a fonte embutida, o [Capacitor](https://capacitorjs.com) 8 empacota essa pasta num projeto Android e o workflow `.github/workflows/android.yml` compila, assina e publica. A chave de assinatura fica nos *secrets* do repositório e numa cópia fora dele; sem ela, uma versão nova só instala desinstalando a antiga.
+
+### No navegador (opcional)
+
+O mesmo arquivo também funciona como app instalável pelo navegador (PWA), por exemplo hospedado de graça na [Vercel](https://vercel.com): importe o repositório como projeto, com *Framework Preset* em **Other**. O `.vercelignore` publica só a página, o manifesto, o service worker e os ícones.
 
 ### Importar da B3
 
@@ -181,11 +184,15 @@ Operações comuns de pessoa física, sem day trade:
 ├── sw.js                  # service worker: abre sem internet
 ├── icons/                 # ícones PNG do app instalado
 ├── vercel.json            # rota / → carteira.html e cabeçalhos
+├── capacitor.config.json  # app Android: nome, id e barras do sistema
+├── assets/                # ícones-fonte do app Android (camadas do ícone adaptativo)
+├── .github/workflows/     # compila e publica o APK
 ├── tests/
 │   └── carteira.test.js   # testes da lógica, com um DOM falso
 ├── scripts/
 │   ├── capturas.sh        # gera as imagens de docs/img
-│   ├── icones.sh          # gera os PNGs de icons/
+│   ├── icones.sh          # gera os PNGs de icons/ e assets/
+│   ├── www.js             # monta www/ para o app Android
 │   └── logo.js            # gera os SVGs de docs/logo
 └── docs/
     ├── img/               # capturas usadas neste README
@@ -233,7 +240,7 @@ Fonte: [Bricolage Grotesque](https://fonts.google.com/specimen/Bricolage+Grotesq
 - [x] Cotações automáticas (brapi.dev para a B3, Mercado Bitcoin para cripto), mantendo a digitação manual
 - [x] Editar lançamentos, não só excluir
 - [x] Download real do backup fora do claude.ai
-- [x] App instalável no celular (PWA na Vercel)
+- [x] App Android (APK) compilado no GitHub Actions, e PWA pelo navegador
 - [x] Comparação com CDI e Ibovespa
 - [x] Análises por regras e resumo opcional com IA (Groq)
 - [x] Importar extratos de Negociação e Movimentação da B3

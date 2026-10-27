@@ -6,3 +6,12 @@ Thumbs.db
 # Backups exportados pelo app podem ter dados reais da carteira
 carteira-backup-*.json
 lancamentos-*.csv
+
+# App Android: gerados no build (npm run www / npx cap add android)
+www/
+android/
+
+# Chave de assinatura nunca entra no repositório
+*.p12
+*.jks
+*.keystore

@@ -26,7 +26,7 @@ png(){ # svg nome lado
   "$NAVEGADOR" --headless=new --disable-gpu --hide-scrollbars --default-background-color=00000000 \
     --force-device-scale-factor=1 --window-size="$3,$3" --user-data-dir="$TMP/perfil" \
     --screenshot="$(caminho "$SAIDA/$2.png")" "file:///$(caminho "$TMP/$2.html")" 2>/dev/null
-  echo "  icons/$2.png"
+  echo "  ${SAIDA##*/}/$2.png"
 }
 
 mkdir -p "$SAIDA"
@@ -36,3 +36,9 @@ png icone.svg          icon-512          512
 png icone-maskable.svg icon-maskable-512 512
 # O iPhone arredonda o ícone sozinho e não aceita transparência: usa o quadrado cheio
 png icone-maskable.svg apple-touch-icon  180
+
+# Ícones do app Android (Capacitor): o @capacitor/assets gera todos os tamanhos a partir destes, em assets/
+SAIDA="$RAIZ/assets"; mkdir -p "$SAIDA"
+png icone-maskable.svg       icon-only       1024
+png icone-android-fundo.svg  icon-background 1024
+png icone-android-frente.svg icon-foreground 1024

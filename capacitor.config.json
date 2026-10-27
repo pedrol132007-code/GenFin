@@ -1,0 +1,13 @@
+{
+  "appId": "com.genfin.carteira",
+  "appName": "GenFin",
+  "webDir": "www",
+  "android": {
+    "backgroundColor": "#EEF2EF"
+  },
+  "plugins": {
+    "SystemBars": {
+      "insetsHandling": "css"
+    }
+  }
+}

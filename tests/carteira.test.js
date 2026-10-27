@@ -411,6 +411,20 @@ ok(importacao && importacao.novos.join()==="KNRI11" && /1<\\/strong> compra ou v
 entrarDemo(); await lerArquivoB3({name:"x.xlsx", arrayBuffer: async()=>criarXLSX(negociacao)});
 ok(/modo exemplo/.test($("#imp-res").innerHTML), "modo exemplo não importa"); sairDemo();
 
+// 14. app Android (Capacitor): backup vai para a folha de compartilhar
+let gravado = null, compartilhado = null;
+window.Capacitor = { isNativePlatform: ()=>true, Plugins: {
+  Filesystem: { writeFile: async o => { gravado = o; return {uri:"file:///cache/"+o.path}; } },
+  Share: { share: async o => { compartilhado = o; } } } };
+__baixados = [];
+await baixar("lancamentos-x.csv", "a;b");
+ok(gravado && gravado.directory==="CACHE" && gravado.data.charCodeAt(0)===0xFEFF && compartilhado.files[0]==="file:///cache/lancamentos-x.csv" && __baixados.length===0, "no app, o backup é gravado e compartilhado em vez de baixado");
+ok(/Escolha onde guardar/.test($("#backup-msg").textContent), "mensagem do backup no app");
+window.Capacitor.Plugins.Share.share = async ()=>{ throw new Error("Share canceled"); };
+await baixar("x.json", "{}");
+ok(/cancelado/.test($("#backup-msg").textContent), "cancelar o compartilhamento não mostra erro");
+delete window.Capacitor;
+
 console.log(falhas? falhas+" falha(s)" : "todos passaram");
 return falhas;
 `;

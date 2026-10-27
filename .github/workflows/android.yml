@@ -1,0 +1,102 @@
+# Compila o app Android (APK assinado) e publica na página de Releases do repositório.
+# Roda a cada push na main que mexe no app, ou à mão em Actions → Android → Run workflow.
+name: Android
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - carteira.html
+      - icons/**
+      - assets/**
+      - capacitor.config.json
+      - package.json
+      - package-lock.json
+      - scripts/www.js
+      - .github/workflows/android.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: android
+  cancel-in-progress: true
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Testes
+        run: |
+          npm ci
+          npm test
+
+      - name: Monta o app (www/ e projeto Android)
+        run: |
+          npm run www
+          npx cap add android
+          npx --yes @capacitor/assets@3.0.5 generate --android --assetPath assets --iconBackgroundColor '#EEF2EF' --iconBackgroundColorDark '#11191E'
+          # Evita recarregar a página quando o sistema muda a densidade da tela (recomendação do Capacitor 8;
+          # o modelo atual já traz, então só acrescenta se faltar)
+          grep -q 'configChanges="[^"]*density' android/app/src/main/AndroidManifest.xml \
+            || sed -i 's/android:configChanges="\([^"]*\)"/android:configChanges="\1|density"/' android/app/src/main/AndroidManifest.xml
+          # Versão: nome do package.json e número crescente a cada build
+          VERSAO=$(node -p "require('./package.json').version")
+          sed -i "s/versionCode [0-9]*/versionCode ${{ github.run_number }}/; s/versionName \"[^\"]*\"/versionName \"$VERSAO\"/" android/app/build.gradle
+          grep -E "versionCode|versionName" android/app/build.gradle
+          echo "VERSAO=$VERSAO" >> "$GITHUB_ENV"
+
+      - name: Compila
+        working-directory: android
+        run: ./gradlew assembleRelease --no-daemon --stacktrace
+
+      - name: Assina
+        env:
+          KS_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KS_PASS: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KS_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+        run: |
+          if [ -z "$KS_BASE64" ]; then
+            echo "::error::Faltam os secrets da chave de assinatura (ANDROID_KEYSTORE_BASE64, ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS). Rode ~/GenFin-chave-android/enviar-secrets.sh."
+            exit 1
+          fi
+          BT="$ANDROID_HOME/build-tools/$(ls "$ANDROID_HOME/build-tools" | sort -V | tail -1)"
+          echo "$KS_BASE64" | base64 -d > genfin.p12
+          "$BT/zipalign" -p -f 4 android/app/build/outputs/apk/release/app-release-unsigned.apk alinhado.apk
+          "$BT/apksigner" sign --ks genfin.p12 --ks-type PKCS12 --ks-pass env:KS_PASS --ks-key-alias "$KS_ALIAS" --out "GenFin-$VERSAO.apk" alinhado.apk
+          "$BT/apksigner" verify --print-certs "GenFin-$VERSAO.apk" | head -3
+          rm -f genfin.p12 alinhado.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: GenFin-${{ env.VERSAO }}
+          path: GenFin-${{ env.VERSAO }}.apk
+
+      - name: Publica em Releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="v$VERSAO"
+          NOTAS="App Android do GenFin $VERSAO (build ${{ github.run_number }}, commit ${GITHUB_SHA::7}).
+
+          Para instalar: abra esta página no celular, toque em GenFin-$VERSAO.apk e permita a instalação de apps desta origem quando o Android pedir. Versões novas instalam por cima e mantêm os dados."
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" "GenFin-$VERSAO.apk" --clobber
+            gh release edit "$TAG" --notes "$NOTAS"
+          else
+            gh release create "$TAG" "GenFin-$VERSAO.apk" --title "GenFin $VERSAO" --notes "$NOTAS" --target "$GITHUB_SHA"
+          fi
