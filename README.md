@@ -44,7 +44,7 @@ Preço médio, alocação, proventos, rebalanceamento e imposto de renda para qu
 
 | | |
 |---|---|
-| 📊 **Resumo** | Patrimônio, valorização em aberto, lucro realizado, proventos e resultado sobre o total aportado. Alocação atual comparada com a meta e gráfico de evolução. |
+| 📊 **Resumo** | Patrimônio, valorização em aberto, lucro realizado, proventos e resultado sobre o total aportado. Alocação atual comparada com a meta, gráfico de evolução e comparação com o CDI e o Ibovespa. |
 | 💹 **Ativos e cotações** | Posição por classe com quantidade, preço médio, valor de mercado, resultado e peso na carteira. Cotações automáticas de ações, ETFs, FIIs e cripto; renda fixa e correções, à mão. |
 | 🧾 **Lançamentos** | Compras e vendas com taxas da nota de corretagem. Aplicações e resgates de renda fixa. Editar e excluir, sempre impedindo vendas maiores que o saldo, inclusive em datas retroativas. |
 | 💰 **Proventos** | Dividendos, JCP e rendimentos de FIIs, com gráfico dos últimos 12 meses e rendimento sobre o custo por ativo. |
@@ -91,6 +91,14 @@ O GenFin é um app instalável (PWA): funciona sem internet e abre como app, sem
 3. Cada aparelho guarda os próprios dados. Para levar a carteira do computador para o celular, use **Backup → Exportar backup** num e **Restaurar backup** no outro. A chave da brapi não vai no backup: cole de novo no celular.
 
 O `.vercelignore` publica só o app (página, manifesto, service worker e ícones). O endereço é público, mas não aparece em buscadores e não contém dados: a carteira fica no navegador de quem usa.
+
+### Comparação com CDI e Ibovespa
+
+O resumo mostra quanto a carteira teria hoje se **os mesmos aportes, vendas e proventos, nas mesmas datas**, tivessem ido para o CDI ou para o Ibovespa. Assim o resultado não depende de quando você colocou dinheiro.
+
+- **CDI:** série diária do Banco Central (pública, sem chave), com a linha pontilhada no gráfico de evolução.
+- **Ibovespa:** histórico da brapi, com a mesma chave das cotações. O plano gratuito cobre poucos meses; o app guarda os dias e o histórico cresce com o uso. Enquanto não cobre desde o primeiro aporte, o valor aparece como aproximado.
+- Não considera imposto nem taxas do investimento comparado.
 
 ### Cotações automáticas
 

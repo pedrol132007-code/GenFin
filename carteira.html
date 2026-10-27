@@ -491,6 +491,7 @@ function corDe(c){ return CLASSES[c].cor; }
 function irPara(aba){
   if(!ABAS.includes(aba)) aba="resumo";
   if(aba!=="lancamentos") editando = null;   // sair da aba descarta a edição em andamento
+  if(aba==="resumo") atualizarIndices();       // só busca se faltar algum dia
   abaAtual = aba;
   document.querySelectorAll("#abas button").forEach(b=>b.setAttribute("aria-selected", b.dataset.aba===aba ? "true":"false"));
   ABAS.forEach(a=>{ $("#v-"+a).hidden = a!==aba; });
@@ -513,7 +514,9 @@ function graficoLinhas(series, opts={}){
   if(pts.length<2) return "";
   const xs = pts.map(p=>p.x), ys = pts.map(p=>p.y);
   let x0=Math.min(...xs), x1=Math.max(...xs); if(x1===x0) x1=x0+1;
-  let y0=Math.min(0,...ys), y1=Math.max(...ys); if(y1===y0) y1=y0+1; y1*=1.06;
+  // O eixo começa perto do menor valor, não no zero: a diferença entre as linhas é o que interessa
+  let y0=Math.min(...ys), y1=Math.max(...ys); if(y1===y0){ y0-=1; y1+=1; }
+  const folga=(y1-y0)*0.12; y0=Math.max(0, y0-folga); y1+=folga;
   const X=x=>pl+(x-x0)/(x1-x0)*(W-pl-pr), Y=y=>pt+(1-(y-y0)/(y1-y0))*(H-pt-pb);
   let g="";
   for(let i=0;i<=4;i++){ const v=y0+(y1-y0)*i/4, y=Y(v);
@@ -525,7 +528,7 @@ function graficoLinhas(series, opts={}){
   for(const s of series){
     if(s.pts.length<1) continue;
     const d = s.pts.map((p,i)=>(i?"L":"M")+X(p.x).toFixed(1)+","+Y(p.y).toFixed(1)).join("");
-    g+=`<path d="${d}" fill="none" stroke="${s.cor}" stroke-width="${s.largura||2.5}" ${s.tracejado?'stroke-dasharray="5 5"':""} stroke-linejoin="round" stroke-linecap="round"/>`;
+    g+=`<path d="${d}" fill="none" stroke="${s.cor}" stroke-width="${s.largura||2.5}" ${s.tracejado?'stroke-dasharray="5 5"':s.pontilhado?'stroke-dasharray="0.5 5"':""} stroke-linejoin="round" stroke-linecap="round"/>`;
   }
   return `<div class="grafico"><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(opts.rotulo||"Gráfico")}">${g}</svg></div>`;
 }
@@ -554,11 +557,26 @@ function rResumo(el){
   const faixa = (vals, totalV, meta) => `<div class="faixa${meta?" meta":""}">${ORDEM.filter(k=>vals[k]>0).map(k=>{
       const p = vals[k]/totalV; return `<div style="flex:${p} 1 0;background:${corDe(k)}" title="${CLASSES[k].nome}: ${pct(p)}">${meta||p<0.09?"":esc(CLASSES[k].nome)+"<br>"+pct(p,0)}</div>`; }).join("")}</div>`;
   const ativas = c.lista.filter(p=>p.qtd>0).sort((a,b)=>b.valor-a.valor);
-  const hist = S.hist.map(h=>({x:new Date(h.d+"T12:00").getTime(), v:h.v, c:h.c}));
+  const hist = S.hist.map(h=>({d:h.d, x:new Date(h.d+"T12:00").getTime(), v:h.v, c:h.c}));
+  const comp = comparacao();
+  const cdiEm = comp && comp.cdi ? valorEm(comp.cdi.pontos) : null;
+  const ptsCDI = cdiEm ? hist.map(h=>({x:h.x, y:cdiEm(h.d)})).filter(p=>p.y!=null) : [];
   const graf = hist.length>=2 ? graficoLinhas([
       {cor:"var(--line)", tracejado:true, largura:2, pts:hist.map(h=>({x:h.x,y:h.c}))},
+      ...(ptsCDI.length>=2 ? [{cor:"var(--muted)", largura:2.6, pontilhado:true, pts:ptsCDI}] : []),
       {cor:"var(--ink)", pts:hist.map(h=>({x:h.x,y:h.v}))}
     ],{rotulo:"Evolução do patrimônio"}) : `<div class="vazio-graf">O gráfico aparece quando houver registros em dias diferentes. Cada vez que você atualiza cotações ou faz um lançamento, o patrimônio do dia é guardado.</div>`;
+  const dif = v => `<span class="mini ${cls(c.total-v)}">carteira ${c.total-v>=0?"à frente em":"atrás em"} ${brl(Math.abs(c.total-v))}</span>`;
+  const blocoComp = !comp ? "" : !comp.cdi
+    ? `<p class="nota" style="margin-top:28px">A comparação com o CDI e o Ibovespa aparece depois da primeira busca dos índices, com internet.</p>`
+    : `<h3>Comparação com o mesmo dinheiro em outro lugar</h3>
+      <div class="kpis">
+        <div><span>Carteira hoje</span><strong>${brl(c.total)}</strong></div>
+        <div><span>No CDI</span><strong>${brl(comp.cdi.saldo)}</strong>${dif(comp.cdi.saldo)}</div>
+        ${comp.ibov ? `<div><span>No Ibovespa${comp.ibov.aproximado?" (aproximado)":""}</span><strong>${brl(comp.ibov.saldo)}</strong>${dif(comp.ibov.saldo)}</div>`
+          : `<div><span>No Ibovespa</span><strong>—</strong><span class="mini">precisa da chave da brapi</span></div>`}
+      </div>
+      <p class="nota">Os mesmos aportes, vendas e proventos desde ${dataBR(comp.desde)}, nas mesmas datas, como se o dinheiro tivesse ido para o CDI ou para o índice.${comp.ibov&&comp.ibov.aproximado?` O histórico do Ibovespa disponível começa em ${dataBR(comp.ibov.desde)}; o que entrou antes conta como se tivesse entrado nessa data.`:""} Não considera imposto nem taxas do investimento comparado.</p>`;
 
   el.innerHTML = `
   <div class="hero">
@@ -586,7 +604,7 @@ function rResumo(el){
     <div>
       <h3 style="margin-top:0">Evolução</h3>
       ${graf}
-      ${hist.length>=2?`<div class="legenda"><span><i class="pinta" style="background:var(--ink)"></i>Patrimônio</span><span><i class="pinta" style="background:var(--line)"></i>Valor investido</span></div>`:""}
+      ${hist.length>=2?`<div class="legenda"><span><i class="pinta" style="background:var(--ink)"></i>Patrimônio</span><span><i class="pinta" style="background:var(--line)"></i>Valor investido</span>${ptsCDI.length>=2?`<span><i class="pinta" style="background:var(--muted)"></i>Mesmo dinheiro no CDI (pontilhado)</span>`:""}</div>`:""}
     </div>
     <div>
       <h3 style="margin-top:0">Maiores posições</h3>
@@ -594,7 +612,8 @@ function rResumo(el){
         ${ativas.slice(0,8).map(p=>`<tr><td><i class="pinta" style="background:${corDe(p.classe)};margin-right:8px"></i><span class="tk">${esc(p.ticker)}</span></td><td>${brl(p.valor)}</td><td>${pct(c.total?p.valor/c.total:0)}</td><td class="${cls(p.resultado)}">${p.custo>0?pctSinal(p.resultado/p.custo):"—"}</td></tr>`).join("")}
       </tbody></table></div>
     </div>
-  </div>`;
+  </div>
+  ${blocoComp}`;
 }
 
 /* ---------- Cotações automáticas ---------- */
@@ -670,6 +689,112 @@ function resumoBusca(b){
   return `${b.ok} ${b.ok===1?"cotação atualizada":"cotações atualizadas"}` + (b.falhas.length ? `. Sem cotação: ${b.falhas.join(", ")}.` : ".");
 }
 function precisaBuscar(){ return Date.now() - Number(lerLS(LS_BUSCA)||0) > INTERVALO_AUTO; }
+
+/* ---------- Comparação com CDI e Ibovespa ---------- */
+// Os mesmos aportes, vendas e proventos da carteira, nas mesmas datas, aplicados no CDI e no Ibovespa.
+// CDI: série 12 do Banco Central (% ao dia, pública). Ibovespa: brapi (^BVSP), com a mesma chave das cotações.
+// As séries ficam guardadas neste navegador e só os dias novos são buscados.
+const LS_INDICES = "genfin-indices";
+function lerIndices(){ try{ const o = JSON.parse(localStorage.getItem(LS_INDICES)||"null"); if(o && o.cdi && o.ibov) return o; }catch(e){} return {cdi:{desde:"", ate:"", serie:{}}, ibov:{ate:"", serie:{}}}; }
+function gravarIndices(){ try{ localStorage.setItem(LS_INDICES, JSON.stringify(indices)); }catch(e){} }
+let indices = lerIndices(), buscandoIndices = false;
+
+// Entradas e saídas de dinheiro da carteira: aporte positivo, venda e provento negativos
+function fluxosCaixa(){
+  const f = [];
+  for(const t of S.txs){
+    const rf = t.classe==="rf", bruto = rf ? t.valor : t.qtd*t.preco, taxas = rf ? 0 : (t.taxas||0);
+    f.push({data:t.data, v: t.tipo==="compra" ? bruto+taxas : -(bruto-taxas)});
+  }
+  for(const p of S.provs) f.push({data:p.data, v:-p.valor});
+  return f.sort((a,b)=>a.data<b.data?-1:a.data>b.data?1:0);
+}
+function somarDias(iso, n){ const d = new Date(iso+"T12:00"); d.setDate(d.getDate()+n); return isoLocal(d); }
+// CDI: o dinheiro entra no dia do aporte e já rende a taxa daquele dia; a retirada sai antes de render
+function simularCDI(fluxos, serie){
+  const porData = {}; fluxos.forEach(x=>{ (porData[x.data] = porData[x.data] || []).push(x.v); });
+  const datas = [...new Set([...Object.keys(serie), ...Object.keys(porData)])].sort();
+  const inicio = fluxos.length ? fluxos[0].data : null;
+  let saldo = 0; const pontos = {};
+  for(const d of datas){
+    if(inicio && d<inicio) continue;
+    (porData[d]||[]).forEach(v=>{ saldo += v; });
+    if(serie[d]!=null) saldo *= 1 + serie[d]/100;
+    pontos[d] = saldo;
+  }
+  return {saldo, pontos};
+}
+// Ibovespa: cada aporte compra "cotas" do índice pelo fechamento do dia (ou o último antes dele)
+function simularIbov(fluxos, serie){
+  const datas = Object.keys(serie).sort(); if(!datas.length || !fluxos.length) return null;
+  const fech = d => { let lo=0, hi=datas.length-1, r=0; while(lo<=hi){ const m=(lo+hi)>>1; if(datas[m]<=d){ r=m; lo=m+1; } else hi=m-1; } return serie[datas[r]]; };
+  let cotas = 0;
+  for(const x of fluxos) cotas += x.v / fech(x.data<datas[0] ? datas[0] : x.data);
+  return {saldo: cotas*serie[datas[datas.length-1]], desde: datas[0], aproximado: fluxos[0].data < datas[0]};
+}
+// Valor da simulação no dia d (o último ponto até d), para desenhar a linha no gráfico
+function valorEm(pontos){
+  const ks = Object.keys(pontos).sort();
+  return d => { let lo=0, hi=ks.length-1, r=-1; while(lo<=hi){ const m=(lo+hi)>>1; if(ks[m]<=d){ r=m; lo=m+1; } else hi=m-1; } return r<0 ? null : pontos[ks[r]]; };
+}
+
+// Prazo para não deixar uma busca pendurada em rede ruim (comum no celular) travando as próximas
+const comPrazo = () => (typeof AbortSignal!=="undefined" && AbortSignal.timeout) ? {signal: AbortSignal.timeout(30000)} : {};
+async function buscarCDI(ini, fim){
+  const br = iso => iso.split("-").reverse().join("/"), serie = {};
+  // O Banco Central limita cada consulta de série diária a 10 anos
+  for(let a = ini; a <= fim; ){
+    const b = somarDias(a, 3650) < fim ? somarDias(a, 3650) : fim;
+    let r; try{ r = await fetch(`https://api.bcb.gov.br/dados/serie/bcdata.sgs.12/dados?formato=json&dataInicial=${br(a)}&dataFinal=${br(b)}`, comPrazo()); }
+    catch(e){ throw erroCot("rede"); }
+    if(r.ok){ const j = await r.json(); (Array.isArray(j)?j:[]).forEach(x=>{ const [d,m,y] = String(x.data).split("/"); const v = Number(x.valor); if(y && Number.isFinite(v)) serie[`${y}-${m}-${d}`] = v; }); }
+    else if(r.status!==404) throw erroCot("servico");   // 404: nenhum dia útil no intervalo
+    a = somarDias(b, 1);
+  }
+  return serie;
+}
+async function buscarIbov(chave){
+  // O plano gratuito limita o histórico; tenta do maior para o menor intervalo
+  for(const range of ["max","5y","1y","3mo"]){
+    let r; try{ r = await fetch(`https://brapi.dev/api/quote/%5EBVSP?range=${range}&interval=1d&token=${encodeURIComponent(chave)}`, comPrazo()); }
+    catch(e){ throw erroCot("rede"); }
+    if(r.status===401) throw erroCot("chave");
+    let j = null; try{ j = await r.json(); }catch(e){}
+    const h = j && Array.isArray(j.results) && j.results[0] && j.results[0].historicalDataPrice;
+    if(r.ok && Array.isArray(h) && h.length){
+      const serie = {}; h.forEach(p=>{ const v = Number(p.close); if(v>0 && p.date) serie[isoLocal(new Date(p.date*1000))] = v; });
+      return serie;
+    }
+  }
+  return {};
+}
+async function atualizarIndices(){
+  if(buscandoIndices) return;
+  const fl = fluxosCaixa(); if(!fl.length) return;
+  const hoje = hojeISO(), inicio = fl[0].data;
+  const precisaCDI = !indices.cdi.desde || inicio < indices.cdi.desde || indices.cdi.ate < hoje;
+  const chave = lerLS(LS_CHAVE), precisaIbov = !!chave && indices.ibov.ate < hoje;
+  if(!precisaCDI && !precisaIbov) return;
+  buscandoIndices = true;
+  try{
+    if(precisaCDI){
+      // Busca só o que falta: antes do início guardado (se a carteira ficou mais antiga) e depois do último dia
+      const ini = !indices.cdi.desde || inicio < indices.cdi.desde ? inicio : indices.cdi.ate;
+      Object.assign(indices.cdi.serie, await buscarCDI(ini, hoje));
+      if(!indices.cdi.desde || inicio < indices.cdi.desde) indices.cdi.desde = inicio;
+      indices.cdi.ate = hoje;
+    }
+    if(precisaIbov){ Object.assign(indices.ibov.serie, await buscarIbov(chave)); indices.ibov.ate = hoje; }
+    gravarIndices();
+    if(abaAtual==="resumo") render("resumo");
+  }catch(e){ /* sem rede ou serviço fora: a comparação fica com o que já está guardado */ }
+  finally{ buscandoIndices = false; }
+}
+function comparacao(){
+  const fl = fluxosCaixa(); if(!fl.length) return null;
+  const cdi = Object.keys(indices.cdi.serie).length && indices.cdi.desde && indices.cdi.desde<=fl[0].data ? simularCDI(fl, indices.cdi.serie) : null;
+  return {desde: fl[0].data, cdi, ibov: simularIbov(fl, indices.ibov.serie)};
+}
 
 /* ---------- Ativos e cotações ---------- */
 function rAtivos(el){
@@ -1224,12 +1349,12 @@ atualizarDatalist();
 irPara(ABAS.includes(location.hash.slice(1)) ? location.hash.slice(1) : "resumo");
 estado("Salvo só neste navegador");
 // Busca cotações depois de carregar os dados da conta, para atualizar a carteira mais recente
-conectar().then(()=>{ if(precisaBuscar()) atualizarCotacoes({auto:true}); });
+conectar().then(()=>{ if(precisaBuscar()) atualizarCotacoes({auto:true}); atualizarIndices(); });
 // App instalável: o service worker só funciona servido por https (Vercel) ou localhost, não em arquivo local
 if("serviceWorker" in navigator && (location.protocol==="https:" || location.hostname==="localhost"))
   navigator.serviceWorker.register("sw.js").catch(()=>{});
 // Ao voltar para o app aberto há tempo (comum no celular), atualiza as cotações se já passou o intervalo
-document.addEventListener("visibilitychange", ()=>{ if(document.visibilityState==="visible" && precisaBuscar()) atualizarCotacoes({auto:true}); });
+document.addEventListener("visibilitychange", ()=>{ if(document.visibilityState!=="visible") return; if(precisaBuscar()) atualizarCotacoes({auto:true}); atualizarIndices(); });
 </script>
 </body>
 </html>

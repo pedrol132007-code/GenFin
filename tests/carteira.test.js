@@ -218,6 +218,54 @@ entrarDemo(); editando = S.txs[0].id; const antesDemo = JSON.stringify(S.txs);
 salvarEdicao(form({classe:"acao",tipo:"compra",data:"2020-01-01",ticker:"AAAA3",qtd:"1",preco:"1",taxas:"",valor:""}));
 ok(JSON.stringify(S.txs)===antesDemo && /modo exemplo/.test(msg()), "modo exemplo não edita"); sairDemo(); editando = null;
 
+// 11. comparação com CDI e Ibovespa
+const perto = (a,b,tol=0.01) => Math.abs(a-b) < tol;
+// CDI: 1000 no dia 1 rende 1% nos dias 1 e 2; no dia 3 sai 500 e o resto rende 1%
+let sim = simularCDI([{data:"2026-01-01",v:1000},{data:"2026-01-03",v:-500}], {"2026-01-01":1,"2026-01-02":1,"2026-01-03":1,"2025-12-31":5});
+ok(perto(sim.saldo, (1000*1.01*1.01*1.01 - 500*1.01)), "CDI: aporte rende no dia, retirada sai antes de render, ignora dias antes do início: "+sim.saldo.toFixed(4));
+ok(perto(valorEm(sim.pontos)("2026-01-02"), 1020.1) && valorEm(sim.pontos)("2025-12-01")===null, "linha do CDI por data");
+// Ibovespa: 1000 a 100 pontos = 10 cotas; 550 a 110 = 5 cotas; vende 330 a 110 = -3 cotas; fecha a 120
+let ib = simularIbov([{data:"2026-01-02",v:1000},{data:"2026-01-05",v:550},{data:"2026-01-06",v:-330}], {"2026-01-02":100,"2026-01-05":110,"2026-01-07":120});
+ok(perto(ib.saldo, 12*120) && !ib.aproximado, "Ibovespa por cotas, usando o último fechamento antes do dia: "+ib.saldo);
+ib = simularIbov([{data:"2025-06-01",v:1000}], {"2026-01-02":100,"2026-01-05":120});
+ok(perto(ib.saldo, 1200) && ib.aproximado && ib.desde==="2026-01-02", "aporte antes do histórico vira aproximado na primeira data");
+
+// Um teste anterior deixou um fetch simulado que nunca responde; começa limpo
+buscandoIndices = false; delete mem[LS_INDICES];
+S = vazio(); S.atualizado = 1; indices = lerIndices();
+add({classe:"acao",tipo:"compra",data:"2026-03-02",ticker:"PETR4",qtd:"10",preco:"10",taxas:"1"});
+add({classe:"acao",tipo:"venda",data:"2026-03-04",ticker:"PETR4",qtd:"5",preco:"12",taxas:"1"});
+S.provs.push({id:"p1",data:"2026-03-05",ticker:"PETR4",tipo:"dividendo",valor:2});
+ok(JSON.stringify(fluxosCaixa())===JSON.stringify([{data:"2026-03-02",v:101},{data:"2026-03-04",v:-59},{data:"2026-03-05",v:-2}]), "fluxos: compra com taxas, venda líquida e provento");
+
+// busca: BCB em janelas de 10 anos, brapi do maior intervalo que o plano aceitar
+chamadas = [];
+globalThis.__fetch = url => {
+  chamadas.push(url);
+  if(url.includes("bcb.gov.br")) return resp(200, [{data:"02/03/2026",valor:"0.05"},{data:"03/03/2026",valor:"0.05"},{data:"04/03/2026",valor:"0.05"}]);
+  if(url.includes("BVSP")){
+    if(!url.includes("range=3mo")) return resp(400, {error:true, message:"plano não permite"});
+    return resp(200, {results:[{historicalDataPrice:[{date:Date.UTC(2026,2,2,15)/1000, close:130000},{date:Date.UTC(2026,2,6,15)/1000, close:136500}]}]});
+  }
+  return resp(404, {});
+};
+mem[LS_CHAVE] = "chave-boa";
+await atualizarIndices();
+ok(chamadas.filter(u=>u.includes("bcb")).length===1 && chamadas[0].includes("dataInicial=02/03/2026"), "CDI busca desde o primeiro aporte");
+ok(chamadas.filter(u=>u.includes("BVSP")).map(u=>u.match(/range=(\\w+)/)[1]).join()==="max,5y,1y,3mo", "Ibovespa tenta do maior intervalo para o menor");
+ok(indices.cdi.serie["2026-03-03"]===0.05 && indices.ibov.serie["2026-03-06"]===136500 && JSON.parse(mem[LS_INDICES]).cdi.desde==="2026-03-02", "séries guardadas no navegador");
+chamadas = []; await atualizarIndices();
+ok(chamadas.length===0, "não busca de novo no mesmo dia");
+const cp = comparacao();
+ok(cp && cp.desde==="2026-03-02" && cp.cdi && cp.ibov && perto(cp.ibov.saldo, (101-59-2)/130000*136500), "comparação junta CDI e Ibovespa");
+const elR = fakeEl(); abaAtual = "ir"; rResumo(elR);
+ok(/No CDI/.test(elR.innerHTML) && /No Ibovespa/.test(elR.innerHTML) && /desde 02\\/03\\/2026/.test(elR.innerHTML), "Resumo mostra a comparação");
+// sem rede: fica com o que está guardado
+indices.cdi.ate = "2000-01-01"; globalThis.__fetch = ()=>Promise.reject(new TypeError("offline"));
+await atualizarIndices();
+ok(indices.cdi.serie["2026-03-03"]===0.05 && buscandoIndices===false, "sem rede mantém as séries e libera nova busca");
+mem[LS_CHAVE] = "";
+
 console.log(falhas? falhas+" falha(s)" : "todos passaram");
 return falhas;
 `;
