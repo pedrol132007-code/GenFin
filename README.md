@@ -80,6 +80,18 @@ Não há instalação nem build. O app inteiro é o [`carteira.html`](carteira.h
 2. Clique em **Ver com dados de exemplo** para conhecer as telas sem registrar nada, ou em **Adicionar lançamento** para começar a sua carteira.
 3. Para cotações automáticas de ações, ETFs e FIIs, crie uma chave gratuita na [brapi.dev](https://brapi.dev) e cole na aba **Ativos e cotações**. Cripto funciona sem chave.
 
+### No celular
+
+O GenFin é um app instalável (PWA): funciona sem internet e abre como app, sem barra do navegador. Ele fica hospedado de graça na Vercel, ligado a este repositório, e cada `git push` publica a versão nova.
+
+1. Na [Vercel](https://vercel.com), entre com a conta do GitHub, clique em **Add New → Project** e importe o repositório **GenFin**. Não há build: deixe o *Framework Preset* em **Other** e clique em **Deploy**.
+2. Abra o endereço que a Vercel mostrar (algo como `genfin.vercel.app`) no celular.
+   - **Android (Chrome):** menu ⋮ → **Instalar app**.
+   - **iPhone (Safari):** botão de compartilhar → **Adicionar à Tela de Início**.
+3. Cada aparelho guarda os próprios dados. Para levar a carteira do computador para o celular, use **Backup → Exportar backup** num e **Restaurar backup** no outro. A chave da brapi não vai no backup: cole de novo no celular.
+
+O `.vercelignore` publica só o app (página, manifesto, service worker e ícones). O endereço é público, mas não aparece em buscadores e não contém dados: a carteira fica no navegador de quem usa.
+
 ### Cotações automáticas
 
 | Classe | Fonte | Chave | Atualização |
@@ -143,10 +155,15 @@ Operações comuns de pessoa física, sem day trade:
 ```
 .
 ├── carteira.html          # o app inteiro: HTML, CSS e JavaScript
+├── manifest.webmanifest   # app instalável: nome, cores e ícones
+├── sw.js                  # service worker: abre sem internet
+├── icons/                 # ícones PNG do app instalado
+├── vercel.json            # rota / → carteira.html e cabeçalhos
 ├── tests/
 │   └── carteira.test.js   # testes da lógica, com um DOM falso
 ├── scripts/
 │   ├── capturas.sh        # gera as imagens de docs/img
+│   ├── icones.sh          # gera os PNGs de icons/
 │   └── logo.js            # gera os SVGs de docs/logo
 └── docs/
     ├── img/               # capturas usadas neste README
@@ -194,7 +211,7 @@ Fonte: [Bricolage Grotesque](https://fonts.google.com/specimen/Bricolage+Grotesq
 - [x] Cotações automáticas (brapi.dev para a B3, Mercado Bitcoin para cripto), mantendo a digitação manual
 - [x] Editar lançamentos, não só excluir
 - [x] Download real do backup fora do claude.ai
-- [ ] Publicar no GitHub Pages
+- [x] App instalável no celular (PWA na Vercel)
 
 ## Aviso
 

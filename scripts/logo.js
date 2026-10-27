@@ -48,17 +48,21 @@ function faixas(x1, x2, y1, y2, cores, cortes){
 }
 // Ícone: quadrado arredondado preenchido pela faixa de alocação, com o G vazado por cima.
 // Desenhado em (0,0) com lado 100; o G é centrado no quadrado.
-function desenhoIcone(font, id, {raio=0.23, margem=0.2}={}){
+function desenhoIcone(font, id, {raio=0.23, margem=0.2, fundo=null}={}){
   const {d, bb} = caminho(font, "G");
   const lado = (bb.y2-bb.y1)/(1-2*margem), x0 = (bb.x1+bb.x2)/2-lado/2, y0 = (bb.y1+bb.y2)/2-lado/2;
   const k = 100/lado; let acc = 0; const cortes = [0.24,0.18,0.2,0.22].map(p => acc += 100*p);
   return `<clipPath id="${id}"><rect width="100" height="100" rx="${f(100*raio)}"/></clipPath>`+
+    (fundo ? `<rect width="100" height="100" fill="${fundo}"/>` : "")+
     `<g clip-path="url(#${id})">${faixas(0, 100, 0, 100, CLARO, cortes)}</g>`+
     `<path d="${d}" fill="#FFFFFF" transform="scale(${f(k)}) translate(${f(-x0)} ${f(-y0)})"/>`;
 }
-function icone(font){
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="512" height="512" role="img" aria-label="GenFin"><title>GenFin</title>${desenhoIcone(font, "gi")}</svg>`;
+function icone(font, opcoes){
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="512" height="512" role="img" aria-label="GenFin"><title>GenFin</title>${desenhoIcone(font, "gi", opcoes)}</svg>`;
 }
+// Ícone "maskable" do app instalado: quadrado cheio (o sistema recorta), o G dentro da área segura central
+// e fundo opaco nas frestas, porque o sistema pinta transparência de preto
+const MASKABLE = {raio:0, margem:0.27, fundo:"#EEF2EF"};
 // Logo completo: o ícone colorido e, ao lado, o nome numa cor só. A cor fica toda no ícone.
 function marca(font, corTexto, {id="gm"}={}){
   const {d, bb} = caminho(font, "GenFin");
@@ -78,6 +82,7 @@ function marca(font, corTexto, {id="gm"}={}){
   fs.writeFileSync(path.join(SAIDA, "genfin.svg"), marca(font, TINTA)+"\n");
   fs.writeFileSync(path.join(SAIDA, "genfin-escuro.svg"), marca(font, TINTA_ESCURO)+"\n");
   fs.writeFileSync(path.join(SAIDA, "icone.svg"), ico+"\n");
+  fs.writeFileSync(path.join(SAIDA, "icone-maskable.svg"), icone(font, MASKABLE)+"\n");
 
   let h = fs.readFileSync(APP, "utf8");
   const logoApp = marca(font, "var(--ink)", {id:"gm-app"}).replace("<svg ", '<svg class="logo" ');

@@ -4,6 +4,16 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>GenFin</title>
+<meta name="description" content="Sua carteira de investimentos: preço médio, alocação, proventos, rebalanceamento e imposto de renda.">
+<meta name="robots" content="noindex, nofollow">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-title" content="GenFin">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="theme-color" content="#EEF2EF" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#11191E" media="(prefers-color-scheme: dark)">
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20100%20100%22%20role%3D%22img%22%20aria-label%3D%22GenFin%22%3E%3Ctitle%3EGenFin%3C%2Ftitle%3E%3CclipPath%20id%3D%22gi%22%3E%3Crect%20width%3D%22100%22%20height%3D%22100%22%20rx%3D%2223%22%2F%3E%3C%2FclipPath%3E%3Cg%20clip-path%3D%22url(%23gi)%22%3E%3Crect%20x%3D%220%22%20y%3D%220%22%20width%3D%2222.5%22%20height%3D%22100%22%20fill%3D%22%232B5C8F%22%2F%3E%3Crect%20x%3D%2225.5%22%20y%3D%220%22%20width%3D%2215%22%20height%3D%22100%22%20fill%3D%22%236A4C9C%22%2F%3E%3Crect%20x%3D%2243.5%22%20y%3D%220%22%20width%3D%2217%22%20height%3D%22100%22%20fill%3D%22%23B98323%22%2F%3E%3Crect%20x%3D%2263.5%22%20y%3D%220%22%20width%3D%2219%22%20height%3D%22100%22%20fill%3D%22%233B7D5C%22%2F%3E%3Crect%20x%3D%2285.5%22%20y%3D%220%22%20width%3D%2214.5%22%20height%3D%22100%22%20fill%3D%22%23D0662A%22%2F%3E%3C%2Fg%3E%3Cpath%20d%3D%22M30.10%201.40L30.10%201.40Q21.50%201.40%2015.35-2.90Q9.20-7.20%205.95-14.85Q2.70-22.50%202.70-32.50L2.70-32.50Q2.70-39.90%204.55-46.25Q6.40-52.60%2010.30-57.35Q14.20-62.10%2020.20-64.75Q26.20-67.40%2034.50-67.40L34.50-67.40Q41.50-67.40%2046.55-65.50Q51.60-63.60%2054.80-60.20Q58-56.80%2059.30-52.35Q60.60-47.90%2060.10-42.80L60.10-42.80L45-41Q45.20-45.50%2043.90-48.35Q42.60-51.20%2040.05-52.60Q37.50-54%2033.90-54L33.90-54Q29.60-54%2026.40-51.70Q23.20-49.40%2021.45-44.80Q19.70-40.20%2019.70-33.30L19.70-33.30Q19.70-28.20%2020.70-24.15Q21.70-20.10%2023.70-17.35Q25.70-14.60%2028.65-13.15Q31.60-11.70%2035.40-11.70L35.40-11.70Q39.20-11.70%2041.90-13.05Q44.60-14.40%2046.05-16.75Q47.50-19.10%2047.50-22.20L47.50-22.20L37.10-22.20L37.10-33.60L61.90-33.60L61.90-21.20L61.90%200L50.80%200L50.80-17.80L49.90-17.80Q49.40-11.60%2046.95-7.30Q44.50-3%2040.25-0.80Q36%201.40%2030.10%201.40Z%22%20fill%3D%22%23FFFFFF%22%20transform%3D%22scale(0.87)%20translate(25.03%2090.33)%22%2F%3E%3C%2Fsvg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -1215,6 +1225,11 @@ irPara(ABAS.includes(location.hash.slice(1)) ? location.hash.slice(1) : "resumo"
 estado("Salvo só neste navegador");
 // Busca cotações depois de carregar os dados da conta, para atualizar a carteira mais recente
 conectar().then(()=>{ if(precisaBuscar()) atualizarCotacoes({auto:true}); });
+// App instalável: o service worker só funciona servido por https (Vercel) ou localhost, não em arquivo local
+if("serviceWorker" in navigator && (location.protocol==="https:" || location.hostname==="localhost"))
+  navigator.serviceWorker.register("sw.js").catch(()=>{});
+// Ao voltar para o app aberto há tempo (comum no celular), atualiza as cotações se já passou o intervalo
+document.addEventListener("visibilitychange", ()=>{ if(document.visibilityState==="visible" && precisaBuscar()) atualizarCotacoes({auto:true}); });
 </script>
 </body>
 </html>

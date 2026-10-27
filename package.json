@@ -1,12 +1,13 @@
 {
   "name": "genfin",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "private": true,
   "description": "Carteira de investimentos pessoal: preço médio, alocação, proventos, rebalanceamento e imposto de renda",
   "scripts": {
     "test": "node tests/carteira.test.js",
     "capturas": "bash scripts/capturas.sh",
-    "logo": "node scripts/logo.js"
+    "logo": "node scripts/logo.js",
+    "icones": "bash scripts/icones.sh"
   },
   "engines": {
     "node": ">=18"
