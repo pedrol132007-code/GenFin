@@ -234,6 +234,12 @@ Fonte: [Bricolage Grotesque](https://fonts.google.com/specimen/Bricolage+Grotesq
 - [x] Editar lançamentos, não só excluir
 - [x] Download real do backup fora do claude.ai
 - [x] App instalável no celular (PWA na Vercel)
+- [x] Comparação com CDI e Ibovespa
+- [x] Análises por regras e resumo opcional com IA (Groq)
+- [x] Importar extratos de Negociação e Movimentação da B3
+- [ ] Proventos anunciados: dividendos e JCP já aprovados que vão cair, pela brapi (depende do que o plano gratuito libera)
+- [ ] Sincronizar celular e computador sem servidor pago
+- [ ] Importar a nota de corretagem em PDF, para trazer as taxas
 
 ## Aviso
 
