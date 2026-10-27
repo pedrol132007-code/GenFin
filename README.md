@@ -47,8 +47,8 @@ Preço médio, alocação, proventos, rebalanceamento e imposto de renda para qu
 | 📊 **Resumo** | Patrimônio, valorização em aberto, lucro realizado, proventos e resultado sobre o total aportado. Alocação atual comparada com a meta, gráfico de evolução e comparação com o CDI e o Ibovespa. |
 | 🔎 **Análises** | Leituras automáticas feitas no aparelho: concentração, distância das metas, cotações antigas, limites de isenção e DARF do mês, desempenho contra o CDI, proventos e lembrete de backup. Resumo opcional escrito por IA (Groq, plano gratuito). |
 | 💹 **Ativos e cotações** | Posição por classe com quantidade, preço médio, valor de mercado, resultado e peso na carteira. Cotações automáticas de ações, ETFs, FIIs e cripto; renda fixa e correções, à mão. |
-| 🧾 **Lançamentos** | Compras e vendas com taxas da nota de corretagem. Aplicações e resgates de renda fixa. Editar e excluir, sempre impedindo vendas maiores que o saldo, inclusive em datas retroativas. |
-| 💰 **Proventos** | Dividendos, JCP e rendimentos de FIIs, com gráfico dos últimos 12 meses e rendimento sobre o custo por ativo. |
+| 🧾 **Lançamentos** | Compras e vendas com taxas da nota de corretagem, ou importadas do extrato da B3. Aplicações e resgates de renda fixa. Editar e excluir, sempre impedindo vendas maiores que o saldo, inclusive em datas retroativas. |
+| 💰 **Proventos** | Dividendos, JCP e rendimentos de FIIs, digitados ou importados da B3, com gráfico dos últimos 12 meses e rendimento sobre o custo por ativo. |
 | ⚖️ **Rebalancear** | Metas por classe e sugestão de como dividir um novo aporte para se aproximar delas, só com compras. |
 | 🦁 **Imposto de renda** | Apuração mensal com isenções, compensação de prejuízo e DARF; bens e direitos em 31/12; proventos do ano separados por tipo. |
 | 📰 **Notícias** | Atalhos para o Google Notícias e o Status Invest de cada ativo. |
@@ -95,6 +95,15 @@ O GenFin é um app instalável (PWA): funciona sem internet e abre como app, sem
 3. Cada aparelho guarda os próprios dados. Para levar a carteira do computador para o celular, use **Backup → Exportar backup** num e **Restaurar backup** no outro. A chave da brapi não vai no backup: cole de novo no celular.
 
 O `.vercelignore` publica só o app (página, manifesto, service worker e ícones). O endereço é público, mas não aparece em buscadores e não contém dados: a carteira fica no navegador de quem usa.
+
+### Importar da B3
+
+Na [Área do Investidor da B3](https://www.investidor.b3.com.br), em **Extratos**, baixe em Excel e importe em **Lançamentos → importe o extrato da B3**:
+
+1. **Negociação:** compras e vendas, com a data e o preço do negócio. Vários negócios do mesmo papel no mesmo dia viram um lançamento pelo preço médio; o fracionário entra como o papel do lote.
+2. **Movimentação:** dividendos, JCP e rendimentos, pelo valor creditado.
+
+Antes de gravar, o app mostra o que entra, o que já estava lançado (e fica de fora) e o que precisa de ajuste à mão: opções e futuros, desdobramentos, grupamentos e bonificações. Ele também pede para confirmar a classe dos códigos novos, porque um código terminado em 11 pode ser FII, ETF ou unit de ação. A B3 não traz as taxas da nota: elas entram zeradas e podem ser editadas. A planilha é lida no aparelho, sem biblioteca externa, e não é enviada a lugar nenhum.
 
 ### Comparação com CDI e Ibovespa
 
@@ -189,7 +198,7 @@ Os testes rodam no Node 18 ou mais recente, sem instalar nada:
 npm test
 ```
 
-Eles cobrem a validação de saldo (vendas e resgates retroativos, exclusão de compras), a sincronização entre o navegador e a conta, o aviso de dividendos acima de R$ 50 mil e as cotações automáticas, com as APIs simuladas (chave recusada, ativo inexistente, falta de rede e modo exemplo), a edição de lançamentos e o download do backup.
+Eles cobrem a validação de saldo (vendas e resgates retroativos, exclusão de compras), a sincronização entre o navegador e a conta, o aviso de dividendos acima de R$ 50 mil e as cotações automáticas, com as APIs simuladas (chave recusada, ativo inexistente, falta de rede e modo exemplo), a edição de lançamentos, o download do backup, as análises (incluindo o que vai para a IA) e a importação da B3, com planilhas .xlsx geradas no próprio teste.
 
 Para regenerar as capturas depois de mudar a interface (precisa do Chrome ou do Edge instalado):
 

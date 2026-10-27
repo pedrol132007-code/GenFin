@@ -11,6 +11,35 @@ function fakeEl(){ return { textContent:"", innerHTML:"", className:"", value:""
   querySelector:s=>q(s), querySelectorAll:()=>[], setAttribute(){}, elements:{namedItem:()=>fakeEl()},
   options:[{},{}], focus(){}, showModal(){}, close(){} }; }
 function q(s){ return cache[s] || (cache[s]=fakeEl()); }
+// Monta um .xlsx mínimo (zip com sharedStrings e uma planilha) para testar o importador da B3.
+// Textos vão em sharedStrings, exceto os que começam com "!" (inlineStr); "compactar: false" grava sem compressão.
+const zlib = require("zlib");
+function criarXLSX(linhas, {compactar=true}={}){
+  const esc = s => String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+  const strings = [], idx = s => { let i = strings.indexOf(s); if(i<0){ i = strings.length; strings.push(s); } return i; };
+  const letra = n => String.fromCharCode(65+n);
+  const rows = linhas.map((l,r)=>`<row r="${r+1}">${l.map((v,c)=>{
+    const ref = letra(c)+(r+1);
+    if(typeof v==="number") return `<c r="${ref}"><v>${v}</v></c>`;
+    if(String(v).startsWith("!")) return `<c r="${ref}" t="inlineStr"><is><t>${esc(String(v).slice(1))}</t></is></c>`;
+    return `<c r="${ref}" t="s"><v>${idx(String(v))}</v></c>`;
+  }).join("")}</row>`).join("");
+  const arquivos = {
+    "xl/worksheets/sheet1.xml": `<?xml version="1.0"?><worksheet><sheetData>${rows}</sheetData></worksheet>`,
+    "xl/sharedStrings.xml": `<?xml version="1.0"?><sst>${strings.map(s=>`<si><t>${esc(s)}</t></si>`).join("")}</sst>`
+  };
+  const partes = [], central = []; let off = 0;
+  for(const [nome, txt] of Object.entries(arquivos)){
+    const cru = Buffer.from(txt), dados = compactar ? zlib.deflateRawSync(cru) : cru, n = Buffer.from(nome), crc = zlib.crc32(cru);
+    const loc = Buffer.alloc(30); loc.writeUInt32LE(0x04034b50,0); loc.writeUInt16LE(compactar?8:0,8); loc.writeUInt32LE(crc,14); loc.writeUInt32LE(dados.length,18); loc.writeUInt32LE(cru.length,22); loc.writeUInt16LE(n.length,26);
+    const cen = Buffer.alloc(46); cen.writeUInt32LE(0x02014b50,0); cen.writeUInt16LE(compactar?8:0,10); cen.writeUInt32LE(crc,16); cen.writeUInt32LE(dados.length,20); cen.writeUInt32LE(cru.length,24); cen.writeUInt16LE(n.length,28); cen.writeUInt32LE(off,42);
+    partes.push(loc, n, dados); central.push(cen, n); off += 30 + n.length + dados.length;
+  }
+  const dir = Buffer.concat(central), fim = Buffer.alloc(22);
+  fim.writeUInt32LE(0x06054b50,0); fim.writeUInt16LE(Object.keys(arquivos).length,8); fim.writeUInt16LE(Object.keys(arquivos).length,10); fim.writeUInt32LE(dir.length,12); fim.writeUInt32LE(off,16);
+  const b = Buffer.concat([...partes, dir, fim]);
+  return b.buffer.slice(b.byteOffset, b.byteOffset+b.length);
+}
 const mem = {};
 const ambiente = {
   document:{ querySelector:q, querySelectorAll:()=>[], addEventListener(){},
@@ -18,7 +47,7 @@ const ambiente = {
     body:{ appendChild(){} } },
   window:{ addEventListener(){}, scrollTo(){}, scrollY:0 },
   localStorage:{ getItem:k=>mem[k]??null, setItem:(k,v)=>{mem[k]=v;}, removeItem:k=>{delete mem[k];} },
-  location:{hash:""}, fakeEl, mem,
+  location:{hash:""}, fakeEl, mem, criarXLSX,
   // fetch simulado: cada teste troca globalThis.__fetch
   fetch:(...a)=>globalThis.__fetch(...a)
 };
@@ -315,6 +344,72 @@ const elA2 = fakeEl(); rAnalises(elA2);
 ok(/Atenção/.test(elA2.innerHTML) && /Gerar de novo/.test(elA2.innerHTML) && /O que vai para o Groq/.test(elA2.innerHTML), "aba Análises mostra leituras, IA e o que é enviado");
 ok(!JSON.stringify(S).includes("gsk-boa"), "a chave do Groq não vai para o backup");
 mem[LS_GROQ] = "";
+
+// 13. importar extrato da B3
+S = vazio(); S.atualizado = 1;
+const serie13 = (Date.UTC(2026,1,13) - Date.UTC(1899,11,30)) / 864e5;   // 13/02/2026 como número de série do Excel
+const negociacao = [
+  ["Data do Negócio","Tipo de Movimentação","Mercado","Prazo/Vencimento","Instituição","Código de Negociação","Quantidade","Preço","Valor"],
+  ["05/02/2026","Compra","Mercado à Vista","-","XP INVESTIMENTOS CCTVM S/A & CIA","PETR4",100,38.5,3850],
+  ["05/02/2026","Compra","Mercado à Vista","-","XP","PETR4",50,38.8,1940],
+  ["06/02/2026","Compra","!Mercado Fracionário","-","XP","ITSA4F",7,10.2,71.4],
+  ["10/02/2026","Compra","Mercado à Vista","-","XP","HGLG11",10,160,1600],
+  ["11/02/2026","Compra","Mercado à Vista","-","XP","BOVA11",5,120,600],
+  ["11/02/2026","Compra","Mercado à Vista","-","XP","TAEE11",10,35,350],
+  ["12/02/2026","Venda","Opção de Compra","03/2026","XP","PETRB40",100,1.2,120],
+  [serie13,"Venda","Mercado à Vista","-","XP","PETR4",20,40,800],
+  ["","","","","","","","",""]
+];
+for(const compactar of [true, false]){
+  const lin = await lerXLSX(criarXLSX(negociacao, {compactar}));
+  ok(lin.length===10 && lin[1][4]==="XP INVESTIMENTOS CCTVM S/A & CIA" && lin[3][2]==="Mercado Fracionário" && lin[8][0]===serie13, "lê o .xlsx "+(compactar?"comprimido":"sem compressão")+", textos compartilhados, inline e entidades");
+}
+const rN = interpretarB3(await lerXLSX(criarXLSX(negociacao)));
+const petr = rN.negs.find(n=>n.ticker==="PETR4" && n.tipo==="compra");
+ok(rN.tipo==="negociacao" && petr.qtd===150 && perto(petr.preco, 38.6), "junta os negócios do mesmo dia pelo preço médio");
+ok(rN.negs.some(n=>n.ticker==="ITSA4" && n.qtd===7) && !rN.negs.some(n=>n.ticker==="ITSA4F"), "fracionário entra como o papel do lote");
+ok(rN.ign.opcoes===1 && !rN.negs.some(n=>n.ticker==="PETRB40"), "opções ficam de fora");
+ok(rN.negs.some(n=>n.ticker==="PETR4" && n.tipo==="venda" && n.data==="2026-02-13"), "data como número de série do Excel");
+let imp = prepararImportacao(rN);
+ok(imp.novos.join()==="BOVA11,HGLG11,ITSA4,PETR4,TAEE11" && imp.classes.BOVA11==="etf" && imp.classes.HGLG11==="fii" && imp.classes.TAEE11==="acao" && imp.classes.PETR4==="acao", "sugere a classe: ETF conhecido, unit, FII e ação");
+imp.classes.HGLG11 = "fii";
+let rA = aplicarImportacao(imp);
+ok(rA.negs===6 && !rA.inconsistente && S.txs.every(t=>t.taxas===0) && S.ativos.BOVA11.classe==="etf" && calcular().lista.find(p=>p.ticker==="PETR4").qtd===130, "importa compras e vendas com taxas zeradas");
+imp = prepararImportacao(interpretarB3(await lerXLSX(criarXLSX(negociacao))));
+ok(imp.negs.length===0 && imp.duplicados===6 && imp.novos.length===0, "importar de novo não duplica");
+
+const movimentacao = [
+  ["Entrada/Saída","Data","Movimentação","Produto","Instituição","Quantidade","Preço unitário","Valor da Operação"],
+  ["Credito","20/03/2026","Dividendo","PETR4 - PETROLEO BRASILEIRO S.A. PETROBRAS","XP",150,0.5,75],
+  ["Credito","25/03/2026","Juros Sobre Capital Próprio","PETR4 - PETROBRAS","XP",150,0.3,"38,25"],
+  ["Credito","15/03/2026","Rendimento","HGLG11 - CGHG LOGISTICA","XP",10,1.1,11],
+  ["Credito","15/03/2026","Rendimento","MXRF11 - MAXI RENDA","XP",10,0.1,1],
+  ["Credito","05/02/2026","Transferência - Liquidação","PETR4 - PETROBRAS","XP",100,38.5,3850],
+  ["Credito","01/04/2026","Desdobro","ITSA4 - ITAUSA","XP",7,"-","-"],
+  ["Debito","20/03/2026","Dividendo","PETR4 - PETROBRAS","XP",150,0.5,75]
+];
+const rM = interpretarB3(await lerXLSX(criarXLSX(movimentacao)));
+ok(rM.tipo==="movimentacao" && rM.provs.length===4 && rM.ign.liquidacoes===1 && rM.ign.eventos.length===1 && /Desdobro de ITSA4 em 01\\/04\\/2026/.test(rM.ign.eventos[0]), "movimentação: proventos, liquidação e evento separados");
+ok(rM.provs.some(p=>p.tipo==="jcp" && perto(p.valor,38.25)) && rM.provs.some(p=>p.tipo==="rendimento" && p.ticker==="HGLG11"), "JCP com vírgula decimal e rendimento de FII");
+imp = prepararImportacao(rM);
+ok(imp.provs.length===3 && imp.semAtivo.join()==="MXRF11", "provento sem compra registrada fica de fora");
+rA = aplicarImportacao(imp);
+ok(rA.provs===3 && S.provs.filter(p=>p.ticker==="PETR4").length===2, "importa os proventos");
+ok(prepararImportacao(rM).provs.length===0, "proventos não duplicam");
+
+const csv = "﻿Data do Negócio;Tipo de Movimentação;Mercado;Prazo/Vencimento;Instituição;Código de Negociação;Quantidade;Preço;Valor\\r\\n02/03/2026;Compra;Mercado à Vista;-;\\"Banco \\"\\"X\\"\\"; S.A.\\";VALE3;10;\\"62,50\\";\\"625,00\\"\\r\\n";
+const lCSV = lerCSV(csv);
+ok(lCSV.length===2 && lCSV[1][4]==='Banco "X"; S.A.' && interpretarB3(lCSV).negs[0].preco===62.5, "CSV com ponto e vírgula, aspas e vírgula decimal");
+let erroArq = ""; try{ await lerXLSX(new TextEncoder().encode("isto não é zip").buffer); }catch(e){ erroArq = e.message; }
+ok(/não é uma planilha Excel/.test(erroArq), "arquivo que não é xlsx dá mensagem clara");
+erroArq = ""; try{ interpretarB3([["a","b"],["1","2"]]); }catch(e){ erroArq = e.message; }
+ok(/Não reconheci o arquivo/.test(erroArq), "planilha que não é da B3 dá mensagem clara");
+
+importacao = null; $("#imp-res").innerHTML = "";
+await lerArquivoB3({name:"negociacao.xlsx", arrayBuffer: async()=>criarXLSX([negociacao[0], ["03/03/2026","Compra","Mercado à Vista","-","XP","KNRI11",3,150,450]])});
+ok(importacao && importacao.novos.join()==="KNRI11" && /1<\\/strong> compra ou venda nova/.test($("#imp-res").innerHTML) && /select class="imp-classe" data-t="KNRI11"/.test($("#imp-res").innerHTML), "prévia mostra o que entra e pede a classe dos novos");
+entrarDemo(); await lerArquivoB3({name:"x.xlsx", arrayBuffer: async()=>criarXLSX(negociacao)});
+ok(/modo exemplo/.test($("#imp-res").innerHTML), "modo exemplo não importa"); sairDemo();
 
 console.log(falhas? falhas+" falha(s)" : "todos passaram");
 return falhas;

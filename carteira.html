@@ -133,6 +133,12 @@ details.chave summary{cursor:pointer;color:var(--focus);width:max-content;max-wi
 .altura{max-height:460px;overflow:auto}
 tr.sel{background:var(--soft)}
 
+/* Importar da B3 */
+#dlg-importar{max-width:620px}
+.imp-lista{padding-left:20px;margin:8px 0 12px}
+.imp-lista li{margin:6px 0}
+#dlg-importar select{border:1px solid var(--line);border-radius:6px;padding:4px 8px;background:var(--bg);color:var(--ink)}
+
 /* Análises */
 .leituras{display:grid;gap:10px;max-width:760px}
 .leitura{background:var(--surface);border:1px solid var(--line);border-left:4px solid var(--line);border-radius:8px;padding:12px 16px}
@@ -236,6 +242,14 @@ textarea{width:100%;min-height:140px;font:12px/1.4 ui-monospace,Menlo,monospace;
 
 <datalist id="dl-ativos"></datalist>
 <div id="toast" role="status" aria-live="polite"></div>
+
+<dialog id="dlg-importar">
+  <h2>Importar da B3</h2>
+  <p class="sub">Na <a href="https://www.investidor.b3.com.br" target="_blank" rel="noopener noreferrer">Área do Investidor da B3</a>, em Extratos, baixe em Excel: <strong>Negociação</strong> traz as compras e vendas, e <strong>Movimentação</strong> traz dividendos, JCP e rendimentos. Importe um de cada vez, começando pela Negociação. O arquivo é lido aqui no aparelho e não é enviado a lugar nenhum.</p>
+  <label class="btn" style="flex-direction:row;color:var(--ink);font-size:.95rem;width:max-content">Escolher arquivo<input type="file" id="arq-b3" accept=".xlsx,.csv" class="oculto"></label>
+  <div id="imp-res"></div>
+  <div style="margin-top:18px;text-align:right"><button class="btn" data-act="fechar-importar">Fechar</button></div>
+</dialog>
 
 <dialog id="dlg-backup">
   <h2>Backup dos seus dados</h2>
@@ -814,6 +828,156 @@ function comparacao(){
   return {desde: fl[0].data, cdi, ibov: simularIbov(fl, indices.ibov.serie)};
 }
 
+/* ---------- Importar extrato da B3 ---------- */
+// A Área do Investidor exporta Excel: "Negociação" traz compras e vendas; "Movimentação" traz proventos e eventos.
+// O .xlsx é um zip com XML: lido aqui com o descompressor do navegador, sem biblioteca e sem sair do aparelho.
+function xmlTexto(s){ return String(s).replace(/&(#x?[0-9a-f]+|amp|lt|gt|quot|apos);/gi, (m,e)=>({amp:"&",lt:"<",gt:">",quot:'"',apos:"'"}[e.toLowerCase()] ?? String.fromCodePoint(e[1].toLowerCase()==="x" ? parseInt(e.slice(2),16) : parseInt(e.slice(1),10)))); }
+async function lerXLSX(buf){
+  const u = new Uint8Array(buf), dv = new DataView(u.buffer, u.byteOffset, u.byteLength);
+  let fimDir = -1;
+  for(let i=u.length-22; i>=Math.max(0, u.length-65557); i--) if(dv.getUint32(i,true)===0x06054b50){ fimDir = i; break; }
+  if(fimDir<0) throw new Error("O arquivo não é uma planilha Excel (.xlsx).");
+  const arquivos = {}; let p = dv.getUint32(fimDir+16,true);
+  for(let k=0, n=dv.getUint16(fimDir+10,true); k<n; k++){
+    const ln = dv.getUint16(p+28,true), le = dv.getUint16(p+30,true), lc = dv.getUint16(p+32,true);
+    arquivos[new TextDecoder().decode(u.subarray(p+46, p+46+ln))] = {metodo:dv.getUint16(p+10,true), tam:dv.getUint32(p+20,true), ini:dv.getUint32(p+42,true)};
+    p += 46+ln+le+lc;
+  }
+  const ler = async nome => {
+    const a = arquivos[nome]; if(!a) return null;
+    const ini = a.ini + 30 + dv.getUint16(a.ini+26,true) + dv.getUint16(a.ini+28,true), dados = u.subarray(ini, ini+a.tam);
+    if(a.metodo===0) return new TextDecoder().decode(dados);
+    return new Response(new Blob([dados]).stream().pipeThrough(new DecompressionStream("deflate-raw"))).text();
+  };
+  const folha = Object.keys(arquivos).filter(n=>/^xl\/worksheets\/sheet\d+\.xml$/.test(n)).sort((a,b)=>parseInt(a.match(/\d+/))-parseInt(b.match(/\d+/)))[0];
+  if(!folha) throw new Error("A planilha não tem nenhuma aba de dados.");
+  const ss = await ler("xl/sharedStrings.xml");
+  const textos = ss ? [...ss.matchAll(/<si>([\s\S]*?)<\/si>/g)].map(m=>[...m[1].replace(/<rPh[\s\S]*?<\/rPh>/g,"").matchAll(/<t[^>]*>([\s\S]*?)<\/t>/g)].map(t=>xmlTexto(t[1])).join("")) : [];
+  const col = r => { let n=0; for(const ch of r.replace(/\d+/g,"")) n = n*26 + ch.charCodeAt(0)-64; return n-1; };
+  return [...(await ler(folha)).matchAll(/<row[^>]*>([\s\S]*?)<\/row>/g)].map(lin=>{
+    const linha = [];
+    for(const c of lin[1].matchAll(/<c\s([^>]*?)(?:\/>|>([\s\S]*?)<\/c>)/g)){
+      const ref = (c[1].match(/\br="([A-Z]+\d+)"/)||[])[1], t = (c[1].match(/\bt="(\w+)"/)||[])[1], corpo = c[2]||"";
+      const v = (corpo.match(/<v>([\s\S]*?)<\/v>/)||[])[1];
+      linha[ref ? col(ref) : linha.length] = t==="s" ? textos[+v] : t==="inlineStr" ? xmlTexto((corpo.match(/<t[^>]*>([\s\S]*?)<\/t>/)||[])[1]||"") : t==="str" ? xmlTexto(v||"") : v==null ? "" : Number(v);
+    }
+    return Array.from(linha, x=>x===undefined ? "" : x);
+  });
+}
+function lerCSV(texto){
+  texto = texto.replace(/^﻿/,""); const sep = (texto.split("\n")[0].match(/;/g)||[]).length >= (texto.split("\n")[0].match(/,/g)||[]).length ? ";" : ",";
+  const linhas = []; let linha = [], campo = "", aspas = false;
+  for(let i=0;i<texto.length;i++){
+    const ch = texto[i];
+    if(aspas){ if(ch==='"' && texto[i+1]==='"'){ campo+='"'; i++; } else if(ch==='"') aspas=false; else campo+=ch; }
+    else if(ch==='"') aspas = true;
+    else if(ch===sep){ linha.push(campo); campo=""; }
+    else if(ch==="\n" || ch==="\r"){ if(ch==="\r" && texto[i+1]==="\n") i++; linha.push(campo); linhas.push(linha); linha=[]; campo=""; }
+    else campo += ch;
+  }
+  if(campo || linha.length){ linha.push(campo); linhas.push(linha); }
+  return linhas;
+}
+const semAcento = s => String(s??"").normalize("NFD").replace(/[̀-ͯ]/g,"").toLowerCase().trim();
+function dataB3(v){
+  if(typeof v==="number" && v>20000) return isoLocal(new Date(Date.UTC(1899,11,30) + v*864e5 + 12*36e5));   // número de série do Excel
+  const m = String(v).trim().match(/^(\d{2})\/(\d{2})\/(\d{4})/); return m ? `${m[3]}-${m[2]}-${m[1]}` : null;
+}
+const numB3 = v => typeof v==="number" ? v : parseNum(String(v).replace(/^-$/,""));
+// O fracionário é o mesmo papel do lote: ITSA4F entra como ITSA4
+const tickerB3 = s => { const t = String(s).split(" - ")[0].trim().toUpperCase(); return /^[A-Z]{4}\d{1,2}F$/.test(t) ? t.slice(0,-1) : t; };
+const ETFS_B3 = "BOVA11 BOVB11 BOVV11 BOVX11 BRAX11 SMAL11 SMAC11 IVVB11 SPXI11 SPXB11 NASD11 XINA11 EURP11 ACWI11 HASH11 QBTC11 BITH11 ETHE11 QETH11 WEB311 GOLD11 DIVO11 FIND11 MATB11 ISUS11 ECOO11 PIBB11 GOVE11 IMAB11 IRFM11 FIXA11 B5P211 LFTS11 IB5M11 DEBB11 NTNS11".split(" ");
+const UNITS_B3 = "TAEE11 KLBN11 SANB11 ALUP11 ENGI11 SAPR11 BPAC11 IGTI11 CPLE11 BRBI11 SULA11 TIET11 AESB11 BIDI11 PPLA11 RNEW11".split(" ");
+function classeProvavel(t){
+  if(S.ativos[t]) return S.ativos[t].classe;
+  if(/^[A-Z]{4}11$/.test(t)) return ETFS_B3.includes(t) ? "etf" : UNITS_B3.includes(t) ? "acao" : "fii";
+  return "acao";
+}
+const EVENTOS_B3 = ["desdobro","grupamento","bonificacao","incorporacao","fracao","leilao","subscricao","cisao","atualizacao","resgate","amortizacao"];
+function interpretarB3(linhas){
+  const ic = linhas.findIndex(l=>l.some(c=>/codigo de negociacao|movimentacao/.test(semAcento(c))));
+  if(ic<0) throw new Error("Não reconheci o arquivo. Use o extrato de Negociação ou de Movimentação da Área do Investidor da B3.");
+  const cab = linhas[ic].map(semAcento), idx = re => cab.findIndex(c=>re.test(c));
+  const dados = linhas.slice(ic+1).filter(l=>l.some(c=>String(c).trim()!==""));
+  const ign = {opcoes:0, eventos:[], liquidacoes:0, outros:0};
+  if(idx(/codigo de negociacao/)>=0){
+    const iD=idx(/^data/), iT=idx(/tipo de movimentacao|compra\/venda/), iM=idx(/^mercado/), iC=idx(/codigo de negociacao/), iQ=idx(/^quantidade/), iP=idx(/^preco/), iV=idx(/^valor/);
+    const grupos = {};
+    for(const l of dados){
+      const data = dataB3(l[iD]), tipo = /compra/.test(semAcento(l[iT])) ? "compra" : /venda/.test(semAcento(l[iT])) ? "venda" : null;
+      const mercado = semAcento(l[iM]), ticker = tickerB3(l[iC]), qtd = numB3(l[iQ]), preco = numB3(l[iP]), valor = iV>=0 ? numB3(l[iV]) : NaN;
+      if(/opc|futuro|termo/.test(mercado)){ ign.opcoes++; continue; }
+      if(!data || !tipo || !ticker || !(qtd>0) || !(preco>0)){ ign.outros++; continue; }
+      // Vários negócios do mesmo papel no mesmo dia viram um lançamento, com o preço médio do dia
+      const k = data+"|"+ticker+"|"+tipo, g = grupos[k] || (grupos[k] = {data, ticker, tipo, qtd:0, valor:0});
+      g.qtd += qtd; g.valor += valor>0 ? valor : qtd*preco;
+    }
+    return {tipo:"negociacao", negs:Object.values(grupos).map(g=>({data:g.data, ticker:g.ticker, tipo:g.tipo, qtd:g.qtd, preco:Math.round(g.valor/g.qtd*1e6)/1e6})), provs:[], ign};
+  }
+  const iES=idx(/entrada\/saida/), iD=idx(/^data/), iM=idx(/^movimentacao/), iPr=idx(/^produto/), iV=idx(/valor da operacao|^valor/);
+  const provs = [];
+  for(const l of dados){
+    const mov = semAcento(l[iM]), data = dataB3(l[iD]), ticker = tickerB3(l[iPr]), valor = numB3(l[iV]), credito = iES<0 || /credito/.test(semAcento(l[iES]));
+    const tipo = /juros sobre capital/.test(mov) ? "jcp" : /^dividendo/.test(mov) ? "dividendo" : /^rendimento/.test(mov) ? "rendimento" : null;
+    if(tipo){ if(credito && data && ticker && valor>0) provs.push({data, ticker, tipo, valor}); else ign.outros++; }
+    else if(/liquidacao|^compra|^venda/.test(mov)) ign.liquidacoes++;
+    else if(EVENTOS_B3.some(e=>mov.includes(e))) ign.eventos.push(`${String(l[iM]).trim()} de ${ticker} em ${dataBR(data)}`);
+    else ign.outros++;
+  }
+  return {tipo:"movimentacao", negs:[], provs, ign};
+}
+// Separa o que é novo do que já está lançado e sugere a classe de cada código novo
+function prepararImportacao(r){
+  const dupTx = n => S.txs.some(t=>t.data===n.data && t.ticker===n.ticker && t.tipo===n.tipo && Math.abs(t.qtd-n.qtd)<1e-9 && Math.abs(t.preco-n.preco)<0.01);
+  const dupPv = p => S.provs.some(x=>x.data===p.data && x.ticker===p.ticker && Math.abs(x.valor-p.valor)<0.005);
+  const negs = r.negs.filter(n=>!dupTx(n)), provsNovos = r.provs.filter(p=>!dupPv(p));
+  const novos = [...new Set(negs.map(n=>n.ticker))].filter(t=>!S.ativos[t]).sort();
+  const comAtivo = t => S.ativos[t] || negs.some(n=>n.ticker===t);
+  return {...r, negs, provs:provsNovos.filter(p=>comAtivo(p.ticker)), semAtivo:[...new Set(provsNovos.filter(p=>!comAtivo(p.ticker)).map(p=>p.ticker))].sort(),
+    duplicados:(r.negs.length-negs.length)+(r.provs.length-provsNovos.length), novos, classes:Object.fromEntries(novos.map(t=>[t, classeProvavel(t)]))};
+}
+function aplicarImportacao(imp){
+  const base = Date.now();
+  imp.negs.forEach((n,i)=>{
+    const classe = S.ativos[n.ticker] ? S.ativos[n.ticker].classe : (imp.classes[n.ticker]||"acao");
+    S.ativos[n.ticker] = {classe};
+    S.txs.push({id:uid(), criado:base+i, data:n.data, tipo:n.tipo, classe, ticker:n.ticker, qtd:n.qtd, preco:n.preco, taxas:0});
+  });
+  imp.provs.forEach(p=>S.provs.push({id:uid(), data:p.data, ticker:p.ticker, tipo:p.tipo, valor:p.valor}));
+  registrarHist(); salvar(...TODOS_DOCS); atualizarDatalist();
+  return {negs:imp.negs.length, provs:imp.provs.length, inconsistente:vendaSemSaldo(S.txs)};
+}
+let importacao = null;
+async function lerArquivoB3(arq){
+  const out = $("#imp-res");
+  if(demo){ out.innerHTML = `<p class="erro">No modo exemplo nada é salvo. Saia do exemplo para importar.</p>`; return; }
+  out.innerHTML = `<p class="nota">Lendo ${esc(arq.name)}…</p>`;
+  try{
+    const linhas = /\.csv$/i.test(arq.name) ? lerCSV(await arq.text()) : await lerXLSX(await arq.arrayBuffer());
+    importacao = prepararImportacao(interpretarB3(linhas));
+    renderImportacao();
+  }catch(e){ importacao = null; out.innerHTML = `<p class="erro">${esc(e && e.message || "Não foi possível ler o arquivo.")}</p>`; }
+}
+function renderImportacao(){
+  const imp = importacao, out = $("#imp-res"); if(!imp) return;
+  const itens = [];
+  if(imp.negs.length) itens.push(`<li><strong>${imp.negs.length}</strong> ${imp.negs.length===1?"compra ou venda nova":"compras e vendas novas"}, de ${dataBR(imp.negs.map(n=>n.data).sort()[0])} a ${dataBR(imp.negs.map(n=>n.data).sort().pop())}. A B3 não traz as taxas da nota: elas entram zeradas e podem ser editadas depois.</li>`);
+  if(imp.provs.length) itens.push(`<li><strong>${imp.provs.length}</strong> ${imp.provs.length===1?"provento novo":"proventos novos"} (dividendos, JCP e rendimentos, pelo valor creditado).</li>`);
+  if(imp.duplicados) itens.push(`<li>${imp.duplicados} já ${imp.duplicados===1?"estava lançado e fica":"estavam lançados e ficam"} de fora.</li>`);
+  if(imp.semAtivo.length) itens.push(`<li>Proventos de ${esc(imp.semAtivo.join(", "))} ficam de fora: importe antes o extrato de Negociação com as compras.</li>`);
+  if(imp.ign.liquidacoes) itens.push(`<li>${imp.ign.liquidacoes} ${imp.ign.liquidacoes===1?"liquidação ignorada":"liquidações ignoradas"}: compras e vendas vêm do extrato de Negociação, com a data e o preço do negócio.</li>`);
+  if(imp.ign.opcoes) itens.push(`<li>${imp.ign.opcoes===1?"1 operação de opções ou futuros ignorada":imp.ign.opcoes+" operações de opções ou futuros ignoradas"}: o app não trata derivativos.</li>`);
+  if(imp.ign.eventos.length) itens.push(`<li>Eventos que mudam a quantidade e precisam de ajuste à mão: ${esc(imp.ign.eventos.slice(0,6).join("; "))}${imp.ign.eventos.length>6?` e mais ${imp.ign.eventos.length-6}`:""}.</li>`);
+  const nada = !imp.negs.length && !imp.provs.length;
+  out.innerHTML = `<h3>${imp.tipo==="negociacao"?"Extrato de Negociação":"Extrato de Movimentação"}</h3>
+    <ul class="imp-lista">${itens.join("") || "<li>Nenhuma linha aproveitável no arquivo.</li>"}</ul>
+    ${imp.novos.length ? `<p class="nota">Confira a classe dos códigos novos. Códigos terminados em 11 podem ser FII, ETF ou unit de ação.</p>
+      <div class="rolagem"><table><thead><tr><th>Ativo</th><th class="esq">Classe</th></tr></thead><tbody>
+      ${imp.novos.map(t=>`<tr><td class="tk">${esc(t)}</td><td class="esq"><select class="imp-classe" data-t="${esc(t)}" aria-label="Classe de ${esc(t)}">${["acao","etf","fii"].map(k=>`<option value="${k}"${imp.classes[t]===k?" selected":""}>${CLASSES[k].nome}</option>`).join("")}</select></td></tr>`).join("")}
+      </tbody></table></div>` : ""}
+    ${nada ? "" : `<div class="rodape" style="margin-top:14px"><button class="btn pri" data-act="confirmar-importar">Importar</button></div>`}`;
+}
+
 /* ---------- Análises ---------- */
 // Leituras da carteira feitas por regras, no próprio aparelho: nada sai daqui.
 // Cada leitura tem o texto da tela e "ia", uma versão sem valores em reais, a única que pode ir para a IA.
@@ -1060,7 +1224,7 @@ function rLancamentos(el){
   const ed = editando && S.txs.find(x=>x.id===editando);
   if(!ed) editando = null;
   el.innerHTML = `<h2>Lançamentos</h2>
-  <p class="sub">Registre cada compra e venda, incluindo as taxas da nota de corretagem. O preço médio e o imposto saem daqui.</p>
+  <p class="sub">Registre cada compra e venda, incluindo as taxas da nota de corretagem. O preço médio e o imposto saem daqui. Ou <button class="link" data-act="abrir-importar">importe o extrato da B3</button>.</p>
   <form id="f-tx" class="card${ed?" editando":""}" novalidate>
     ${ed?`<p class="editando-rot">Editando ${ed.classe==="rf"?(ed.tipo==="compra"?"a aplicação":"o resgate"):(ed.tipo==="compra"?"a compra":"a venda")} de <strong>${esc(ed.ticker)}</strong> de ${dataBR(ed.data)}${ed.classe==="rf"?". Na renda fixa, dá para mudar a data e o valor.":""}</p>`:""}
     <div class="campos">
@@ -1262,7 +1426,7 @@ function rProventos(el){
   S.provs.forEach(p=>{ if(p.data>=lim) ult12Por[p.ticker]=(ult12Por[p.ticker]||0)+p.valor; });
   const elegiveis = Object.keys(S.ativos).filter(t=>S.ativos[t].classe!=="rf").sort();
   el.innerHTML = `<h2>Proventos</h2>
-  <p class="sub">Dividendos, JCP e rendimentos de FIIs. Lance o valor líquido que caiu na conta (no JCP o imposto já vem descontado).</p>
+  <p class="sub">Dividendos, JCP e rendimentos de FIIs. Lance o valor líquido que caiu na conta (no JCP o imposto já vem descontado), ou <button class="link" data-act="abrir-importar">importe o extrato de Movimentação da B3</button>.</p>
   <div class="kpis"><div><span>Últimos 12 meses</span><strong>${brl(t12)}</strong></div><div><span>Média mensal</span><strong>${brl(t12/12)}</strong></div><div><span>Em ${ano}</span><strong>${brl(tAno)}</strong></div><div><span>Desde o início</span><strong>${brl(S.provs.reduce((s,p)=>s+p.valor,0))}</strong></div></div>
   <div class="grafico" style="margin-top:12px"><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Proventos por mês nos últimos 12 meses">${svg}</svg></div>
   <form id="f-prov" class="card" style="margin-top:24px" novalidate>
@@ -1526,6 +1690,14 @@ document.addEventListener("click", e=>{
     gravarLS(LS_CHAVE, v); toast("Chave salva. Buscando cotações…"); atualizarCotacoes();
   }
   else if(a==="remover-chave"){ gravarLS(LS_CHAVE, ""); render("ativos"); toast("Chave removida"); }
+  else if(a==="abrir-importar"){ importacao = null; $("#imp-res").innerHTML = ""; $("#dlg-importar").showModal(); }
+  else if(a==="fechar-importar") $("#dlg-importar").close();
+  else if(a==="confirmar-importar" && importacao){
+    if(demo){ toast("No modo exemplo nada é salvo."); return; }
+    const r = aplicarImportacao(importacao); importacao = null; renderTudo();
+    $("#imp-res").innerHTML = `<p class="ok">Importados ${r.negs} ${r.negs===1?"lançamento":"lançamentos"} e ${r.provs} ${r.provs===1?"provento":"proventos"}.</p>`
+      + (r.inconsistente ? `<p class="erro">Atenção: ${esc(descreverVenda(r.inconsistente.tx))} ficou sem saldo. Provavelmente há compras anteriores ao período do extrato; lance a posição inicial à mão em Lançamentos.</p>` : "");
+  }
   else if(a==="gerar-ia") gerarResumoIA();
   else if(a==="salvar-groq"){
     const v = $("#chave-groq").value.trim();
@@ -1538,6 +1710,8 @@ document.addEventListener("click", e=>{
 document.addEventListener("change", e=>{
   if(e.target.matches("input.cot")){ if(demo){ toast("No modo exemplo nada é salvo."); return; } salvarCotacao(e.target); }
   if(e.target.id==="arq-import" && e.target.files[0]){ importar(e.target.files[0]); e.target.value=""; }
+  if(e.target.id==="arq-b3" && e.target.files[0]){ lerArquivoB3(e.target.files[0]); e.target.value=""; }
+  if(e.target.matches("select.imp-classe") && importacao) importacao.classes[e.target.dataset.t] = e.target.value;
 });
 document.addEventListener("keydown", e=>{
   if(e.key==="Enter" && e.target.matches("input.cot")) e.target.blur();
