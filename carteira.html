@@ -481,7 +481,7 @@ function atualizarDatalist(){
 
 /* Gráfico de linhas em SVG */
 function graficoLinhas(series, opts={}){
-  const W=680,H=240,pl=64,pr=12,pt=12,pb=28;
+  const W=680,H=240,pl=78,pr=12,pt=12,pb=28;
   const pts = series.flatMap(s=>s.pts);
   if(pts.length<2) return "";
   const xs = pts.map(p=>p.x), ys = pts.map(p=>p.y);
@@ -735,7 +735,7 @@ function rProventos(el){
   }
   const c = calcular();
   const max = Math.max(1,...mesesK.map(k=>ORDEM.reduce((s,c2)=>s+porMes[k][c2],0)));
-  const W=680,H=220,pl=64,pb=26,pt=10,bw=(W-pl-10)/12;
+  const W=680,H=220,pl=78,pb=26,pt=10,bw=(W-pl-10)/12;
   let svg="";
   for(let i=0;i<=3;i++){ const v=max*i/3, y=pt+(1-i/3)*(H-pt-pb); svg+=`<line x1="${pl}" x2="${W-10}" y1="${y}" y2="${y}" stroke="var(--line)"/><text x="${pl-8}" y="${y+4}" text-anchor="end">${esc(abrev(v))}</text>`; }
   mesesK.forEach((k,i)=>{
