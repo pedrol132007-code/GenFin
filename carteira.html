@@ -268,19 +268,22 @@ function carregarLocal(){
 }
 function gravarLocal(){ if(demo) return; try{ localStorage.setItem(LS_KEY, JSON.stringify(S)); }catch(e){} }
 
-/* Documentos no banco (um por área, para caber no limite por documento) */
+/* Documentos no banco (um por área, para caber no limite por documento).
+   Cada um leva "atualizado" para saber, ao conectar, se o local ou a conta é mais recente. */
 const DOCS = {
   carteira: s => ({
     ativos: Object.entries(s.ativos).map(([t,a])=>({t, classe:a.classe})),
     precos: Object.entries(s.precos).map(([t,p])=>({t, v:p.v, em:p.em||""})),
-    metas: s.metas
+    metas: s.metas, atualizado: s.atualizado||0
   }),
-  lancamentos: s => ({ itens: s.txs }),
-  proventos:   s => ({ itens: s.provs }),
-  historico:   s => ({ itens: s.hist })
+  lancamentos: s => ({ itens: s.txs, atualizado: s.atualizado||0 }),
+  proventos:   s => ({ itens: s.provs, atualizado: s.atualizado||0 }),
+  historico:   s => ({ itens: s.hist, atualizado: s.atualizado||0 })
 };
+function atualizadoDocs(docs){ return Math.max(0, ...Object.values(docs).map(d=>(d&&d.atualizado)||0)); }
 function aplicarDocs(alvo, docs){
   const c = docs.carteira||{};
+  alvo.atualizado = atualizadoDocs(docs);
   alvo.ativos = {}; (c.ativos||[]).forEach(a=>{ alvo.ativos[a.t] = {classe:a.classe}; });
   alvo.precos = {}; (c.precos||[]).forEach(p=>{ alvo.precos[p.t] = {v:p.v, em:p.em}; });
   alvo.metas = Object.assign({acao:0,etf:0,fii:0,rf:0,cripto:0}, c.metas||{});
@@ -292,6 +295,7 @@ function aplicarDocs(alvo, docs){
 const pendentes = new Set(); let tSalvar = null; let fila = Promise.resolve();
 function salvar(...nomes){
   if(demo) return;
+  S.atualizado = Date.now();
   gravarLocal();
   if(!base){ return; }
   nomes.forEach(n=>pendentes.add(n));
@@ -330,11 +334,12 @@ async function conectar(){
     const snaps = await Promise.all(TODOS_DOCS.map(n=>base.doc(n).get()));
     const existe = snaps.some(s=>s.exists);
     const alvo = demo ? realGuardado : S;
-    if(existe){
-      const docs = {}; snaps.forEach((s,i)=>{ if(s.exists) docs[TODOS_DOCS[i]] = JSON.parse(JSON.stringify(s.data())); });
+    const docs = {}; snaps.forEach((s,i)=>{ if(s.exists) docs[TODOS_DOCS[i]] = JSON.parse(JSON.stringify(s.data())); });
+    if(existe && (alvo.atualizado||0) <= atualizadoDocs(docs)){
       aplicarDocs(alvo, docs);
       if(!demo){ gravarLocal(); renderTudo(); }
-    } else if(temDados(alvo)){
+    } else if(existe || temDados(alvo)){
+      // O navegador tem alterações mais novas que a conta (por exemplo, feitas sem conexão): sobe o local.
       for(const n of TODOS_DOCS){ try{ await base.doc(n).set(DOCS[n](alvo)); }catch(e){} }
     }
     estado("Salvo na sua conta");
@@ -347,6 +352,22 @@ async function conectar(){
 function ordenarTxs(lista){
   return [...lista].sort((a,b)=> a.data<b.data?-1 : a.data>b.data?1 : (a.criado||0)-(b.criado||0));
 }
+/* Primeira venda ou resgate sem saldo suficiente na sequência completa, ou null */
+function vendaSemSaldo(lista){
+  const saldo = {};
+  for(const t of ordenarTxs(lista)){
+    const s = saldo[t.ticker] || 0;
+    if(t.classe==="rf"){
+      if(t.tipo==="compra") saldo[t.ticker] = s + t.valor;
+      else if(s<0.005) return {tx:t, tinha:0};
+      else { const r = s - s*Math.min(1, t.frac||1); saldo[t.ticker] = r<0.005 ? 0 : r; }
+    } else if(t.tipo==="compra") saldo[t.ticker] = s + t.qtd;
+    else if(t.qtd > s+1e-9) return {tx:t, tinha:s};
+    else saldo[t.ticker] = s - t.qtd < 1e-9 ? 0 : s - t.qtd;
+  }
+  return null;
+}
+function descreverVenda(t){ return `${t.classe==="rf"?"o resgate":"a venda"} de ${t.ticker} em ${dataBR(t.data)}`; }
 function calcular(ate){
   const pos = {}; const vendas = []; let aportado = 0;
   for(const t of ordenarTxs(S.txs)){
@@ -612,6 +633,7 @@ function rLancamentos(el){
     <div class="rodape"><button class="btn pri" type="submit">Adicionar lançamento</button><span id="tx-msg" aria-live="polite"></span></div>
   </form>
   <h3>Histórico <span class="mini" style="display:inline">${lista.length} ${lista.length===1?"lançamento":"lançamentos"}</span></h3>
+  ${(()=>{ const p=vendaSemSaldo(S.txs); return p?`<p class="erro">Atenção: ${esc(descreverVenda(p.tx))} passa do saldo que havia na data. Os cálculos e o imposto desse ativo ficam errados até você corrigir os lançamentos.</p>`:""; })()}
   ${lista.length?`<div class="rolagem altura"><table>
     <thead><tr><th>Data</th><th class="esq">Ativo</th><th class="esq">Operação</th><th>Quantidade</th><th>Preço</th><th>Taxas</th><th>Total</th><th></th></tr></thead>
     <tbody>${lista.map(t=>{
@@ -645,6 +667,7 @@ function addTx(f){
   if(S.ativos[ticker] && S.ativos[ticker].classe!==classe){ msg.textContent=`${ticker} já está cadastrado como ${CLASSES[S.ativos[ticker].classe].nome}.`; return; }
   const c = calcular(); const pos = c.lista.find(p=>p.ticker===ticker);
   const tx = {id:uid(), criado:Date.now(), data, tipo, classe, ticker};
+  let novoPreco; // na renda fixa, o valor atual do título muda junto com a aplicação ou o resgate
   if(classe==="rf"){
     const valor = parseNum(f.elements.namedItem("valor").value);
     if(!(valor>0)){ msg.textContent="Informe um valor maior que zero."; return; }
@@ -654,10 +677,10 @@ function addTx(f){
       const atual = pos.valor;
       tx.frac = atual>0 ? Math.min(1, valor/atual) : 1;
       const restante = atual - valor;
-      if(restante>0.01) S.precos[ticker] = {v:restante, em:hojeISO()}; else delete S.precos[ticker];
+      novoPreco = restante>0.01 ? {v:restante, em:hojeISO()} : null;
     } else {
       const pr = S.precos[ticker];
-      if(pr) S.precos[ticker] = {v:pr.v+valor, em:pr.em};
+      if(pr) novoPreco = {v:pr.v+valor, em:pr.em};
     }
   } else {
     const qtd=parseNum(f.elements.namedItem("qtd").value), preco=parseNum(f.elements.namedItem("preco").value), taxas=f.elements.namedItem("taxas").value.trim()?parseNum(f.elements.namedItem("taxas").value):0;
@@ -665,12 +688,18 @@ function addTx(f){
     if(!(preco>0)){ msg.textContent="Informe o preço por unidade."; return; }
     if(!(taxas>=0)){ msg.textContent="Taxas inválidas."; return; }
     if(classe!=="cripto" && !Number.isInteger(qtd)){ msg.textContent="Para ações, ETFs e FIIs a quantidade é um número inteiro."; return; }
-    if(tipo==="venda"){
-      const posData = calcular(data).lista.find(p=>p.ticker===ticker);
-      if(!posData || posData.qtd+1e-9<qtd){ msg.textContent=`Você tinha ${posData?qtdFmt(posData.qtd):0} de ${ticker} nessa data. Confira a quantidade ou a data.`; return; }
-    }
     Object.assign(tx,{qtd,preco,taxas});
   }
+  if(tipo==="venda"){
+    const prob = vendaSemSaldo([...S.txs, tx]);
+    if(prob && prob.tx===tx){
+      msg.textContent = classe==="rf" ? `Não havia saldo aplicado em ${ticker} nessa data. Confira a data.`
+        : `Você tinha ${qtdFmt(prob.tinha)} de ${ticker} nessa data. Confira a quantidade ou a data.`;
+      return;
+    }
+    if(prob && !vendaSemSaldo(S.txs)){ msg.textContent=`Com esse lançamento, ${descreverVenda(prob.tx)} ficaria sem saldo. Confira a quantidade ou a data.`; return; }
+  }
+  if(novoPreco) S.precos[ticker] = novoPreco; else if(novoPreco===null) delete S.precos[ticker];
   S.ativos[ticker] = {classe};
   S.txs.push(tx);
   registrarHist();
@@ -683,7 +712,10 @@ function addTx(f){
 }
 function delTx(id){
   const t = S.txs.find(x=>x.id===id); if(!t) return;
-  S.txs = S.txs.filter(x=>x.id!==id);
+  const resto = S.txs.filter(x=>x.id!==id);
+  const prob = vendaSemSaldo(resto);
+  if(prob && !vendaSemSaldo(S.txs)){ toast(`Não dá para excluir: ${descreverVenda(prob.tx)} ficaria sem saldo. Exclua a venda antes.`); return; }
+  S.txs = resto;
   if(!S.txs.some(x=>x.ticker===t.ticker)){ delete S.ativos[t.ticker]; delete S.precos[t.ticker]; }
   registrarHist(); salvar("lancamentos","carteira","historico"); atualizarDatalist();
   render("lancamentos"); toast("Lançamento excluído");
@@ -832,7 +864,11 @@ function rIR(el){
   const cod = {acao:"03, código 01", etf:"07, código 08", fii:"07, código 03", rf:"04, código 02 ou 03", cripto:"08, códigos 01 a 03"};
   const bens = todos.map(t=>{ const p=pos31.find(x=>x.ticker===t); const classe=(S.ativos[t]||{}).classe||(p&&p.classe)||"acao";
     return `<tr><td><i class="pinta" style="background:${corDe(classe)};margin-right:8px"></i><span class="tk">${esc(t)}</span></td><td class="esq">${cod[classe]}</td><td>${p&&classe!=="rf"?qtdFmt(p.qtd):"—"}</td><td>${brl(antMap[t]||0)}</td><td>${brl(p?p.custo:0)}</td></tr>`; }).join("");
-  const provAno = {}; S.provs.filter(p=>p.data.startsWith(anoIR)).forEach(p=>{ const cl=(S.ativos[p.ticker]||{}).classe||"acao"; const chave = p.tipo==="jcp"?"jcp":cl==="fii"?"fii":"div"; provAno[chave]=(provAno[chave]||0)+p.valor; });
+  const provAno = {}, divMes = {}; S.provs.filter(p=>p.data.startsWith(anoIR)).forEach(p=>{ const cl=(S.ativos[p.ticker]||{}).classe||"acao"; const chave = p.tipo==="jcp"?"jcp":cl==="fii"?"fii":"div"; provAno[chave]=(provAno[chave]||0)+p.valor;
+    if(chave==="div"){ const k=p.ticker+" "+p.data.slice(0,7); divMes[k]=(divMes[k]||0)+p.valor; } });
+  // Lei 15.270/2025: a partir de 2026, dividendos acima de R$ 50 mil no mês, da mesma empresa, têm 10% retido na fonte
+  const regra2026 = +anoIR>=2026;
+  const divAcima = regra2026 ? Object.entries(divMes).filter(([,v])=>v>50000).map(([k])=>{ const [t,ym]=k.split(" "); return esc(t)+" em "+mesBR(ym); }) : [];
 
   el.innerHTML = `<h2>Imposto de renda</h2>
   <p class="sub">Estimativa do imposto sobre vendas com lucro (operações comuns, sem day trade), dos bens e direitos e dos proventos para a declaração. Confira sempre com as notas de corretagem e, se tiver dúvida, com um contador.</p>
@@ -850,7 +886,9 @@ function rIR(el){
   <p class="nota">Na declaração, os bens entram pelo custo de aquisição (preço médio vezes quantidade), não pelo valor de mercado. Na renda fixa, o custo é o valor aplicado. Confira os códigos no programa da Receita do ano.</p>
 
   <h3>Proventos recebidos em ${anoIR}</h3>
-  <div class="kpis"><div><span>Dividendos de ações</span><strong>${brl(provAno.div||0)}</strong><span>rendimentos isentos</span></div><div><span>Rendimentos de FIIs</span><strong>${brl(provAno.fii||0)}</strong><span>rendimentos isentos</span></div><div><span>JCP</span><strong>${brl(provAno.jcp||0)}</strong><span>tributação exclusiva</span></div></div>`;
+  <div class="kpis"><div><span>Dividendos de ações</span><strong>${brl(provAno.div||0)}</strong><span>${regra2026?"isentos até R$ 50 mil/mês por empresa":"rendimentos isentos"}</span></div><div><span>Rendimentos de FIIs</span><strong>${brl(provAno.fii||0)}</strong><span>rendimentos isentos</span></div><div><span>JCP</span><strong>${brl(provAno.jcp||0)}</strong><span>tributação exclusiva</span></div></div>
+  ${divAcima.length?`<p class="erro">Dividendos acima de R$ 50 mil no mês: ${divAcima.join(", ")}. Nesses casos há IR de 10% retido na fonte, e o valor entra como rendimento tributado exclusivamente na fonte, não como isento.</p>`:""}
+  ${regra2026?`<p class="nota">Desde 2026 (Lei 15.270/2025), dividendos que passam de R$ 50 mil no mês, pagos pela mesma empresa, têm 10% de IR retido na fonte. Quem recebe mais de R$ 600 mil no ano, somando todas as rendas, pode dever o imposto mínimo na declaração. Dividendos aprovados até 2025 seguem isentos. Confira com o informe de rendimentos da corretora.</p>`:""}`;
   $("#ano-ir",el).addEventListener("change",e=>{ anoIR=e.target.value; render("ir"); });
 }
 
