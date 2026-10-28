@@ -480,6 +480,34 @@ excluirBem(S.bens[1].id); ok(S.bens.length===1, "exclui o bem");
 const elRes = fakeEl(); abaAtual="ir"; rResumo(elRes);
 ok(/Investimentos hoje/.test(elRes.innerHTML) && /patrimônio total é/.test(elRes.innerHTML), "Resumo mostra o patrimônio total quando há bens");
 
+// 19. Notícias: manchetes dos ativos, cache, contador e tela
+{
+  S = vazio(); S.atualizado = 1; delete mem[LS_NOTICIAS]; delete mem[LS_NOT_VISTO]; buscandoNoticias = false; filtroNoticias = "todos";
+  add({classe:"acao",tipo:"compra",data:"2026-01-05",ticker:"PETR4",qtd:"100",preco:"30"});
+  add({classe:"cripto",tipo:"compra",data:"2026-01-05",ticker:"BTC",qtd:"0,1",preco:"300000"});
+  add({classe:"rf",tipo:"compra",data:"2026-01-05",ticker:"CDB N",valor:"1000"});
+  const agoraIso = new Date().toISOString(), antes = new Date(Date.now()-3*3600e3).toISOString();
+  let buscas = [];
+  globalThis.__fetch = url => { buscas.push(decodeURIComponent(url.split("q=")[1]||"")); return resp(200, {itens: url.includes("BTC") ?
+    [{titulo:"Bitcoin sobe", fonte:"Portal", link:"https://news.google.com/rss/articles/X1", data:antes}]
+    : [{titulo:"Petrobras anuncia JCP", fonte:"ISTOÉ", link:"https://news.google.com/rss/articles/P1", data:agoraIso}, {titulo:"Bitcoin sobe", fonte:"Outro", link:"https://news.google.com/rss/articles/P2", data:antes}]}); };
+  await carregarNoticias();
+  ok(buscas.sort().join("|")==="BTC cripto|PETR4" && !buscas.some(b=>/CDB/.test(b)), "busca as notícias dos ativos de renda variável (cripto com a palavra cripto)");
+  const feed = feedNoticias();
+  ok(feed.length===2 && feed[0].titulo==="Petrobras anuncia JCP" && feed[0].ticker==="PETR4" && feed[1].titulo==="Bitcoin sobe", "feed junta, tira repetidas e ordena das mais novas");
+  ok(noticiasNovas()===2 && $("#cont-noticias").textContent==="2" && $("#cont-noticias").hidden===false, "contador mostra as notícias novas");
+  buscas = []; await carregarNoticias();
+  ok(buscas.length===0, "não busca de novo antes de 30 minutos");
+  abaAtual = "noticias"; const elN = fakeEl(); rNoticias(elN);
+  ok(/Petrobras anuncia JCP/.test(elN.innerHTML) && elN.innerHTML.includes('href="https://news.google.com/rss/articles/P1"') && /data-act="filtro-noticias" data-k="BTC"/.test(elN.innerHTML) && noticiasNovas()===0, "aba Notícias mostra o feed com link do Google e filtro, e marca como vistas");
+  filtroNoticias = "BTC"; const elN2 = fakeEl(); rNoticias(elN2);
+  ok(/Bitcoin sobe/.test(elN2.innerHTML) && !/Petrobras anuncia JCP/.test(elN2.innerHTML), "filtro por ativo");
+  filtroNoticias = "todos"; abaAtual = "ir";
+  ok(/class="lista-noticias"/.test(htmlNoticiasResumo()) && (htmlNoticiasResumo().match(/class="noticia"/g)||[]).length===2, "bloco do Resumo com as manchetes mais novas");
+  ok(tempoRelativo(antes)==="há 3 h" && tempoRelativo(agoraIso)==="agora", "tempo relativo das notícias");
+  entrarDemo(); buscas = []; await carregarNoticias(); ok(buscas.length===0, "modo exemplo não busca notícias"); sairDemo();
+}
+
 // 18. IA no Resumo: manchete do dia, conversa e sugestões
 {
   S = vazio(); S.atualizado = 1; mem[LS_GROQ] = ""; delete mem[LS_MANCHETE]; delete mem[LS_CONVERSA]; conversa = []; mancheteTentada = null;

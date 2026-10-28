@@ -52,7 +52,7 @@ Preço médio, alocação, proventos, rebalanceamento e imposto de renda para qu
 | ⚖️ **Rebalancear** | Metas por classe e sugestão de como dividir um novo aporte para se aproximar delas, só com compras. |
 | 🦁 **Imposto de renda** | Apuração mensal com isenções, compensação de prejuízo e DARF; bens e direitos em 31/12; proventos do ano separados por tipo. |
 | 📦 **Inventário** | Bens que não são investimentos (imóveis, veículos, eletrônicos, videogames, lazer e esporte, móveis, coleções, dinheiro guardado), cada categoria com seu ícone, com valor estimado, valor pago e financiamento. Mostra o patrimônio total e leva os bens marcados para Bens e direitos do IR. |
-| 📰 **Notícias** | Atalhos para o Google Notícias e o Status Invest de cada ativo. |
+| 📰 **Notícias** | Manchetes do Google Notícias dos seus ativos, num ícone no topo com o número de novidades, nas três mais recentes do Resumo e numa aba com filtro por ativo. Tocar abre a notícia no Google. |
 
 Cinco classes de ativo: **ações**, **ETFs**, **FIIs**, **renda fixa** e **cripto**.
 
@@ -155,6 +155,7 @@ flowchart LR
 ```
 
 - **Sempre no aparelho**, na chave `carteira-v1` do `localStorage`. Com a sincronização ligada, uma cópia **cifrada** vai para a nuvem (veja Sincronizar celular e computador); sem ela, a carteira não sai do aparelho. Para as cotações, só os **códigos** dos ativos (como `PETR4` ou `BTC`) vão para a brapi e o Mercado Bitcoin; quantidades e valores nunca são enviados.
+- **Notícias:** só o código de cada ativo de renda variável vai para a função `api/noticias.js`, que busca as manchetes no Google Notícias e devolve título, fonte, data e link. Nada é guardado lá.
 - **As chaves da brapi e do Groq** ficam só no navegador, separadas da carteira. Elas não entram no backup nem vão para a conta.
 - **Resumo com IA:** só vai para a IA o que aparece em "O que vai para a IA", na aba Análises: percentuais, códigos dos ativos e as leituras escritas sem valores em reais. Quantidades, preços e o patrimônio não saem do aparelho. Sem chave própria, os dados passam pela função `api/resumo.js` do GenFin na Vercel, que guarda a chave do Groq na variável de ambiente `GROQ_API_KEY`, aceita só esse formato de dados (e recusa valores em reais), usa uma instrução fixa e não guarda nada. Quem preferir pode colar a própria chave do Groq no app, que então fala direto com ele. A instrução pede que a IA explique os números e não recomende compra ou venda.
 - **No claude.ai**, também na conta do usuário, em quatro documentos (`carteira`, `lancamentos`, `proventos` e `historico`). Cada salvamento leva data e hora. Ao abrir, o lado mais recente vence, para não perder alterações feitas sem conexão.
@@ -198,6 +199,7 @@ Operações comuns de pessoa física, sem day trade:
 ├── icons/                 # ícones PNG do app instalado
 ├── vercel.json            # rota / → carteira.html e cabeçalhos
 ├── api/resumo.js          # função da Vercel: resumo com IA pelo Groq
+├── api/noticias.js        # função da Vercel: manchetes do Google Notícias por ativo
 ├── api/sync.js            # função da Vercel: guarda a carteira cifrada (sincronização)
 ├── capacitor.config.json  # app Android: nome, id e barras do sistema
 ├── assets/                # ícones-fonte do app Android (camadas do ícone adaptativo)

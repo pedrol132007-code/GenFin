@@ -74,6 +74,28 @@ const dados = { data: "2026-10-28", classes: [{ classe: "Ações", carteira_pct:
   r = await chamar(fnM, { body: { modo: "qualquer", dados } });
   ok(r.statusCode === 200 && /no máximo 6 tópicos/.test(ultimo.messages[0].content), "modo desconhecido vira resumo");
 
+  // api/noticias.js: lê o RSS do Google Notícias
+  const noticias = require("../api/noticias.js");
+  const hojeIso = new Date().toUTCString(), velha = new Date(Date.now() - 40 * 864e5).toUTCString();
+  const rss = `<rss><channel>
+    <item><title>Petrobras (PETR4) anuncia dividendos &amp; JCP - ISTOÉ DINHEIRO</title><link>https://news.google.com/rss/articles/AAA?oc=5</link><pubDate>${hojeIso}</pubDate><source url="https://istoe.com.br">ISTOÉ DINHEIRO</source></item>
+    <item><title>Petrobras (PETR4) anuncia dividendos &amp; JCP - Outro Site</title><link>https://news.google.com/rss/articles/BBB?oc=5</link><pubDate>${hojeIso}</pubDate><source>Outro Site</source></item>
+    <item><title>Notícia antiga - X</title><link>https://news.google.com/rss/articles/CCC</link><pubDate>${velha}</pubDate><source>X</source></item>
+    <item><title>Link estranho - Y</title><link>https://site-malicioso.com/a</link><pubDate>${hojeIso}</pubDate><source>Y</source></item>
+  </channel></rss>`;
+  const lidos = noticias.lerRSS(rss);
+  ok(lidos.length === 1 && lidos[0].titulo === "Petrobras (PETR4) anuncia dividendos & JCP" && lidos[0].fonte === "ISTOÉ DINHEIRO", "RSS: tira a fonte do título, decodifica, tira repetidas e mantém só links do Google dos últimos 30 dias");
+  let urlGoogle = null;
+  global.fetch = async url => { urlGoogle = url; return { ok: true, status: 200, text: async () => rss }; };
+  const chamarGet = (q, origin) => new Promise(resolve => { const res = { headers: {}, statusCode: 200, setHeader(k, v) { this.headers[k.toLowerCase()] = v; }, status(c) { this.statusCode = c; return this; }, json(o) { this.body = o; resolve(this); return this; }, end() { resolve(this); return this; } };
+    noticias({ method: "GET", headers: { origin: origin || "https://genfin-rose.vercel.app" }, query: { q } }, res); });
+  r = await chamarGet("BTC cripto");
+  ok(r.statusCode === 200 && r.body.itens.length === 1 && /q=BTC%20cripto&hl=pt-BR/.test(urlGoogle) && /s-maxage=1800/.test(r.headers["cache-control"]), "notícias: busca no Google Notícias em português, com cache de 30 min");
+  r = await chamarGet("<script>");
+  ok(r.statusCode === 400, "notícias: busca fora do formato é recusada");
+  r = await chamarGet("PETR4", "https://localhost");
+  ok(r.headers["access-control-allow-origin"] === "https://localhost", "notícias: app Android pode chamar");
+
   // api/sync.js com o Blob em memória
   const { instalar, chamar: chamarSync } = require("./blob-falso.js");
   const blob = instalar();

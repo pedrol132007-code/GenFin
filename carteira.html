@@ -135,6 +135,29 @@ details.chave summary{cursor:pointer;color:var(--focus);width:max-content;max-wi
 .altura{max-height:460px;overflow:auto}
 tr.sel{background:var(--soft)}
 
+/* Notícias: ícone no topo, bloco no Resumo e feed */
+.ic-topo{position:relative;flex:none;width:40px;height:40px;border-radius:10px;border:1px solid var(--line);background:var(--surface);
+  color:var(--ink);display:grid;place-items:center;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.ic-topo:hover{border-color:var(--muted)}
+.ic-topo svg{width:21px;height:21px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.contador{position:absolute;top:-6px;right:-6px;min-width:19px;height:19px;padding:0 5px;border-radius:10px;background:var(--neg);color:#fff;
+  font-size:.7rem;font-weight:700;line-height:19px;text-align:center;box-shadow:0 0 0 2px var(--bg)}
+.contador[hidden]{display:none}
+#v-noticias{max-width:860px}
+.lista-noticias{list-style:none;margin:0;padding:0;background:var(--surface);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.noticias-resumo{max-width:760px;margin:28px 0}
+.topo-noticias{display:flex;justify-content:space-between;align-items:baseline;gap:12px;margin-bottom:10px}
+.topo-noticias h3{margin:0}
+.noticia + .noticia{border-top:1px solid var(--line)}
+.noticia a{display:flex;flex-direction:column;gap:6px;padding:12px 14px;color:var(--ink);text-decoration:none;-webkit-tap-highlight-color:transparent}
+.noticia a:hover{background:var(--soft)}
+.noticia-tk{margin-right:8px;color:var(--ink);font-size:.72rem;font-weight:700;letter-spacing:.01em;padding:3px 7px 3px 6px;
+  border-radius:6px;background:var(--soft);border-left:3px solid var(--cor)}
+.noticia-titulo{font-weight:550;line-height:1.38}
+.noticia-meta{display:flex;align-items:center;flex-wrap:wrap;color:var(--muted);font-size:.8rem}
+.atalhos-noticias{margin-top:22px}
+.atalhos-noticias summary{cursor:pointer;color:var(--focus);width:max-content;max-width:100%;margin-bottom:10px}
+
 /* IA no Resumo: manchete, pergunta e conversa */
 .ia-topo{max-width:760px;margin:2px 0 26px}
 .manchete{position:relative;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:16px 16px 12px;overflow:hidden}
@@ -386,6 +409,7 @@ textarea{width:100%;min-height:140px;font:12px/1.4 ui-monospace,Menlo,monospace;
     <div class="bar">
       <h1 class="marca"><svg class="logo" xmlns="http://www.w3.org/2000/svg" viewBox="-109.74 -78.5 394.54 86.49" role="img" aria-label="GenFin"><title>GenFin</title><g transform="translate(-109.74 -78.5) scale(0.86)"><clipPath id="gm-app"><rect width="100" height="100" rx="23"/></clipPath><g clip-path="url(#gm-app)"><rect x="0" y="0" width="22.5" height="100" fill="#2B5C8F"/><rect x="25.5" y="0" width="15" height="100" fill="#6A4C9C"/><rect x="43.5" y="0" width="17" height="100" fill="#B98323"/><rect x="63.5" y="0" width="19" height="100" fill="#3B7D5C"/><rect x="85.5" y="0" width="14.5" height="100" fill="#D0662A"/></g><path d="M30.10 1.40L30.10 1.40Q21.50 1.40 15.35-2.90Q9.20-7.20 5.95-14.85Q2.70-22.50 2.70-32.50L2.70-32.50Q2.70-39.90 4.55-46.25Q6.40-52.60 10.30-57.35Q14.20-62.10 20.20-64.75Q26.20-67.40 34.50-67.40L34.50-67.40Q41.50-67.40 46.55-65.50Q51.60-63.60 54.80-60.20Q58-56.80 59.30-52.35Q60.60-47.90 60.10-42.80L60.10-42.80L45-41Q45.20-45.50 43.90-48.35Q42.60-51.20 40.05-52.60Q37.50-54 33.90-54L33.90-54Q29.60-54 26.40-51.70Q23.20-49.40 21.45-44.80Q19.70-40.20 19.70-33.30L19.70-33.30Q19.70-28.20 20.70-24.15Q21.70-20.10 23.70-17.35Q25.70-14.60 28.65-13.15Q31.60-11.70 35.40-11.70L35.40-11.70Q39.20-11.70 41.90-13.05Q44.60-14.40 46.05-16.75Q47.50-19.10 47.50-22.20L47.50-22.20L37.10-22.20L37.10-33.60L61.90-33.60L61.90-21.20L61.90 0L50.80 0L50.80-17.80L49.90-17.80Q49.40-11.60 46.95-7.30Q44.50-3 40.25-0.80Q36 1.40 30.10 1.40Z" fill="#FFFFFF" transform="scale(0.87) translate(25.03 90.33)"/></g><path d="M30.10 1.40L30.10 1.40Q21.50 1.40 15.35-2.90Q9.20-7.20 5.95-14.85Q2.70-22.50 2.70-32.50L2.70-32.50Q2.70-39.90 4.55-46.25Q6.40-52.60 10.30-57.35Q14.20-62.10 20.20-64.75Q26.20-67.40 34.50-67.40L34.50-67.40Q41.50-67.40 46.55-65.50Q51.60-63.60 54.80-60.20Q58-56.80 59.30-52.35Q60.60-47.90 60.10-42.80L60.10-42.80L45-41Q45.20-45.50 43.90-48.35Q42.60-51.20 40.05-52.60Q37.50-54 33.90-54L33.90-54Q29.60-54 26.40-51.70Q23.20-49.40 21.45-44.80Q19.70-40.20 19.70-33.30L19.70-33.30Q19.70-28.20 20.70-24.15Q21.70-20.10 23.70-17.35Q25.70-14.60 28.65-13.15Q31.60-11.70 35.40-11.70L35.40-11.70Q39.20-11.70 41.90-13.05Q44.60-14.40 46.05-16.75Q47.50-19.10 47.50-22.20L47.50-22.20L37.10-22.20L37.10-33.60L61.90-33.60L61.90-21.20L61.90 0L50.80 0L50.80-17.80L49.90-17.80Q49.40-11.60 46.95-7.30Q44.50-3 40.25-0.80Q36 1.40 30.10 1.40ZM90.10 1.40L90.10 1.40Q82.60 1.40 77.55-0.75Q72.50-2.90 69.40-6.65Q66.30-10.40 64.95-15.20Q63.60-20 63.60-25.30L63.60-25.30Q63.60-31 65.05-36.20Q66.50-41.40 69.55-45.45Q72.60-49.50 77.45-51.85Q82.30-54.20 89.10-54.20L89.10-54.20Q95.90-54.20 100.75-51.85Q105.60-49.50 108.50-45.30Q111.40-41.10 112.25-35.60Q113.10-30.10 112-23.70L112-23.70L73.70-23.10L73.70-31.90L99.60-32.40L97.50-27.30Q98.10-31.90 97.35-35.05Q96.60-38.20 94.60-39.85Q92.60-41.50 89.10-41.50L89.10-41.50Q85.40-41.50 83.20-39.60Q81-37.70 80.10-34.25Q79.20-30.80 79.20-26.10L79.20-26.10Q79.20-18 81.90-14.30Q84.60-10.60 90.20-10.60L90.20-10.60Q92.60-10.60 94.20-11.20Q95.80-11.80 96.80-12.95Q97.80-14.10 98.20-15.75Q98.60-17.40 98.50-19.50L98.50-19.50L113.30-18.70Q113.60-15.40 112.65-11.90Q111.70-8.40 109.10-5.40Q106.50-2.40 101.85-0.50Q97.20 1.40 90.10 1.40ZM131.40 0L115.20 0L115.20-29.90L115.20-52.80L128.90-52.80L128.90-31.30L129.70-31.30Q130.30-39.10 132.30-44.15Q134.30-49.20 138-51.70Q141.70-54.20 147.40-54.20L147.40-54.20Q156-54.20 160.35-48.50Q164.70-42.80 164.70-31.50L164.70-31.50L164.70 0L148.50 0L148.50-29.40Q148.50-34.80 146.85-37.50Q145.20-40.20 141.60-40.20L141.60-40.20Q138.60-40.20 136.30-38.10Q134-36 132.70-31.30Q131.40-26.60 131.40-18.70L131.40-18.70L131.40 0ZM184.50 0L168.30 0L168.30-66L184.50-66L184.50 0ZM210-23.50L176.40-23.50L176.40-36.70L210-36.70L210-23.50ZM213.40-52.50L176.40-52.50L176.40-66L213.40-66L213.40-52.50ZM231.60 0L215.40 0L215.40-52.80L231.60-52.80L231.60 0ZM223.40-56.60L223.40-56.60Q218.80-56.60 216.35-58.55Q213.90-60.50 213.90-64.20L213.90-64.20Q213.90-68 216.35-69.95Q218.80-71.90 223.40-71.90L223.40-71.90Q228.10-71.90 230.55-69.90Q233-67.90 233-64.20L233-64.20Q233-60.60 230.55-58.60Q228.10-56.60 223.40-56.60ZM251.50 0L235.30 0L235.30-29.90L235.30-52.80L249.00-52.80L249.00-31.30L249.80-31.30Q250.40-39.10 252.40-44.15Q254.40-49.20 258.10-51.70Q261.80-54.20 267.50-54.20L267.50-54.20Q276.10-54.20 280.45-48.50Q284.80-42.80 284.80-31.50L284.80-31.50L284.80 0L268.60 0L268.60-29.40Q268.60-34.80 266.95-37.50Q265.30-40.20 261.70-40.20L261.70-40.20Q258.70-40.20 256.40-38.10Q254.10-36 252.80-31.30Q251.50-26.60 251.50-18.70L251.50-18.70L251.50 0Z" fill="var(--ink)"/></svg></h1>
       <span class="estado" id="estado">Carregando…</span>
+      <button class="ic-topo" data-act="ir-aba" data-aba="noticias" aria-label="Notícias dos seus ativos" title="Notícias"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5" width="13" height="14" rx="1.5"/><path d="M16.5 9h3v8.5a1.5 1.5 0 0 1-3 0M7 9h6M7 12.5h6M7 16h4"/></svg><span class="contador" id="cont-noticias" hidden></span></button>
       <div class="acoes">
         <button class="btn peq" data-act="backup">Backup</button>
       </div>
@@ -430,7 +454,7 @@ textarea{width:100%;min-height:140px;font:12px/1.4 ui-monospace,Menlo,monospace;
   <button data-aba="rebalancear"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v16M6 20h12M5 8h14"/><path d="M5 8l-2.5 6h5L5 8zM19 8l-2.5 6h5L19 8z"/></svg><span>Rebalancear<small>Metas e divisão do aporte</small></span></button>
   <button data-aba="ir"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3.5h12v17l-3-2-3 2-3-2-3 2z"/><path d="M9 8.5h6M9 12h6"/></svg><span>Imposto de renda<small>Apuração, DARF e bens</small></span></button>
   <button data-aba="inventario"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 7.5L12 3.5l8.5 4v9L12 20.5l-8.5-4z"/><path d="M3.5 7.5L12 11.5l8.5-4M12 11.5v9"/></svg><span>Inventário<small>Imóveis, veículos e outros bens</small></span></button>
-  <button data-aba="noticias"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5" width="13" height="14" rx="1.5"/><path d="M16.5 9h3v8.5a1.5 1.5 0 0 1-3 0M7 9h6M7 12.5h6M7 16h4"/></svg><span>Notícias<small>Atalhos de cada ativo</small></span></button>
+  <button data-aba="noticias"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5" width="13" height="14" rx="1.5"/><path d="M16.5 9h3v8.5a1.5 1.5 0 0 1-3 0M7 9h6M7 12.5h6M7 16h4"/></svg><span>Notícias<small>Manchetes dos seus ativos</small></span></button>
   <button data-act="abrir-importar"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11M7.5 10.5L12 15l4.5-4.5M4.5 17v2.5h15V17"/></svg><span>Importar da B3<small>Extratos de Negociação e Movimentação</small></span></button>
   <button data-act="backup"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 18.5a4.5 4.5 0 0 1-.6-9 6 6 0 0 1 11.4 1.5A3.8 3.8 0 0 1 17 18.5z"/><path d="M12 15.5v-5M9.8 12.7L12 10.5l2.2 2.2"/></svg><span>Backup e sincronização<small>Celular e computador, arquivo de backup</small></span></button>
 </dialog>
@@ -913,6 +937,7 @@ function irPara(aba){
   if(aba!=="inventario") editandoBem = null;
   if(aba==="resumo") atualizarIndices();       // só busca se faltar algum dia
   abaAtual = aba;
+  atualizarContadorNoticias();
   document.querySelectorAll("#abas button").forEach(b=>b.setAttribute("aria-selected", b.dataset.aba===aba ? "true":"false"));
   // Barra do celular: as abas que moram em "Mais" acendem o botão Mais
   const naDoca = ["resumo","analises","lancamentos","ativos"].includes(aba);
@@ -1044,6 +1069,11 @@ function rResumo(el){
     ${semCot?`<p class="nota" style="margin-top:14px">${semCot} ${semCot>1?"ativos estão":"ativo está"} sem cotação e ${semCot>1?"aparecem":"aparece"} pelo preço médio. <button class="link" data-act="ir-aba" data-aba="ativos">Atualizar cotações</button></p>`:""}
   </div>
 
+  ${c.lista.some(p=>p.qtd>0 && p.classe!=="rf") ? `<div class="noticias-resumo">
+    <div class="topo-noticias"><h3>Notícias da carteira${iaMini("Os meus ativos com notícias recentes estão pesando muito na carteira?", "as notícias")}</h3><button class="link" data-act="ir-aba" data-aba="noticias">Ver todas</button></div>
+    <div id="noticias-resumo">${htmlNoticiasResumo()}</div>
+  </div>` : ""}
+
   <div class="faixas">
     <div class="faixa-rot"><span>Alocação atual${iaMini("Explique a minha alocação comparada às metas.", "a alocação")}</span><span>${brl(c.total)}</span></div>
     ${c.total>0?faixa(c.porClasse,c.total,false):'<div class="faixa"></div>'}
@@ -1065,7 +1095,8 @@ function rResumo(el){
       </tbody></table></div>
     </div>
   </div>
-  ${blocoComp}`;
+  ${blocoComp}
+`;
   if(abaAtual==="resumo") setTimeout(()=>atualizarManchete(), 0);   // gera a manchete se a carteira mudou ou passou um dia
 }
 
@@ -2384,22 +2415,97 @@ function rInventario(el){
 }
 
 /* ---------- Notícias ---------- */
+// Manchetes dos ativos da carteira, lidas do Google Notícias pela função api/noticias.js (uma busca por ativo, com
+// cache de 30 minutos); tocar abre a notícia no Google. Só o código do ativo sai do aparelho.
+const LS_NOTICIAS = "genfin-noticias", LS_NOT_VISTO = "genfin-noticias-vistas";
+const MAX_ATIVOS_NOTICIAS = 10;
+let filtroNoticias = "todos", buscandoNoticias = false;
+function lerNoticias(){ try{ return JSON.parse(lerLS(LS_NOTICIAS)||"null") || {}; }catch(e){ return {}; } }
+const buscaNoticia = p => p.classe==="cripto" ? p.ticker+" cripto" : p.ticker;
+function ativosNoticias(){ return calcular().lista.filter(p=>p.qtd>0 && p.classe!=="rf").sort((a,b)=>b.valor-a.valor).slice(0, MAX_ATIVOS_NOTICIAS); }
+// Todas as manchetes guardadas dos ativos atuais, sem repetir, das mais novas para as mais antigas
+function feedNoticias(){
+  const cache = lerNoticias(), vistos = new Set(), itens = [];
+  for(const p of ativosNoticias()){
+    for(const n of ((cache[p.ticker]||{}).itens||[])){
+      const k = n.titulo.toLowerCase(); if(vistos.has(k)) continue; vistos.add(k);
+      itens.push({...n, ticker:p.ticker, classe:p.classe});
+    }
+  }
+  return itens.sort((a,b)=>b.data.localeCompare(a.data));
+}
+function noticiasNovas(){ const visto = Number(lerLS(LS_NOT_VISTO)||0); return feedNoticias().filter(n=>Date.parse(n.data) > visto).length; }
+function tempoRelativo(iso){
+  const min = Math.max(0, Math.round((Date.now()-Date.parse(iso))/60000));
+  if(min < 60) return min<=1 ? "agora" : "há "+min+" min";
+  if(min < 1440) return "há "+Math.round(min/60)+" h";
+  const d = Math.round(min/1440); return d < 7 ? "há "+d+(d===1?" dia":" dias") : dataBR(iso.slice(0,10));
+}
+function itemNoticia(n){
+  return `<li class="noticia"><a href="${esc(n.link)}" target="_blank" rel="noopener noreferrer">
+    <span class="noticia-titulo">${esc(n.titulo)}</span>
+    <span class="noticia-meta"><span class="noticia-tk" style="--cor:${corDe(n.classe)}">${esc(n.ticker)}</span>${esc(n.fonte)}${n.fonte?" · ":""}${tempoRelativo(n.data)}</span></a></li>`;
+}
+function atualizarContadorNoticias(){
+  const el = $("#cont-noticias"); if(!el) return;
+  const n = demo ? 0 : noticiasNovas();
+  el.textContent = n>9 ? "9+" : String(n); el.hidden = !n || abaAtual==="noticias";
+}
+async function carregarNoticias({forcar=false}={}){
+  if(demo || buscandoNoticias) return;
+  const cache = lerNoticias(), agora = Date.now();
+  const faltam = ativosNoticias().filter(p=>forcar || !cache[p.ticker] || agora-cache[p.ticker].em > INTERVALO_AUTO);
+  if(!faltam.length){ atualizarContadorNoticias(); return; }
+  buscandoNoticias = true; if(abaAtual==="noticias") render("noticias");
+  const fila = [...faltam];
+  await Promise.all([1,2,3,4].map(async ()=>{
+    while(fila.length){
+      const p = fila.shift();
+      try{
+        const r = await fetch(baseServidor()+"/api/noticias?q="+encodeURIComponent(buscaNoticia(p)), comPrazo());
+        if(!r.ok) continue;
+        const j = await r.json(); cache[p.ticker] = {em: Date.now(), itens: Array.isArray(j.itens) ? j.itens.slice(0,8) : []};
+      }catch(e){ /* sem rede: fica com o que já estava guardado */ }
+    }
+  }));
+  // Guarda só os ativos que ainda estão na carteira
+  const atuais = new Set(ativosNoticias().map(p=>p.ticker));
+  Object.keys(cache).forEach(t=>{ if(!atuais.has(t)) delete cache[t]; });
+  gravarLS(LS_NOTICIAS, JSON.stringify(cache));
+  buscandoNoticias = false;
+  atualizarContadorNoticias();
+  if(abaAtual==="noticias") render("noticias");
+  const bloco = $("#noticias-resumo"); if(bloco) bloco.innerHTML = htmlNoticiasResumo();   // só o bloco, para não apagar a pergunta digitada
+}
+// Bloco do Resumo: as 3 manchetes mais novas
+function htmlNoticiasResumo(){
+  const f = feedNoticias().slice(0,3);
+  return f.length ? `<ul class="lista-noticias">${f.map(itemNoticia).join("")}</ul>`
+    : `<p class="nota">${buscandoNoticias ? "Buscando as notícias dos seus ativos…" : "As manchetes dos seus ativos aparecem aqui quando houver internet."}</p>`;
+}
 function rNoticias(el){
-  const c = calcular();
-  const ativas = c.lista.filter(p=>p.qtd>0 && p.classe!=="rf").sort((a,b)=>b.valor-a.valor);
+  gravarLS(LS_NOT_VISTO, String(Date.now())); atualizarContadorNoticias();
+  const ativas = calcular().lista.filter(p=>p.qtd>0 && p.classe!=="rf").sort((a,b)=>b.valor-a.valor);
   const gnews = q => "https://news.google.com/search?q="+encodeURIComponent(q)+"&hl=pt-BR&gl=BR&ceid=BR:pt-419";
   const si = {acao:"acoes", fii:"fundos-imobiliarios", etf:"etfs"};
-  const nomeBusca = p => p.classe==="cripto" ? p.ticker+" cripto" : p.ticker;
+  if(!ativas.length){ el.innerHTML = `<h2>Notícias</h2><p class="nota">Adicione ações, FIIs, ETFs ou cripto para ver as notícias deles aqui.</p>`; return; }
+  const feed = feedNoticias(), tickers = [...new Set(feed.map(n=>n.ticker))];
+  if(filtroNoticias!=="todos" && !tickers.includes(filtroNoticias)) filtroNoticias = "todos";
+  const vis = feed.filter(n=>filtroNoticias==="todos" || n.ticker===filtroNoticias);
   const todos = ativas.filter(p=>p.classe!=="cripto").slice(0,12).map(p=>p.ticker).join(" OR ");
-  el.innerHTML = `<h2>Notícias</h2>
-  <p class="sub">Atalhos para as notícias e os comunicados de cada ativo da carteira. Os links abrem em outra aba.</p>
-  ${todos?`<p><a href="${gnews(todos)}" target="_blank" rel="noopener noreferrer" class="btn">Notícias de toda a carteira</a></p>`:""}
-  ${ativas.length?`<div class="noticias">${ativas.map(p=>`<div class="card">
-    <div><i class="pinta" style="background:${corDe(p.classe)};margin-right:8px"></i><span class="tk">${esc(p.ticker)}</span></div>
-    <p>${CLASSES[p.classe].nome}, ${pct(c.total?p.valor/c.total:0)} da carteira</p>
-    <div class="links"><a href="${gnews(nomeBusca(p))}" target="_blank" rel="noopener noreferrer">Google Notícias</a>
-    ${si[p.classe]?`<a href="https://statusinvest.com.br/${si[p.classe]}/${encodeURIComponent(p.ticker.toLowerCase())}" target="_blank" rel="noopener noreferrer">Status Invest</a>`:""}
-    </div></div>`).join("")}</div>`:`<p class="nota">Adicione ativos de renda variável para ver os atalhos.</p>`}`;
+  el.innerHTML = `<div class="ativos-topo"><h2>Notícias</h2><button class="btn peq" data-act="noticias-atualizar"${buscandoNoticias?" disabled":""}>${buscandoNoticias?"Buscando…":"Atualizar"}</button></div>
+  ${tickers.length>1 ? `<div class="filtros" aria-label="Filtrar por ativo">${[["todos","Todas"], ...tickers.map(t=>[t,t])].map(([k,n])=>`<button class="filtro" data-act="filtro-noticias" data-k="${esc(k)}" aria-pressed="${filtroNoticias===k}">${esc(n)}</button>`).join("")}</div>` : ""}
+  ${vis.length ? `<ul class="lista-noticias">${vis.map(itemNoticia).join("")}</ul>`
+    : `<p class="nota">${demo ? "No modo exemplo os ativos são fictícios e não têm notícias." : buscandoNoticias ? "Buscando as notícias dos seus ativos…" : "Nenhuma notícia dos últimos 30 dias por enquanto. Toque em Atualizar quando estiver na internet."}</p>`}
+  <p class="nota">Manchetes do Google Notícias dos seus ${Math.min(ativas.length, MAX_ATIVOS_NOTICIAS)} maiores ativos de renda variável, dos últimos 30 dias. Tocar abre a notícia no Google. Para buscar, só o código do ativo sai do aparelho.</p>
+  <details class="atalhos-noticias"><summary>Atalhos por ativo</summary>
+    ${todos?`<p><a href="${gnews(todos)}" target="_blank" rel="noopener noreferrer" class="btn peq">Google Notícias de toda a carteira</a></p>`:""}
+    <div class="noticias">${ativas.map(p=>`<div class="card">
+      <div><i class="pinta" style="background:${corDe(p.classe)};margin-right:8px"></i><span class="tk">${esc(p.ticker)}</span></div>
+      <div class="links"><a href="${gnews(buscaNoticia(p))}" target="_blank" rel="noopener noreferrer">Google Notícias</a>
+      ${si[p.classe]?`<a href="https://statusinvest.com.br/${si[p.classe]}/${encodeURIComponent(p.ticker.toLowerCase())}" target="_blank" rel="noopener noreferrer">Status Invest</a>`:""}
+      </div></div>`).join("")}</div>
+  </details>`;
 }
 
 /* ---------- Exemplo ---------- */
@@ -2526,6 +2632,8 @@ document.addEventListener("click", e=>{
   else if(a==="remover-chave"){ gravarLS(LS_CHAVE, ""); render("ativos"); toast("Chave removida"); }
   else if(a==="abrir-mais") $("#dlg-mais").showModal();
   else if(a==="ia-perguntar") perguntarIA(b.dataset.q);
+  else if(a==="filtro-noticias"){ filtroNoticias = b.dataset.k; render("noticias"); }
+  else if(a==="noticias-atualizar") carregarNoticias({forcar:true});
   else if(a==="ia-fechar") $("#dlg-ia").close();
   else if(a==="ia-limpar"){ conversa = []; gravarConversa(); renderConversa(); }
   else if(a==="manchete-atualizar") atualizarManchete({forcar:true});
@@ -2597,12 +2705,12 @@ irPara(ABAS.includes(location.hash.slice(1)) ? location.hash.slice(1) : "resumo"
 $("#dlg-op").addEventListener("close", ()=>{ op = null; });
 estado(syncAtivo() ? "Sincronização ligada" : LOCAL);
 // Busca cotações depois de carregar os dados da conta, para atualizar a carteira mais recente
-conectar().then(()=>{ if(syncAtivo()) puxarSync(); if(precisaBuscar()) atualizarCotacoes({auto:true}); atualizarIndices(); });
+conectar().then(()=>{ if(syncAtivo()) puxarSync(); if(precisaBuscar()) atualizarCotacoes({auto:true}); atualizarIndices(); carregarNoticias(); });
 // App instalável pelo navegador: o service worker só funciona servido por https (Vercel) ou localhost, e não é preciso no app Android
 if("serviceWorker" in navigator && !nativo() && (location.protocol==="https:" || location.hostname==="localhost"))
   navigator.serviceWorker.register("sw.js").catch(()=>{});
 // Ao voltar para o app aberto há tempo (comum no celular), atualiza as cotações se já passou o intervalo
-document.addEventListener("visibilitychange", ()=>{ if(document.visibilityState!=="visible") return; if(syncAtivo()) puxarSync(); if(precisaBuscar()) atualizarCotacoes({auto:true}); atualizarIndices(); });
+document.addEventListener("visibilitychange", ()=>{ if(document.visibilityState!=="visible") return; if(syncAtivo()) puxarSync(); if(precisaBuscar()) atualizarCotacoes({auto:true}); atualizarIndices(); carregarNoticias(); });
 </script>
 </body>
 </html>
