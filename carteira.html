@@ -23,6 +23,8 @@
   --bg:#EEF2EF; --surface:#FFFFFF; --ink:#16232B; --muted:#5A6970; --line:#D3DBD6; --soft:#E4EAE6;
   --pos:#1F7A4A; --neg:#B3372F; --warn:#8A5A00; --focus:#2B5C8F;
   --c-acao:#2B5C8F; --c-etf:#6A4C9C; --c-fii:#B98323; --c-rf:#3B7D5C; --c-cripto:#D0662A;
+  /* Barra de navegação do celular: escura nos dois temas, a mesma cor que o manifesto dá à barra do Android */
+  --doca:#16232B; --doca-ink:#F2F5F3; --doca-muted:#8E9DA4; --doca-linha:#2B3841;
   color-scheme:light;
   box-sizing:border-box;
   padding-top:var(--safe-area-inset-top,env(safe-area-inset-top,0px));
@@ -196,6 +198,60 @@ dialog{border:1px solid var(--line);border-radius:12px;background:var(--surface)
 dialog::backdrop{background:rgba(0,0,0,.35)}
 textarea{width:100%;min-height:140px;font:12px/1.4 ui-monospace,Menlo,monospace;background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:8px}
 @media (prefers-reduced-motion:reduce){*{transition:none !important}}
+/* Barra de navegação e folha "Mais" (só no celular) */
+.doca{display:none}
+@media (max-width:720px){
+  nav.abas, .bar .acoes{display:none}
+  .bar{padding:12px 0 12px;gap:10px}
+  main{padding-bottom:calc(104px + var(--safe-area-inset-bottom,env(safe-area-inset-bottom,0px)))}
+  #toast{bottom:calc(86px + var(--safe-area-inset-bottom,env(safe-area-inset-bottom,0px)))}
+  .doca{display:flex;position:fixed;left:0;right:0;bottom:0;z-index:6;background:var(--doca);border-top:1px solid var(--doca-linha);
+    padding:6px 6px calc(6px + var(--safe-area-inset-bottom,env(safe-area-inset-bottom,0px)))}
+  .doca button{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;background:none;border:0;padding:6px 0 4px;
+    color:var(--doca-muted);font-size:.72rem;font-weight:500;cursor:pointer;-webkit-tap-highlight-color:transparent;min-height:52px}
+  .doca svg{width:24px;height:24px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+  .doca .mais svg{fill:currentColor;stroke:none}
+  .doca button[aria-current]{color:var(--doca-ink);font-weight:650}
+  .doca button:focus-visible{outline:2px solid var(--doca-ink);outline-offset:-2px;border-radius:10px}
+  /* Lançar: o botão claro no meio, a ação mais frequente */
+  .doca .lancar span{display:grid;place-items:center;width:40px;height:30px;border-radius:15px;background:var(--doca-ink);color:var(--doca)}
+  .doca .lancar span svg{width:20px;height:20px;stroke-width:2.2}
+  .doca .lancar[aria-current] span{box-shadow:0 0 0 2px var(--doca),0 0 0 3.5px var(--doca-ink)}
+  dialog.folha{inset:auto 0 0 0;margin:0;width:100%;max-width:none;border:0;border-radius:18px 18px 0 0;
+    padding:8px 8px calc(14px + var(--safe-area-inset-bottom,env(safe-area-inset-bottom,0px)))}
+  dialog.folha .alca{width:40px;height:4px;border-radius:2px;background:var(--line);margin:4px auto 10px;outline:none}
+
+  /* Tabelas largas viram cartões: o título é o ativo, e cada coluna vira "rótulo … valor" */
+  .rolagem:has(> table.cartoes){border:0;background:none;overflow:visible;max-height:none}
+  table.cartoes, table.cartoes tbody, table.cartoes tfoot{display:block}
+  table.cartoes thead{display:none}
+  table.cartoes tr{display:flex;flex-direction:column;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:8px 14px;margin-bottom:10px}
+  table.cartoes td{display:flex;justify-content:space-between;align-items:baseline;gap:12px;padding:5px 0;border:0;white-space:normal;text-align:right}
+  table.cartoes td::before{content:attr(data-label);color:var(--muted);font-size:.85rem;text-align:left;flex:none}
+  table.cartoes td .v{min-width:0}
+  table.cartoes td.titulo{order:-1;font-size:1.05rem;padding:4px 0 8px;border-bottom:1px solid var(--line);margin-bottom:4px;text-align:left}
+  table.cartoes td.titulo::before{content:none}
+  table.cartoes td[data-vazio]{display:none}
+  table.cartoes td[data-label=""]::before{content:none}
+  table.cartoes td[data-label=""]{justify-content:flex-end}
+  /* Linha de grupo (classe) vira um subtítulo com o total; o rodapé, um cartão de total */
+  table.cartoes tr.grupo{background:none;border:0;padding:16px 2px 4px;margin:0;flex-direction:row;flex-wrap:wrap;justify-content:space-between}
+  table.cartoes tr.grupo td{background:none;padding:0;border:0;margin:0;font-size:.95rem}
+  table.cartoes tr.grupo td::before{content:none}
+  table.cartoes tr.grupo td:not(.titulo):not([data-label="Valor"]){display:none}
+  table.cartoes tfoot tr{border-color:var(--ink)}
+  input.cot{width:130px}
+  dialog.folha button{display:flex;align-items:center;gap:14px;width:100%;background:none;border:0;border-radius:12px;
+    padding:12px;text-align:left;cursor:pointer;color:var(--ink);font-size:1rem;font-weight:600}
+  dialog.folha button:active{background:var(--soft)}
+  dialog.folha svg{width:24px;height:24px;flex:none;fill:none;stroke:var(--muted);stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+  dialog.folha small{display:block;font-weight:400;font-size:.82rem;color:var(--muted)}
+}
+@media (prefers-reduced-motion:no-preference) and (max-width:720px){
+  dialog.folha[open]{animation:sobe .2s ease-out}
+  @keyframes sobe{from{transform:translateY(100%)}to{transform:none}}
+}
+
 @media (max-width:560px){
   .wrap{padding:0 14px}
   .faixa{height:44px}
@@ -239,6 +295,24 @@ textarea{width:100%;min-height:140px;font:12px/1.4 ui-monospace,Menlo,monospace;
   <section id="v-ir" hidden></section>
   <section id="v-noticias" hidden></section>
 </main>
+
+<!-- Celular: barra de navegação embaixo (no computador continuam as abas do topo) -->
+<nav class="doca" aria-label="Navegação">
+  <button data-aba="resumo"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="9" width="18" height="6" rx="1.5"/><path d="M9 9v6M14 9v6"/></svg>Resumo</button>
+  <button data-aba="analises"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></svg>Análises</button>
+  <button data-aba="lancamentos" class="lancar"><span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></span>Lançar</button>
+  <button data-aba="ativos"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 17l5-5.5 4 3.5 7.5-8"/><path d="M15 7h5v5"/></svg>Ativos</button>
+  <button data-act="abrir-mais" class="mais"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5.5" cy="12" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="18.5" cy="12" r="1.3"/></svg>Mais</button>
+</nav>
+<dialog id="dlg-mais" class="folha" aria-label="Mais opções">
+  <div class="alca" tabindex="-1" autofocus aria-hidden="true"></div>
+  <button data-aba="proventos"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8"/><path d="M14.5 9.2c-.5-.8-1.4-1.2-2.5-1.2-1.5 0-2.6.8-2.6 2s1 1.6 2.6 2 2.7.9 2.7 2.1-1.2 2-2.7 2c-1.2 0-2.2-.5-2.7-1.4M12 6.5v1.5M12 16v1.5"/></svg><span>Proventos<small>Dividendos, JCP e rendimentos</small></span></button>
+  <button data-aba="rebalancear"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v16M6 20h12M5 8h14"/><path d="M5 8l-2.5 6h5L5 8zM19 8l-2.5 6h5L19 8z"/></svg><span>Rebalancear<small>Metas e divisão do aporte</small></span></button>
+  <button data-aba="ir"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3.5h12v17l-3-2-3 2-3-2-3 2z"/><path d="M9 8.5h6M9 12h6"/></svg><span>Imposto de renda<small>Apuração, DARF e bens</small></span></button>
+  <button data-aba="noticias"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5" width="13" height="14" rx="1.5"/><path d="M16.5 9h3v8.5a1.5 1.5 0 0 1-3 0M7 9h6M7 12.5h6M7 16h4"/></svg><span>Notícias<small>Atalhos de cada ativo</small></span></button>
+  <button data-act="abrir-importar"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11M7.5 10.5L12 15l4.5-4.5M4.5 17v2.5h15V17"/></svg><span>Importar da B3<small>Extratos de Negociação e Movimentação</small></span></button>
+  <button data-act="backup"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 18.5a4.5 4.5 0 0 1-.6-9 6 6 0 0 1 11.4 1.5A3.8 3.8 0 0 1 17 18.5z"/><path d="M12 15.5v-5M9.8 12.7L12 10.5l2.2 2.2"/></svg><span>Backup<small>Exportar, restaurar e apagar</small></span></button>
+</dialog>
 
 <datalist id="dl-ativos"></datalist>
 <div id="toast" role="status" aria-live="polite"></div>
@@ -530,14 +604,39 @@ function irPara(aba){
   if(aba==="resumo") atualizarIndices();       // só busca se faltar algum dia
   abaAtual = aba;
   document.querySelectorAll("#abas button").forEach(b=>b.setAttribute("aria-selected", b.dataset.aba===aba ? "true":"false"));
+  // Barra do celular: as abas que moram em "Mais" acendem o botão Mais
+  const naDoca = ["resumo","analises","lancamentos","ativos"].includes(aba);
+  document.querySelectorAll(".doca button").forEach(b=>{ const ativo = b.dataset.aba ? b.dataset.aba===aba : !naDoca; if(ativo) b.setAttribute("aria-current","page"); else b.removeAttribute("aria-current"); });
   ABAS.forEach(a=>{ $("#v-"+a).hidden = a!==aba; });
   render(aba);
+  // Cada aba entra no histórico: o botão voltar do Android volta para a aba anterior em vez de fechar o app
+  if(window.history && history.pushState && location.hash.slice(1)!==aba)
+    history[location.hash ? "pushState" : "replaceState"](null, "", "#"+aba);   // na abertura, sem aba no endereço, só marca
   window.scrollTo(0,0);
 }
 function renderTudo(){ atualizarDatalist(); render(abaAtual); $("#aviso-demo").classList.toggle("oculto", !demo); }
+// Tabelas que viram cartões no celular: cada célula ganha o rótulo da sua coluna (o texto do cabeçalho,
+// sem a legenda pequena), o conteúdo vai num <span class="v"> e a coluna "Ativo" vira o título do cartão
+function rotularTabela(t){
+  const ths = [...t.querySelectorAll("thead th")];
+  const rotulos = ths.map(th=>(th.childNodes[0] && th.childNodes[0].nodeType===3 ? th.childNodes[0].textContent : th.textContent).trim());
+  const iTitulo = Math.max(0, rotulos.findIndex(r=>/^(ativo|classe)$/i.test(r)));
+  t.querySelectorAll("tbody tr, tfoot tr").forEach(tr=>{
+    let col = 0;
+    [...tr.children].forEach(td=>{
+      td.dataset.label = (td.colSpan||1) > 1 ? "" : (rotulos[col] || "");   // célula que junta colunas (um total) fica sem rótulo
+      if(col===iTitulo) td.classList.add("titulo");
+      if(!td.textContent.trim() && !td.querySelector("input,button,select")) td.dataset.vazio = "";
+      if(!td.querySelector(":scope > .v")) td.innerHTML = `<span class="v">${td.innerHTML}</span>`;
+      col += td.colSpan || 1;
+    });
+  });
+}
 function render(aba){
   const f = { resumo:rResumo, analises:rAnalises, ativos:rAtivos, lancamentos:rLancamentos, proventos:rProventos, rebalancear:rRebalancear, ir:rIR, noticias:rNoticias }[aba];
-  f($("#v-"+aba));
+  const el = $("#v-"+aba);
+  f(el);
+  el.querySelectorAll("table.cartoes").forEach(rotularTabela);
 }
 function atualizarDatalist(){
   $("#dl-ativos").innerHTML = Object.keys(S.ativos).sort().map(t=>`<option value="${esc(t)}">`).join("");
@@ -1196,7 +1295,7 @@ function rAtivos(el){
     <div class="linha-chave"><input id="chave-brapi" type="password" autocomplete="off" spellcheck="false" placeholder="${chave?"Cole uma nova chave para trocar":"Cole a chave aqui"}" aria-label="Chave da brapi">
       <button class="btn" data-act="salvar-chave">Salvar chave</button>${chave?`<button class="btn perigo" data-act="remover-chave" data-armar="Confirmar">Remover</button>`:""}</div>
   </details>`:""}
-  <div class="rolagem"><table>
+  <div class="rolagem"><table class="cartoes">
     <thead><tr><th>Ativo</th><th>Quantidade</th><th>Preço médio<span class="mini">custo, na renda fixa</span></th><th>Cotação atual</th><th>Valor</th><th>Resultado</th><th>Proventos</th><th>% carteira</th></tr></thead>
     <tbody>${linhas}</tbody>
     <tfoot><tr><td>Total</td><td></td><td>${brl(c.custo)}</td><td></td><td>${brl(c.total)}</td><td class="${cls(c.total-c.custo)}">${brlSinal(c.total-c.custo)}</td><td>${brl(c.provs)}</td><td>100%</td></tr></tfoot>
@@ -1246,7 +1345,7 @@ function rLancamentos(el){
   </form>
   <h3>Histórico <span class="mini" style="display:inline">${lista.length} ${lista.length===1?"lançamento":"lançamentos"}</span></h3>
   ${(()=>{ const p=vendaSemSaldo(S.txs); return p?`<p class="erro">Atenção: ${esc(descreverVenda(p.tx))} passa do saldo que havia na data. Os cálculos e o imposto desse ativo ficam errados até você corrigir os lançamentos.</p>`:""; })()}
-  ${lista.length?`<div class="rolagem altura"><table>
+  ${lista.length?`<div class="rolagem altura"><table class="cartoes">
     <thead><tr><th>Data</th><th class="esq">Ativo</th><th class="esq">Operação</th><th>Quantidade</th><th>Preço</th><th>Taxas</th><th>Total</th><th></th></tr></thead>
     <tbody>${lista.map(t=>{
       const rf=t.classe==="rf"; const tot = rf?t.valor:t.qtd*t.preco+(t.tipo==="compra"?1:-1)*(t.taxas||0);
@@ -1445,11 +1544,11 @@ function rProventos(el){
   </form>
   <div class="grade2" style="margin-top:8px">
   <div><h3>Por ativo</h3>
-  ${porAtivo.length?`<div class="rolagem"><table><thead><tr><th>Ativo</th><th>Total recebido</th><th>Últimos 12 meses</th><th>Sobre o custo<span class="mini">12 meses</span></th></tr></thead><tbody>
+  ${porAtivo.length?`<div class="rolagem"><table class="cartoes"><thead><tr><th>Ativo</th><th>Total recebido</th><th>Últimos 12 meses</th><th>Sobre o custo<span class="mini">12 meses</span></th></tr></thead><tbody>
   ${porAtivo.map(p=>`<tr><td><i class="pinta" style="background:${corDe(p.classe)};margin-right:8px"></i><span class="tk">${esc(p.ticker)}</span></td><td>${brl(p.provs)}</td><td>${brl(ult12Por[p.ticker]||0)}</td><td>${p.custo>0?pct((ult12Por[p.ticker]||0)/p.custo,2):"—"}</td></tr>`).join("")}
   </tbody></table></div>`:`<p class="nota">Nenhum provento registrado.</p>`}</div>
   <div><h3>Lançados</h3>
-  ${lista.length?`<div class="rolagem altura"><table><thead><tr><th>Data</th><th class="esq">Ativo</th><th class="esq">Tipo</th><th>Valor</th><th></th></tr></thead><tbody>
+  ${lista.length?`<div class="rolagem altura"><table class="cartoes"><thead><tr><th>Data</th><th class="esq">Ativo</th><th class="esq">Tipo</th><th>Valor</th><th></th></tr></thead><tbody>
   ${lista.map(p=>`<tr><td>${dataBR(p.data)}</td><td class="esq tk">${esc(p.ticker)}</td><td class="esq">${TIPOS_PROV[p.tipo]||p.tipo}</td><td>${brl(p.valor)}</td><td><button class="btn peq perigo" data-act="del-prov" data-id="${esc(p.id)}" data-armar="Confirmar">Excluir</button></td></tr>`).join("")}
   </tbody></table></div>`:`<p class="nota">Nada por aqui ainda.</p>`}</div></div>
   <div class="legenda" style="margin-top:16px">${ORDEM.filter(k=>k!=="rf").map(k=>`<span><i class="pinta" style="background:${corDe(k)}"></i>${CLASSES[k].nome}</span>`).join("")}</div>`;
@@ -1480,7 +1579,7 @@ function rRebalancear(el){
   const okSoma = Math.abs(soma-100)<0.01;
   let tabela="", sugest="";
   if(okSoma){
-    tabela = `<div class="rolagem"><table><thead><tr><th>Classe</th><th>Atual</th><th>% atual</th><th>Meta</th><th>Valor na meta</th><th>Diferença</th></tr></thead><tbody>
+    tabela = `<div class="rolagem"><table class="cartoes"><thead><tr><th>Classe</th><th>Atual</th><th>% atual</th><th>Meta</th><th>Valor na meta</th><th>Diferença</th></tr></thead><tbody>
     ${ORDEM.map(k=>{ const atual=c.porClasse[k], alvo=c.total*S.metas[k]/100, dif=alvo-atual;
       return `<tr><td><i class="pinta" style="background:${corDe(k)};margin-right:8px"></i>${CLASSES[k].nome}</td><td>${brl(atual)}</td><td>${pct(c.total?atual/c.total:0)}</td><td>${pct(S.metas[k]/100,0)}</td><td>${brl(alvo)}</td><td class="${cls(dif)}">${Math.abs(dif)<1?"no alvo":(dif>0?"faltam ":"sobram ")+brl(Math.abs(dif))}</td></tr>`; }).join("")}
     </tbody></table></div>`;
@@ -1556,7 +1655,7 @@ function rIR(el){
   <p class="sub">Estimativa do imposto sobre vendas com lucro (operações comuns, sem day trade), dos bens e direitos e dos proventos para a declaração. Confira sempre com as notas de corretagem e, se tiver dúvida, com um contador.</p>
   <label style="max-width:160px">Ano<select id="ano-ir">${anosTx.map(a=>`<option ${a===anoIR?"selected":""}>${a}</option>`).join("")}</select></label>
   <h3>Apuração mensal</h3>
-  ${meses.length?`<div class="rolagem"><table>
+  ${meses.length?`<div class="rolagem"><table class="cartoes">
     <thead><tr><th>Mês</th><th>Ações<span class="mini">vendas e resultado</span></th><th>ETFs</th><th>FIIs</th><th>Cripto</th><th>DARF 6015<span class="mini">ações, ETFs, FIIs</span></th><th>DARF 4600<span class="mini">cripto</span></th><th>Prejuízo a compensar<span class="mini">ações e ETFs</span></th></tr></thead>
     <tbody>${linhas}</tbody>
     <tfoot><tr><td>Total a pagar no ano</td><td colspan="6" style="text-align:right">${brl(totDarf)}</td><td></td></tr></tfoot></table></div>`
@@ -1564,7 +1663,7 @@ function rIR(el){
   <p class="nota">Regras usadas: ações com 15% sobre o lucro e isenção quando o total vendido no mês fica em até R$ 20 mil; ETFs com 15% e sem isenção; FIIs com 20% e sem isenção; cripto isenta quando as vendas do mês ficam em até R$ 35 mil, e acima disso com 15% a 22,5% conforme o tamanho do ganho. Prejuízo de ações e ETFs compensa entre si; o de FIIs só com FIIs. DARF abaixo de R$ 10 acumula para o mês seguinte. O vencimento mostrado ignora feriados. O IR retido na fonte (o “dedo-duro” de 0,005%) pode ser abatido e não está descontado aqui.</p>
 
   <h3>Bens e direitos</h3>
-  ${bens?`<div class="rolagem"><table><thead><tr><th>Ativo</th><th class="esq">Grupo e código</th><th>Quantidade em 31/12</th><th>Situação em 31/12/${+anoIR-1}</th><th>Situação em 31/12/${anoIR}</th></tr></thead><tbody>${bens}</tbody></table></div>`:`<p class="nota">Sem posições no fim de ${anoIR}.</p>`}
+  ${bens?`<div class="rolagem"><table class="cartoes"><thead><tr><th>Ativo</th><th class="esq">Grupo e código</th><th>Quantidade em 31/12</th><th>Situação em 31/12/${+anoIR-1}</th><th>Situação em 31/12/${anoIR}</th></tr></thead><tbody>${bens}</tbody></table></div>`:`<p class="nota">Sem posições no fim de ${anoIR}.</p>`}
   <p class="nota">Na declaração, os bens entram pelo custo de aquisição (preço médio vezes quantidade), não pelo valor de mercado. Na renda fixa, o custo é o valor aplicado. Confira os códigos no programa da Receita do ano.</p>
 
   <h3>Proventos recebidos em ${anoIR}</h3>
@@ -1678,7 +1777,8 @@ function importar(arquivo){
 
 /* ---------- Eventos ---------- */
 document.addEventListener("click", e=>{
-  const aba = e.target.closest("#abas button"); if(aba){ irPara(aba.dataset.aba); return; }
+  const aba = e.target.closest("#abas button, .doca button[data-aba], .folha button[data-aba]");
+  if(aba){ const f = $("#dlg-mais"); if(f.open) f.close(); irPara(aba.dataset.aba); return; }
   const b = e.target.closest("[data-act]"); if(!b) return;
   if(b.dataset.armar && !b.classList.contains("armado")){
     const txt=b.textContent; b.classList.add("armado"); b.textContent=b.dataset.armar;
@@ -1693,7 +1793,7 @@ document.addEventListener("click", e=>{
   else if(a==="edit-tx"){ if(demo){ toast("No modo exemplo nada é alterado."); return; } editarTx(b.dataset.id); }
   else if(a==="cancelar-edicao") cancelarEdicao();
   else if(a==="del-prov"){ if(demo){ toast("No modo exemplo nada é alterado."); return; } delProv(b.dataset.id); }
-  else if(a==="backup"){ $("#backup-texto").classList.add("oculto"); $("#backup-msg").textContent=""; $("#dlg-backup").showModal(); }
+  else if(a==="backup"){ if($("#dlg-mais").open) $("#dlg-mais").close(); $("#backup-texto").classList.add("oculto"); $("#backup-msg").textContent=""; $("#dlg-backup").showModal(); }
   else if(a==="fechar-backup") $("#dlg-backup").close();
   else if(a==="exportar-json"){ gravarLS(LS_BACKUP, String(Date.now())); baixar("carteira-backup-"+hojeISO()+".json", JSON.stringify(demo?realGuardado:S,null,1)); }
   else if(a==="exportar-csv") baixar("lancamentos-"+hojeISO()+".csv", csvLanc());
@@ -1704,7 +1804,8 @@ document.addEventListener("click", e=>{
     gravarLS(LS_CHAVE, v); toast("Chave salva. Buscando cotações…"); atualizarCotacoes();
   }
   else if(a==="remover-chave"){ gravarLS(LS_CHAVE, ""); render("ativos"); toast("Chave removida"); }
-  else if(a==="abrir-importar"){ importacao = null; $("#imp-res").innerHTML = ""; $("#dlg-importar").showModal(); }
+  else if(a==="abrir-mais") $("#dlg-mais").showModal();
+  else if(a==="abrir-importar"){ if($("#dlg-mais").open) $("#dlg-mais").close(); importacao = null; $("#imp-res").innerHTML = ""; $("#dlg-importar").showModal(); }
   else if(a==="fechar-importar") $("#dlg-importar").close();
   else if(a==="confirmar-importar" && importacao){
     if(demo){ toast("No modo exemplo nada é salvo."); return; }

@@ -73,7 +73,7 @@ Cinco classes de ativo: **ações**, **ETFs**, **FIIs**, **renda fixa** e **crip
 
 <p align="center">
   <img src="docs/img/celular.png" alt="Resumo no celular" width="280"><br>
-  <sub>No celular, com tema claro e escuro automáticos</sub>
+  <sub>No celular: barra de navegação embaixo, tabelas viram cartões, tema claro e escuro automáticos</sub>
 </p>
 
 ## Como usar
