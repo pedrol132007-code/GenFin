@@ -64,7 +64,7 @@ const dados = { data: "2026-10-28", classes: [{ classe: "Ações", carteira_pct:
   };
   const fnM = carregar();
   r = await chamar(fnM, { body: { modo: "manchete", dados: { ...dados, evolucao: [{ mes: "2026-09", resultado_pct: 7.25 }], ir: { darf_a_pagar: true, extra: "x" } } } });
-  ok(r.statusCode === 200 && /manchete do dia: no máximo 2 frases/.test(ultimo.messages[0].content) && ultimo.max_tokens === 160, "modo manchete usa a instrução curta");
+  ok(r.statusCode === 200 && /manchete do dia: no máximo 2 frases/.test(ultimo.messages[0].content) && ultimo.max_tokens >= 600 && ultimo.reasoning_effort === "low", "modo manchete: instrução curta, raciocínio curto e folga de tokens (o gpt-oss pensa antes de responder)");
   ok(/"evolucao":\[\{"mes":"2026-09","resultado_pct":7.3\}\]/.test(ultimo.messages[1].content) && /"darf_a_pagar":true/.test(ultimo.messages[1].content) && !/extra/.test(ultimo.messages[1].content), "campos novos passam pela limpeza");
   r = await chamar(fnM, { body: { modo: "pergunta", dados, pergunta: "Por que PETR4 pesa tanto?", historico: [{ p: "Resuma", r: "- Tudo bem." }, { p: "só p" }] } });
   const ms = ultimo.messages;

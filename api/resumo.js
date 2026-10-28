@@ -14,7 +14,10 @@ const INSTRUCOES = {
   manchete: REGRAS + " Escreva só a manchete do dia: no máximo 2 frases curtas (até 40 palavras no total), com o ponto mais importante da carteira agora. Sem tópicos, sem título, sem saudação.",
   pergunta: REGRAS + " Responda à pergunta da pessoa de forma direta, em até 120 palavras; use tópicos com \"- \" só se ajudar. Se a pergunta for sobre como dividir um aporte, explique pela distância de cada classe até a meta, sem citar ativos para comprar. Se a pergunta não for sobre a carteira ou finanças pessoais dela, responda apenas: \"Eu só respondo sobre a sua carteira.\""
 };
-const TOKENS = { resumo: 900, manchete: 160, pergunta: 600 };
+// Os limites incluem o raciocínio dos modelos que pensam antes de responder (gpt-oss); o tamanho do texto
+// final quem controla é a instrução. Com 160 tokens, a manchete acabava no raciocínio e voltava vazia.
+const TOKENS = { resumo: 2000, manchete: 800, pergunta: 1500 };
+const raciocinio = modelo => /gpt-oss/.test(modelo) ? { reasoning_effort: "low" } : {};
 
 const texto = (v, n = 120) => String(v ?? "").slice(0, n);
 const numero = v => (typeof v === "number" && Number.isFinite(v) ? Math.round(v * 10) / 10 : null);
@@ -94,7 +97,7 @@ module.exports = async (req, res) => {
     const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
       method: "POST",
       headers: { Authorization: "Bearer " + chave, "Content-Type": "application/json" },
-      body: JSON.stringify({ model: modelo, temperature: 0.3, max_tokens: TOKENS[modo], messages: mensagens })
+      body: JSON.stringify({ model: modelo, temperature: 0.3, max_tokens: TOKENS[modo], ...raciocinio(modelo), messages: mensagens })
     });
     if (r.status === 401) return res.status(502).json({ erro: "chave_invalida" });
     if (r.status === 429) return res.status(429).json({ erro: "limite" });

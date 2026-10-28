@@ -1526,7 +1526,8 @@ const IA_INSTRUCOES = {
   manchete: IA_REGRAS + " Escreva só a manchete do dia: no máximo 2 frases curtas (até 40 palavras no total), com o ponto mais importante da carteira agora. Sem tópicos, sem título, sem saudação.",
   pergunta: IA_REGRAS + " Responda à pergunta da pessoa de forma direta, em até 120 palavras; use tópicos com \"- \" só se ajudar. Se a pergunta for sobre como dividir um aporte, explique pela distância de cada classe até a meta, sem citar ativos para comprar. Se a pergunta não for sobre a carteira ou finanças pessoais dela, responda apenas: \"Eu só respondo sobre a sua carteira.\""
 };
-const IA_TOKENS = {resumo:900, manchete:160, pergunta:600};
+// Mesmos limites do servidor: incluem o raciocínio dos modelos gpt-oss, que pensam antes de responder
+const IA_TOKENS = {resumo:2000, manchete:800, pergunta:1500};
 async function modeloGroq(chave){
   let r; try{ r = await fetch("https://api.groq.com/openai/v1/models", {headers:{Authorization:"Bearer "+chave}, ...comPrazo()}); }
   catch(e){ throw erroCot("rede"); }
@@ -1560,7 +1561,7 @@ async function pedirIA(modo, extra={}){
   if(modo==="pergunta"){ (extra.historico||[]).slice(-3).forEach(h=>mensagens.push({role:"user", content:h.p}, {role:"assistant", content:h.r})); mensagens.push({role:"user", content:extra.pergunta}); }
   let r; try{
     r = await fetch("https://api.groq.com/openai/v1/chat/completions", {method:"POST", headers:{Authorization:"Bearer "+chave, "Content-Type":"application/json"},
-      body: JSON.stringify({model:modelo, temperature:0.3, max_tokens:IA_TOKENS[modo], messages:mensagens}), ...comPrazo()});
+      body: JSON.stringify({model:modelo, temperature:0.3, max_tokens:IA_TOKENS[modo], ...(/gpt-oss/.test(modelo) ? {reasoning_effort:"low"} : {}), messages:mensagens}), ...comPrazo()});
   }catch(e){ throw erroCot("rede"); }
   if(r.status===401) throw erroCot("chave");
   if(r.status===429) throw erroCot("limite");
