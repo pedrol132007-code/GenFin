@@ -432,7 +432,7 @@ delete window.Capacitor;
 mem[LS_GROQ] = ""; delete mem[LS_IA]; iaSemServidor = false; avisos2 = []; let pedidoServ = null;
 globalThis.__fetch = (url, op={}) => { pedidoServ = {url, corpo: JSON.parse(op.body||"null")}; return resp(503, {erro:"sem_chave"}); };
 await gerarResumoIA();
-ok(pedidoServ && pedidoServ.url==="https://genfin-rose.vercel.app/api/resumo" && Array.isArray(pedidoServ.corpo.leituras) && !/R\\$/.test(JSON.stringify(pedidoServ.corpo)), "sem chave, chama a função do GenFin com os dados sem reais: "+(pedidoServ&&pedidoServ.url));
+ok(pedidoServ && pedidoServ.url==="https://genfin-rose.vercel.app/api/resumo" && pedidoServ.corpo.modo==="resumo" && Array.isArray(pedidoServ.corpo.dados.leituras) && !/R\\$/.test(JSON.stringify(pedidoServ.corpo)), "sem chave, chama a função do GenFin com os dados sem reais: "+(pedidoServ&&pedidoServ.url));
 ok(iaSemServidor && /ainda não foi configurada/.test(avisos2[0]||"") && !mem[LS_IA] && gerandoIA===false, "servidor sem chave: avisa e oferece a chave própria");
 globalThis.__fetch = () => resp(200, {texto:"- Tudo certo por aqui.", modelo:"openai/gpt-oss-120b"});
 await gerarResumoIA();
@@ -479,6 +479,50 @@ const recarregado = vazio(); aplicarDocs(recarregado, {bens: DOCS.bens(S)}); ok(
 excluirBem(S.bens[1].id); ok(S.bens.length===1, "exclui o bem");
 const elRes = fakeEl(); abaAtual="ir"; rResumo(elRes);
 ok(/Investimentos hoje/.test(elRes.innerHTML) && /patrimônio total é/.test(elRes.innerHTML), "Resumo mostra o patrimônio total quando há bens");
+
+// 18. IA no Resumo: manchete do dia, conversa e sugestões
+{
+  S = vazio(); S.atualizado = 1; mem[LS_GROQ] = ""; delete mem[LS_MANCHETE]; delete mem[LS_CONVERSA]; conversa = []; mancheteTentada = null;
+  add({classe:"acao",tipo:"compra",data:"2026-01-05",ticker:"PETR4",qtd:"100",preco:"30"});
+  add({classe:"fii",tipo:"compra",data:"2026-01-05",ticker:"HGLG11",qtd:"5",preco:"150"});
+  S.hist = [{d:"2026-08-31", v:3600, c:3750}, {d:"2026-09-30", v:3900, c:3750}];
+  S.provs.push({id:"pm", data:hojeISO().slice(0,7)+"-10", ticker:"HGLG11", tipo:"rendimento", valor:7.5});
+  const d18 = dadosParaIA();
+  ok(d18.evolucao.length===2 && d18.evolucao[1].resultado_pct===4 && d18.proventos_por_mes.length===12 && d18.proventos_por_mes[11].pct_do_custo===0.2 && typeof d18.ir.darf_a_pagar==="boolean" && !/R\\$/.test(JSON.stringify(d18)), "dados da IA com evolução, proventos por mês e imposto, sem reais");
+  ok(sugestoesIA().some(q=>/Por que PETR4 pesa tanto/.test(q)) && sugestoesIA().length<=4, "sugestões saem das leituras da carteira: "+sugestoesIA().join(" | "));
+
+  let pedidos18 = [];
+  globalThis.__fetch = (url, op={}) => { const b = JSON.parse(op.body||"{}"); pedidos18.push(b); return resp(200, {texto: b.modo==="manchete" ? "Carteira concentrada em PETR4." : "- Resposta "+pedidos18.length, modelo:"openai/gpt-oss-120b"}); };
+  await atualizarManchete();
+  const man = JSON.parse(mem[LS_MANCHETE]||"{}");
+  ok(pedidos18.length===1 && pedidos18[0].modo==="manchete" && man.texto==="Carteira concentrada em PETR4." && man.hash===hashCarteiraIA(), "manchete gerada e guardada com a versão da carteira");
+  await atualizarManchete();
+  ok(pedidos18.length===1, "carteira igual no mesmo dia: não pede de novo");
+  add({classe:"acao",tipo:"compra",data:"2026-02-05",ticker:"VALE3",qtd:"10",preco:"60"});
+  await atualizarManchete();
+  ok(pedidos18.length===2, "carteira mudou: gera manchete nova");
+  globalThis.__fetch = () => Promise.reject(new TypeError("offline"));
+  add({classe:"acao",tipo:"compra",data:"2026-02-06",ticker:"VALE3",qtd:"1",preco:"60"});
+  await atualizarManchete(); await atualizarManchete();
+  ok(JSON.parse(mem[LS_MANCHETE]).texto==="Carteira concentrada em PETR4." && gerandoManchete===false, "sem internet mantém a última manchete e não insiste");
+  ok(/Escrita pela IA hoje às/.test(htmlManchete()) && /manchete-atualizar/.test(htmlManchete()), "manchete mostra quando foi escrita e o botão de atualizar");
+
+  globalThis.__fetch = (url, op={}) => { const b = JSON.parse(op.body||"{}"); pedidos18.push(b); return resp(200, {texto:"- Resposta "+pedidos18.length}); };
+  pedidos18 = [];
+  await perguntarIA("Por que PETR4 pesa tanto na carteira?");
+  await perguntarIA("E se eu aportar em FIIs?");
+  ok(conversa.length===2 && conversa[1].r==="- Resposta 2" && pedidos18[1].modo==="pergunta" && pedidos18[1].historico.length===1 && pedidos18[1].historico[0].p==="Por que PETR4 pesa tanto na carteira?", "conversa manda a pergunta com o histórico das trocas anteriores");
+  ok(JSON.parse(mem[LS_CONVERSA]).length===2, "conversa fica guardada no aparelho");
+  renderConversa();
+  ok(/class="msg eu">E se eu aportar em FIIs\?/.test($("#ia-mensagens").innerHTML) && /Resposta 2/.test($("#ia-mensagens").innerHTML), "folha mostra as perguntas e as respostas");
+  globalThis.__fetch = () => resp(429, {erro:"limite"});
+  await perguntarIA("Mais uma?");
+  ok(/limite/.test(conversa[2].erro||"") && JSON.parse(mem[LS_CONVERSA]).length===2, "erro aparece na conversa e não é guardado");
+  await perguntarIA("   "); ok(conversa.length===3, "pergunta vazia é ignorada");
+  const elR18 = fakeEl(); abaAtual = "ir"; rResumo(elR18);
+  ok(/id="manchete-ia"/.test(elR18.innerHTML) && /id="f-perguntar"/.test(elR18.innerHTML) && (elR18.innerHTML.match(/class="ia-mini"/g)||[]).length>=3, "Resumo tem a manchete, a caixa de pergunta e os botões ✦");
+  conversa = []; gravarConversa();
+}
 
 // 17. Ativos: compra e venda rápida pela folha do + e do −
 {

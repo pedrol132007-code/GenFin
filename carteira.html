@@ -135,6 +135,34 @@ details.chave summary{cursor:pointer;color:var(--focus);width:max-content;max-wi
 .altura{max-height:460px;overflow:auto}
 tr.sel{background:var(--soft)}
 
+/* IA no Resumo: manchete, pergunta e conversa */
+.ia-topo{max-width:760px;margin:2px 0 26px}
+.manchete{position:relative;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:16px 16px 12px;overflow:hidden}
+.manchete::before{content:"";position:absolute;inset:0 0 auto 0;height:3px;
+  background:linear-gradient(90deg,var(--c-acao) 0 24%,var(--c-etf) 24% 42%,var(--c-fii) 42% 62%,var(--c-rf) 62% 84%,var(--c-cripto) 84%)}
+.manchete-texto{margin:0 0 8px;font-size:1.06rem;line-height:1.45;font-weight:500;text-wrap:pretty}
+.manchete-texto::before{content:"✦ ";color:var(--focus)}
+.manchete-rodape{display:flex;align-items:center;gap:12px;margin:0;color:var(--muted);font-size:.8rem}
+.carregando{color:var(--muted)}
+@media (prefers-reduced-motion:no-preference){ .carregando{animation:respira 1.4s ease-in-out infinite} @keyframes respira{50%{opacity:.45}} }
+.perguntar{display:flex;gap:8px;margin-top:10px}
+.perguntar input{flex:1;min-width:0;border:1px solid var(--line);border-radius:10px;padding:10px 14px;background:var(--surface);color:var(--ink);font-size:1rem}
+.perguntar .btn{flex:none}
+.sugestoes{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;margin-top:8px;padding:2px 0}
+.sugestoes::-webkit-scrollbar{display:none}
+.sugestao{flex:none;border:1px solid var(--line);background:var(--bg);color:var(--ink);border-radius:999px;padding:6px 12px;font-size:.85rem;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.sugestao:hover{border-color:var(--muted)}
+.ia-mini{border:0;background:none;color:var(--focus);cursor:pointer;font-size:.9rem;line-height:1;padding:2px 4px;margin-left:6px;vertical-align:1px;border-radius:6px}
+#dlg-ia{max-width:600px}
+.ia-cab{display:flex;align-items:center;gap:8px}
+.ia-cab h2{margin:0 auto 0 0;font-size:1.15rem}
+.ia-mensagens{display:flex;flex-direction:column;gap:8px;max-height:min(55vh,520px);overflow:auto;margin:12px 0 4px;padding:2px}
+.msg{max-width:88%;padding:9px 13px;border-radius:16px;font-size:.94rem;line-height:1.5}
+.msg.eu{align-self:flex-end;background:var(--ink);color:var(--bg);border-bottom-right-radius:5px}
+.msg.ia{align-self:flex-start;background:var(--soft);border-bottom-left-radius:5px}
+.msg.ia p{margin:3px 0} .msg.ia ul{margin:4px 0;padding-left:18px} .msg.ia li{margin:3px 0}
+.msg.erro{color:var(--neg)}
+
 /* Ativos: lista compacta */
 #v-ativos{max-width:860px}
 .ativos-topo{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px}
@@ -409,6 +437,14 @@ textarea{width:100%;min-height:140px;font:12px/1.4 ui-monospace,Menlo,monospace;
 
 <datalist id="dl-ativos"></datalist>
 <div id="toast" role="status" aria-live="polite"></div>
+
+<dialog id="dlg-ia" class="folha folha-ia" aria-label="Pergunte à sua carteira">
+  <div class="alca" tabindex="-1" aria-hidden="true"></div>
+  <div class="ia-cab"><h2>✦ Pergunte à sua carteira</h2><button class="btn peq" data-act="ia-limpar">Nova conversa</button><button class="btn peq" data-act="ia-fechar">Fechar</button></div>
+  <div id="ia-mensagens" class="ia-mensagens" aria-live="polite"></div>
+  <div id="ia-sugestoes" class="sugestoes"></div>
+  <form id="f-ia" class="perguntar"><input name="q" maxlength="400" autocomplete="off" placeholder="Escreva a sua pergunta…" aria-label="Sua pergunta"><button class="btn pri" type="submit">Enviar</button></form>
+</dialog>
 
 <dialog id="dlg-op" class="folha folha-op" aria-label="Compra ou venda">
   <div class="alca" tabindex="-1" aria-hidden="true"></div>
@@ -949,6 +985,7 @@ function abrev(v){
 }
 
 /* ---------- Resumo ---------- */
+const iaMini = (q, sobre) => `<button class="ia-mini" data-act="ia-perguntar" data-q="${esc(q)}" aria-label="Perguntar à IA sobre ${esc(sobre)}" title="Perguntar à IA">✦</button>`;
 function rResumo(el){
   if(!temDados(S)){
     el.innerHTML = `<div class="inicio">
@@ -978,7 +1015,7 @@ function rResumo(el){
   const dif = v => `<span class="mini ${cls(c.total-v)}">carteira ${c.total-v>=0?"à frente em":"atrás em"} ${brl(Math.abs(c.total-v))}</span>`;
   const blocoComp = !comp ? "" : !comp.cdi
     ? `<p class="nota" style="margin-top:28px">A comparação com o CDI e o Ibovespa aparece depois da primeira busca dos índices, com internet.</p>`
-    : `<h3>Comparação com o mesmo dinheiro em outro lugar</h3>
+    : `<h3>Comparação com o mesmo dinheiro em outro lugar${iaMini("Explique como a minha carteira está indo contra o CDI e o Ibovespa.", "a comparação")}</h3>
       <div class="kpis">
         <div><span>Carteira hoje</span><strong>${brl(c.total)}</strong></div>
         <div><span>No CDI</span><strong>${brl(comp.cdi.saldo)}</strong>${dif(comp.cdi.saldo)}</div>
@@ -988,6 +1025,11 @@ function rResumo(el){
       <p class="nota">Os mesmos aportes, vendas e proventos desde ${dataBR(comp.desde)}, nas mesmas datas, como se o dinheiro tivesse ido para o CDI ou para o índice.${comp.ibov&&comp.ibov.aproximado?` O histórico do Ibovespa disponível começa em ${dataBR(comp.ibov.desde)}; o que entrou antes conta como se tivesse entrado nessa data.`:""} Não considera imposto nem taxas do investimento comparado.</p>`;
 
   el.innerHTML = `
+  <section class="ia-topo" aria-label="IA da carteira">
+    <div class="manchete" id="manchete-ia">${htmlManchete()}</div>
+    <form class="perguntar" id="f-perguntar"><input name="q" maxlength="400" autocomplete="off" placeholder="Pergunte à sua carteira…" aria-label="Pergunte à sua carteira"><button class="btn pri" type="submit">Perguntar</button></form>
+    <div class="sugestoes">${chipsSugestoes()}</div>
+  </section>
   <div class="hero">
     <p class="rot">${(S.bens||[]).length ? "Investimentos hoje" : "Patrimônio hoje"}</p>
     <p class="valor">${brl(c.total)}</p>
@@ -1003,7 +1045,7 @@ function rResumo(el){
   </div>
 
   <div class="faixas">
-    <div class="faixa-rot"><span>Alocação atual</span><span>${brl(c.total)}</span></div>
+    <div class="faixa-rot"><span>Alocação atual${iaMini("Explique a minha alocação comparada às metas.", "a alocação")}</span><span>${brl(c.total)}</span></div>
     ${c.total>0?faixa(c.porClasse,c.total,false):'<div class="faixa"></div>'}
     ${metasSoma>0?`<div class="faixa-rot"><span>Meta</span><button class="link" data-act="ir-aba" data-aba="rebalancear">Ajustar metas</button></div>${faixa(S.metas,metasSoma,true)}`:
       `<p class="nota">Defina metas de alocação em <button class="link" data-act="ir-aba" data-aba="rebalancear">Rebalancear</button> para comparar aqui.</p>`}
@@ -1012,18 +1054,19 @@ function rResumo(el){
 
   <div class="grade2" style="margin-top:28px">
     <div>
-      <h3 style="margin-top:0">Evolução</h3>
+      <h3 style="margin-top:0">Evolução${iaMini("Como a minha carteira evoluiu nos últimos meses?", "a evolução")}</h3>
       ${graf}
       ${hist.length>=2?`<div class="legenda"><span><i class="pinta" style="background:var(--ink)"></i>Patrimônio</span><span><i class="pinta" style="background:var(--line)"></i>Valor investido</span>${ptsCDI.length>=2?`<span><i class="pinta" style="background:var(--muted)"></i>Mesmo dinheiro no CDI (pontilhado)</span>`:""}</div>`:""}
     </div>
     <div>
-      <h3 style="margin-top:0">Maiores posições</h3>
+      <h3 style="margin-top:0">Maiores posições${iaMini("Comente as minhas maiores posições e a concentração da carteira.", "as maiores posições")}</h3>
       <div class="rolagem"><table><tbody>
         ${ativas.slice(0,8).map(p=>`<tr><td><i class="pinta" style="background:${corDe(p.classe)};margin-right:8px"></i><span class="tk">${esc(p.ticker)}</span></td><td>${brl(p.valor)}</td><td>${pct(c.total?p.valor/c.total:0)}</td><td class="${cls(p.resultado)}">${p.custo>0?pctSinal(p.resultado/p.custo):"—"}</td></tr>`).join("")}
       </tbody></table></div>
     </div>
   </div>
   ${blocoComp}`;
+  if(abaAtual==="resumo") setTimeout(()=>atualizarManchete(), 0);   // gera a manchete se a carteira mudou ou passou um dia
 }
 
 /* ---------- Cotações automáticas ---------- */
@@ -1441,15 +1484,26 @@ function analisar(){
   return out.sort((a,b)=>ordem[a.nivel]-ordem[b.nivel]);
 }
 
-/* Resumo com IA (opcional): Groq, com a chave gratuita da pessoa, guardada só neste navegador.
-   Vão só percentuais, códigos e as leituras acima na versão sem valores em reais. */
-const LS_GROQ = "genfin-groq-chave", LS_IA = "genfin-ia-resumo";
+/* IA da carteira: resumo (Análises), manchete do dia e conversa (Resumo).
+   Sem chave própria, vai pela função do GenFin na Vercel (api/resumo.js), que guarda a chave do Groq; com a chave
+   gratuita da pessoa (guardada só neste aparelho), fala direto com o Groq usando as mesmas instruções.
+   Em qualquer caso, vão só percentuais, códigos e as leituras na versão sem valores em reais. */
+const LS_GROQ = "genfin-groq-chave", LS_IA = "genfin-ia-resumo", LS_MANCHETE = "genfin-ia-manchete", LS_CONVERSA = "genfin-ia-conversa";
 let gerandoIA = false;
 function dadosParaIA(){
   const c = calcular(), total = c.total, comp = comparacao();
   const soma = ORDEM.reduce((s,k)=>s+(S.metas[k]||0),0);
   const r1 = v => Math.round(v*1000)/10;   // fração -> percentual com 1 casa
   const ganho = (c.total-c.custo)+c.realizado+c.provs;
+  // Evolução: resultado (valor contra custo) no último registro de cada mês
+  const porMes = {}; S.hist.forEach(h=>{ if(h.c>0) porMes[h.d.slice(0,7)] = r1((h.v-h.c)/h.c); });
+  // Proventos de cada um dos últimos 12 meses, em % do custo atual da renda variável
+  const custoRV = c.lista.filter(p=>p.qtd>0 && p.classe!=="rf").reduce((s,p)=>s+p.custo,0), hoje = new Date();
+  const meses = [...Array(12)].map((_,i)=>{ const d = new Date(hoje.getFullYear(), hoje.getMonth()-11+i, 1); return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0"); });
+  // Imposto do mês: quanto do limite de isenção já foi usado e se há DARF ou prejuízo
+  const mes = hojeISO().slice(0,7), vendido = cl => c.vendas.filter(v=>v.mes===mes && v.classe===cl).reduce((s,v)=>s+v.venda,0);
+  const apur = apurarIR(), ks = Object.keys(apur).sort(), [ya, ma] = mes.split("-").map(Number);
+  const ant = ma===1 ? `${ya-1}-12` : `${ya}-${String(ma-1).padStart(2,"0")}`, ult = ks.length ? apur[ks[ks.length-1]] : null;
   return {
     data: hojeISO(),
     classes: ORDEM.filter(k=>c.porClasse[k]>0 || S.metas[k]>0).map(k=>({classe:CLASSES[k].nome, carteira_pct: total>0?r1(c.porClasse[k]/total):0, meta_pct: soma>0?r1((S.metas[k]||0)/soma):null})),
@@ -1458,10 +1512,21 @@ function dadosParaIA(){
     contra_cdi_pct: comp && comp.cdi && comp.cdi.saldo ? r1((total-comp.cdi.saldo)/Math.abs(comp.cdi.saldo)) : null,
     contra_ibovespa_pct: comp && comp.ibov && comp.ibov.saldo ? r1((total-comp.ibov.saldo)/Math.abs(comp.ibov.saldo)) : null,
     desde: comp ? comp.desde : null,
+    evolucao: Object.entries(porMes).sort().slice(-12).map(([mes, resultado_pct])=>({mes, resultado_pct})),
+    proventos_por_mes: custoRV>0 ? meses.map(m=>({mes:m, pct_do_custo: Math.round(S.provs.filter(p=>p.data.startsWith(m)).reduce((s,p)=>s+p.valor,0)/custoRV*10000)/100})) : [],
+    ir: { vendas_acoes_pct_do_limite: r1(vendido("acao")/20000), vendas_cripto_pct_do_limite: r1(vendido("cripto")/35000),
+      darf_a_pagar: !!(apur[ant] && (apur[ant].pagar6015+apur[ant].pagar4600)>0), prejuizo_a_compensar: !!(ult && (ult.prejRV>0 || ult.prejFII>0)) },
     leituras: analisar().filter(a=>a.ia).map(a=>a.ia)
   };
 }
-const INSTRUCAO_IA = "Você ajuda uma pessoa física no Brasil a entender a própria carteira de investimentos. Responda em português do Brasil, em no máximo 6 tópicos curtos, cada um começando com \"- \". Explique o que os números mostram (concentração, distância das metas, desempenho contra o CDI e o Ibovespa, proventos, pontos de imposto de renda) e o que vale a pessoa verificar. Não recomende comprar ou vender ativos específicos, não faça previsão de preços e não invente dados que não estejam na mensagem. Os dados vêm só em percentuais, sem valores em reais.";
+// Mesmas instruções de api/resumo.js, para quando a pessoa usa a própria chave
+const IA_REGRAS = "Você ajuda uma pessoa física no Brasil a entender a própria carteira de investimentos. Responda em português do Brasil. Use só os dados da mensagem, que vêm em percentuais, sem valores em reais; não invente números. Não recomende comprar ou vender ativos específicos e não faça previsão de preços: explique o que os números mostram e o que vale a pessoa verificar.";
+const IA_INSTRUCOES = {
+  resumo: IA_REGRAS + " Responda em no máximo 6 tópicos curtos, cada um começando com \"- \", cobrindo o que for relevante entre concentração, distância das metas, desempenho contra o CDI e o Ibovespa, proventos e imposto de renda.",
+  manchete: IA_REGRAS + " Escreva só a manchete do dia: no máximo 2 frases curtas (até 40 palavras no total), com o ponto mais importante da carteira agora. Sem tópicos, sem título, sem saudação.",
+  pergunta: IA_REGRAS + " Responda à pergunta da pessoa de forma direta, em até 120 palavras; use tópicos com \"- \" só se ajudar. Se a pergunta for sobre como dividir um aporte, explique pela distância de cada classe até a meta, sem citar ativos para comprar. Se a pergunta não for sobre a carteira ou finanças pessoais dela, responda apenas: \"Eu só respondo sobre a sua carteira.\""
+};
+const IA_TOKENS = {resumo:900, manchete:160, pergunta:600};
 async function modeloGroq(chave){
   let r; try{ r = await fetch("https://api.groq.com/openai/v1/models", {headers:{Authorization:"Bearer "+chave}, ...comPrazo()}); }
   catch(e){ throw erroCot("rede"); }
@@ -1473,45 +1538,106 @@ async function modeloGroq(chave){
     { const m = ids.find(id=>p.test(id)); if(m) return m; }
   return ids.find(id=>!/whisper|guard|tts|embed|playai|compound|prompt/i.test(id)) || null;
 }
-// Sem chave própria, o resumo vem da função do GenFin na Vercel (que guarda a chave do Groq);
-// no app Android e no arquivo local, a página não está na Vercel, então usa o endereço publicado
+// No app Android e no arquivo local, a página não está na Vercel, então usa o endereço publicado
 const SERVIDOR = "https://genfin-rose.vercel.app";
 const baseServidor = () => (!nativo() && /\.vercel\.app$/.test(location.hostname)) ? location.origin : SERVIDOR;
 let iaSemServidor = false;   // a função respondeu que não tem chave configurada: mostra a opção de colar a própria
-async function resumoPeloServidor(){
-  let r; try{ r = await fetch(baseServidor()+"/api/resumo", {method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify(dadosParaIA()), ...comPrazo()}); }
-  catch(e){ throw erroCot("rede"); }
-  let j = null; try{ j = await r.json(); }catch(e){}
-  if(r.status===503 && j && j.erro==="sem_chave"){ iaSemServidor = true; throw erroCot("semServidor"); }
+// Um pedido à IA em qualquer modo. extra: {pergunta, historico:[{p,r}]} no modo pergunta. Devolve {texto, modelo}.
+async function pedirIA(modo, extra={}){
+  const dados = dadosParaIA(), chave = lerLS(LS_GROQ);
+  if(!chave){
+    let r; try{ r = await fetch(baseServidor()+"/api/resumo", {method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({modo, dados, ...extra}), ...comPrazo()}); }
+    catch(e){ throw erroCot("rede"); }
+    let j = null; try{ j = await r.json(); }catch(e){}
+    if(r.status===503 && j && j.erro==="sem_chave"){ iaSemServidor = true; throw erroCot("semServidor"); }
+    if(r.status===429) throw erroCot("limite");
+    if(!r.ok || !j || !j.texto) throw erroCot("servico");
+    return {texto: String(j.texto).trim(), modelo: j.modelo || "Groq"};
+  }
+  const modelo = await modeloGroq(chave);
+  if(!modelo) throw erroCot("servico");
+  const mensagens = [{role:"system", content:IA_INSTRUCOES[modo]}, {role:"user", content:"Dados da carteira:\n"+JSON.stringify(dados)}];
+  if(modo==="pergunta"){ (extra.historico||[]).slice(-3).forEach(h=>mensagens.push({role:"user", content:h.p}, {role:"assistant", content:h.r})); mensagens.push({role:"user", content:extra.pergunta}); }
+  let r; try{
+    r = await fetch("https://api.groq.com/openai/v1/chat/completions", {method:"POST", headers:{Authorization:"Bearer "+chave, "Content-Type":"application/json"},
+      body: JSON.stringify({model:modelo, temperature:0.3, max_tokens:IA_TOKENS[modo], messages:mensagens}), ...comPrazo()});
+  }catch(e){ throw erroCot("rede"); }
+  if(r.status===401) throw erroCot("chave");
   if(r.status===429) throw erroCot("limite");
-  if(!r.ok || !j || !j.texto) throw erroCot("servico");
-  return {texto: String(j.texto).trim(), modelo: j.modelo || "Groq"};
+  if(!r.ok) throw erroCot("servico");
+  const j = await r.json(), texto = j.choices && j.choices[0] && j.choices[0].message && j.choices[0].message.content;
+  if(!texto) throw erroCot("servico");
+  return {texto: String(texto).trim(), modelo};
 }
+const MSG_IA = {chave:"O Groq recusou a chave. Confira a chave e cole de novo.", limite:"A IA atingiu o limite do plano gratuito. Tente daqui a pouco.", rede:"Não foi possível acessar a IA. Confira a internet.",
+  semServidor:"A IA do GenFin ainda não foi configurada. Você pode colar a sua própria chave do Groq em Análises."};
 async function gerarResumoIA(){
   if(gerandoIA) return;
   if(demo){ toast("No modo exemplo os dados são fictícios; saia do exemplo para gerar o resumo."); return; }
-  const chave = lerLS(LS_GROQ);
   gerandoIA = true; if(abaAtual==="analises") render("analises");
-  let res;
-  try{
-    if(!chave){ res = Object.assign(await resumoPeloServidor(), {em: Date.now()}); gravarLS(LS_IA, JSON.stringify(res)); return; }
-    const modelo = await modeloGroq(chave);
-    if(!modelo) throw erroCot("servico");
-    let r; try{
-      r = await fetch("https://api.groq.com/openai/v1/chat/completions", {method:"POST", headers:{Authorization:"Bearer "+chave, "Content-Type":"application/json"},
-        body: JSON.stringify({model:modelo, temperature:0.3, max_tokens:900, messages:[{role:"system", content:INSTRUCAO_IA}, {role:"user", content:"Dados da carteira:\n"+JSON.stringify(dadosParaIA())}]}), ...comPrazo()});
-    }catch(e){ throw erroCot("rede"); }
-    if(r.status===401) throw erroCot("chave");
-    if(r.status===429) throw erroCot("limite");
-    if(!r.ok) throw erroCot("servico");
-    const j = await r.json(), texto = j.choices && j.choices[0] && j.choices[0].message && j.choices[0].message.content;
-    if(!texto) throw erroCot("servico");
-    res = {texto: String(texto).trim(), modelo, em: Date.now()};
-    gravarLS(LS_IA, JSON.stringify(res));
-  }catch(e){
-    toast({chave:"O Groq recusou a chave. Confira a chave e cole de novo.", limite:"O Groq atingiu o limite do plano gratuito. Tente daqui a pouco.", rede:"Não foi possível acessar a IA. Confira a internet.",
-      semServidor:"A IA do GenFin ainda não foi configurada. Você pode colar a sua própria chave do Groq abaixo."}[e.tipo] || "A IA não respondeu como esperado. Tente de novo.");
-  }finally{ gerandoIA = false; if(abaAtual==="analises") render("analises"); }
+  try{ gravarLS(LS_IA, JSON.stringify(Object.assign(await pedirIA("resumo"), {em: Date.now()}))); }
+  catch(e){ toast(MSG_IA[e.tipo] || "A IA não respondeu como esperado. Tente de novo."); }
+  finally{ gerandoIA = false; if(abaAtual==="analises") render("analises"); }
+}
+
+/* Manchete do dia, no topo do Resumo: gerada sozinha quando a carteira muda ou uma vez por dia, e guardada no aparelho */
+let gerandoManchete = false, mancheteTentada = null;
+function hashTexto(s){ let h = 5381; for(let i=0;i<s.length;i++) h = (h*33 ^ s.charCodeAt(i)) >>> 0; return h.toString(36); }
+function hashCarteiraIA(){ const d = dadosParaIA(); delete d.data; return hashTexto(JSON.stringify(d)); }
+function lerManchete(){ try{ return JSON.parse(lerLS(LS_MANCHETE)||"null"); }catch(e){ return null; } }
+function htmlManchete(){
+  const m = lerManchete();
+  if(demo) return `<p class="manchete-texto">No modo exemplo, a manchete aparece com os seus dados.</p>`;
+  if(gerandoManchete && !m) return `<p class="manchete-texto carregando">Lendo a sua carteira…</p>`;
+  if(!m) return `<p class="manchete-texto">A manchete do dia aparece aqui quando a IA ler a sua carteira.</p>`;
+  const hora = new Date(m.em), quando = isoLocal(hora)===hojeISO() ? "hoje às "+hora.toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"}) : dataBR(isoLocal(hora));
+  return `<p class="manchete-texto">${esc(m.texto.replace(/\*\*/g,"").replace(/^[-•]\s*/,""))}</p>
+    <p class="manchete-rodape">${gerandoManchete ? "Atualizando…" : "Escrita pela IA "+quando}<button class="link" data-act="manchete-atualizar"${gerandoManchete?" disabled":""}>Atualizar</button></p>`;
+}
+async function atualizarManchete({forcar=false}={}){
+  if(demo || gerandoManchete || !temDados(S)) return;
+  const h = hashCarteiraIA(), m = lerManchete();
+  const velha = !m || m.hash!==h || Date.now()-m.em > 20*3600e3;
+  if(!forcar && (!velha || mancheteTentada===h)) return;   // uma tentativa por versão da carteira, para não insistir sem internet
+  mancheteTentada = h; gerandoManchete = true;
+  const el = $("#manchete-ia"); if(el) el.innerHTML = htmlManchete();
+  try{ const r = await pedirIA("manchete"); gravarLS(LS_MANCHETE, JSON.stringify({texto:r.texto, hash:h, em:Date.now()})); }
+  catch(e){ if(forcar) toast(MSG_IA[e.tipo] || "A IA não respondeu como esperado. Tente de novo."); }
+  finally{ gerandoManchete = false; const el2 = $("#manchete-ia"); if(el2) el2.innerHTML = htmlManchete(); }
+}
+
+/* Conversa com a carteira: folha que abre do Resumo, com as últimas trocas guardadas no aparelho */
+let conversa = (()=>{ try{ return JSON.parse(localStorage.getItem(LS_CONVERSA)||"[]"); }catch(e){ return []; } })();
+function gravarConversa(){ try{ localStorage.setItem(LS_CONVERSA, JSON.stringify(conversa.filter(m=>m.r).slice(-10))); }catch(e){} }
+// Sugestões de pergunta tiradas das leituras da própria carteira
+function sugestoesIA(){
+  const s = [], leit = analisar(), achou = re => leit.find(i=>re.test(i.titulo));
+  const conc = achou(/ é \d+% da carteira$/); if(conc) s.push(`Por que ${conc.titulo.split(" ")[0]} pesa tanto na carteira?`);
+  if(achou(/da meta em/)) s.push("Como dividir o próximo aporte pelas metas?");
+  if(achou(/do CDI/)) s.push("Como estou indo contra o CDI?");
+  if(achou(/DARF|limite de isenção|Prejuízo/)) s.push("Tenho imposto para pagar este mês?");
+  if(achou(/Proventos de/)) s.push("Como estão os meus proventos?");
+  s.push("Resuma a minha carteira em poucas palavras");
+  return [...new Set(s)].slice(0,4);
+}
+function chipsSugestoes(){ return sugestoesIA().map(q=>`<button class="sugestao" data-act="ia-perguntar" data-q="${esc(q)}">${esc(q)}</button>`).join(""); }
+function renderConversa(){
+  const el = $("#ia-mensagens"); if(!el) return;
+  el.innerHTML = conversa.length ? conversa.map(m=>`<div class="msg eu">${esc(m.p)}</div>
+    <div class="msg ia${m.erro?" erro":""}">${m.r ? textoIA(m.r) : m.erro ? esc(m.erro) : '<span class="carregando">Pensando…</span>'}</div>`).join("")
+    : `<p class="nota">Pergunte o que quiser sobre a sua carteira. A IA vê só percentuais e códigos, nunca valores em reais, e explica os números sem recomendar compra ou venda.</p>`;
+  $("#ia-sugestoes").innerHTML = chipsSugestoes();
+  el.scrollTop = el.scrollHeight;
+}
+async function perguntarIA(texto){
+  const q = String(texto||"").trim().slice(0,400); if(!q) return;
+  if(demo){ toast("No modo exemplo os dados são fictícios; saia do exemplo para conversar com a IA."); return; }
+  const dlg = $("#dlg-ia"); if(!dlg.open) dlg.showModal();
+  const historico = conversa.filter(m=>m.r).slice(-3).map(m=>({p:m.p, r:m.r}));
+  const item = {p:q}; conversa.push(item); renderConversa();
+  try{ item.r = (await pedirIA("pergunta", {pergunta:q, historico})).texto; gravarConversa(); }
+  catch(e){ item.erro = MSG_IA[e.tipo] || "A IA não respondeu como esperado. Tente de novo."; }
+  renderConversa();
 }
 // Texto da IA: escapado e com os tópicos "- " virando lista
 function textoIA(t){
@@ -2396,6 +2522,10 @@ document.addEventListener("click", e=>{
   }
   else if(a==="remover-chave"){ gravarLS(LS_CHAVE, ""); render("ativos"); toast("Chave removida"); }
   else if(a==="abrir-mais") $("#dlg-mais").showModal();
+  else if(a==="ia-perguntar") perguntarIA(b.dataset.q);
+  else if(a==="ia-fechar") $("#dlg-ia").close();
+  else if(a==="ia-limpar"){ conversa = []; gravarConversa(); renderConversa(); }
+  else if(a==="manchete-atualizar") atualizarManchete({forcar:true});
   else if(a==="abrir-ativo"){ abertoAtivo = abertoAtivo===b.dataset.t ? null : b.dataset.t; const y = window.scrollY; render("ativos"); window.scrollTo(0,y); }
   else if(a==="filtro-ativos"){ filtroAtivos = b.dataset.k; abertoAtivo = null; render("ativos"); }
   else if(a==="op-compra" || a==="op-venda") abrirOp(a==="op-venda" ? "venda" : "compra", b.dataset.t);
@@ -2437,6 +2567,12 @@ document.addEventListener("change", e=>{
   }
   if(e.target.id==="arq-b3" && e.target.files[0]){ lerArquivoB3(e.target.files[0]); e.target.value=""; }
   if(e.target.matches("select.imp-classe") && importacao) importacao.classes[e.target.dataset.t] = e.target.value;
+});
+document.addEventListener("submit", e=>{
+  if(e.target.id!=="f-perguntar" && e.target.id!=="f-ia") return;
+  e.preventDefault();
+  const i = e.target.elements.namedItem("q"), q = i.value; i.value = "";
+  perguntarIA(q);
 });
 document.addEventListener("input", e=>{
   if(!op || !e.target.closest("#dlg-op")) return;
