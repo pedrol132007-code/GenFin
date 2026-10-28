@@ -51,6 +51,7 @@ Preço médio, alocação, proventos, rebalanceamento e imposto de renda para qu
 | 💰 **Proventos** | Dividendos, JCP e rendimentos de FIIs, digitados ou importados da B3, com gráfico dos últimos 12 meses e rendimento sobre o custo por ativo. |
 | ⚖️ **Rebalancear** | Metas por classe e sugestão de como dividir um novo aporte para se aproximar delas, só com compras. |
 | 🦁 **Imposto de renda** | Apuração mensal com isenções, compensação de prejuízo e DARF; bens e direitos em 31/12; proventos do ano separados por tipo. |
+| 📦 **Inventário** | Bens que não são investimentos (imóveis, veículos, eletrônicos, objetos de valor, dinheiro guardado), com valor estimado, valor pago e financiamento. Mostra o patrimônio total e leva os bens marcados para Bens e direitos do IR. |
 | 📰 **Notícias** | Atalhos para o Google Notícias e o Status Invest de cada ativo. |
 
 Cinco classes de ativo: **ações**, **ETFs**, **FIIs**, **renda fixa** e **cripto**.
@@ -68,6 +69,7 @@ Cinco classes de ativo: **ações**, **ETFs**, **FIIs**, **renda fixa** e **crip
   </tr>
   <tr>
     <td width="50%"><img src="docs/img/ir.png" alt="Imposto de renda"><p align="center"><sub>Imposto de renda</sub></p></td>
+    <td width="50%"><img src="docs/img/inventario.png" alt="Inventário"><p align="center"><sub>Inventário</sub></p></td>
   </tr>
 </table>
 

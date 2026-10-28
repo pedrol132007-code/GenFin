@@ -44,6 +44,7 @@ resumo resumo light 1280 1080
 resumo-escuro resumo dark 1280 1080
 analises analises light 1280 1500
 ativos ativos light 1280 820
+inventario inventario light 1280 1150
 proventos proventos light 1280 900
 rebalancear rebalancear light 1280 900
 ir ir light 1280 1000

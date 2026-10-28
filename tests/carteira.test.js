@@ -425,6 +425,41 @@ await baixar("x.json", "{}");
 ok(/cancelado/.test($("#backup-msg").textContent), "cancelar o compartilhamento não mostra erro");
 delete window.Capacitor;
 
+// números no jeito brasileiro: ponto como milhar quando o formato é de milhar
+ok([["78.000",78000],["1.234.567",1234567],["62.000,00",62000],["38.50",38.5],["0.005",0.005],["38,50",38.5],["R$ 45.000",45000]].every(([s,v])=>parseNum(s)===v), "ponto de milhar sem vírgula é milhar; decimal com ponto continua decimal");
+
+// 15. inventário
+S = vazio(); S.atualizado = 1; editandoBem = null;
+const formBem = v => ({ elements:{ namedItem:n => n==="declarar" ? {checked:!!v.declarar} : {value: v[n]??""} } });
+const bemMsg = () => $("#bem-msg").textContent;
+salvarBem(formBem({nome:"", categoria:"veiculo", valor:"10"}));
+ok(!S.bens.length && /Informe o nome/.test(bemMsg()), "bem sem nome é recusado");
+salvarBem(formBem({nome:"Carro", categoria:"veiculo", valor:"x"}));
+ok(!S.bens.length && /vale hoje/.test(bemMsg()), "bem sem valor é recusado");
+salvarBem(formBem({nome:"  Carro   prata ", categoria:"veiculo", valor:"62.000,00", custo:"78.000", compra:"2024-03-10", divida:"21.000", obs:"placa ABC1D23", declarar:true}));
+const carro = S.bens[0];
+ok(carro && carro.nome==="Carro prata" && carro.valor===62000 && carro.custo===78000 && carro.divida===21000 && carro.declarar && carro.valorEm===hojeISO(), "adiciona o bem com os campos");
+salvarBem(formBem({nome:"Dinheiro guardado", categoria:"dinheiro", valor:"1500"}));
+ok(S.bens[1].custo===null && S.bens[1].divida===0 && !S.bens[1].declarar, "campos opcionais vazios");
+add({classe:"acao",tipo:"compra",data:"2026-01-05",ticker:"PETR4",qtd:"100",preco:"30"});
+let tb = totaisBens();
+ok(tb.valor===63500 && tb.dividas===21000 && tb.liquido===42500 && patrimonioTotal()===calcular().total+42500, "totais: bens, dívidas e patrimônio total");
+carro.valorEm = "2020-01-01"; editandoBem = carro.id;
+salvarBem(formBem({nome:"Carro prata", categoria:"veiculo", valor:"62.000", custo:"78000", compra:"2024-03-10", divida:"18.000", obs:"", declarar:true}));
+ok(S.bens.length===2 && carro.divida===18000 && carro.valorEm==="2020-01-01" && editandoBem===null && /atualizado/.test(bemMsg()), "editar sem mudar o valor mantém a data do valor");
+ok(analisar().some(i=>/Atualize o valor de 1 bem/.test(i.titulo)), "análise avisa valor de bem com mais de um ano");
+atualizarValorBem({dataset:{id:carro.id}, value:"58.500,00"});
+ok(carro.valor===58500 && carro.valorEm===hojeISO() && !analisar().some(i=>/Atualize o valor/.test(i.titulo)), "atualizar o valor na lista renova a data");
+const elInv = fakeEl(); rInventario(elInv);
+ok(/Patrimônio total/.test(elInv.innerHTML) && /Carro prata/.test(elInv.innerHTML) && /placa|valbem/.test(elInv.innerHTML), "aba Inventário mostra totais e bens");
+anoIR = "2026"; const elIRb = fakeEl(); rIR(elIRb);
+ok(/Outros bens do inventário/.test(elIRb.innerHTML) && /Carro prata/.test(elIRb.innerHTML) && /veículo automotor/.test(elIRb.innerHTML) && !/Dinheiro guardado/.test(elIRb.innerHTML), "IR lista só os bens marcados para declarar");
+ok(JSON.stringify(DOCS.bens(S).itens.map(b=>b.nome))==='["Carro prata","Dinheiro guardado"]' && TODOS_DOCS.includes("bens"), "bens vão para a conta e para o backup");
+const recarregado = vazio(); aplicarDocs(recarregado, {bens: DOCS.bens(S)}); ok(recarregado.bens.length===2, "bens voltam da conta");
+excluirBem(S.bens[1].id); ok(S.bens.length===1, "exclui o bem");
+const elRes = fakeEl(); abaAtual="ir"; rResumo(elRes);
+ok(/Investimentos hoje/.test(elRes.innerHTML) && /patrimônio total é/.test(elRes.innerHTML), "Resumo mostra o patrimônio total quando há bens");
+
 console.log(falhas? falhas+" falha(s)" : "todos passaram");
 return falhas;
 `;
