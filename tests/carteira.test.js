@@ -489,6 +489,9 @@ ok(/Investimentos hoje/.test(elRes.innerHTML) && /patrimônio total é/.test(elR
   S.provs.push({id:"pm", data:hojeISO().slice(0,7)+"-10", ticker:"HGLG11", tipo:"rendimento", valor:7.5});
   const d18 = dadosParaIA();
   ok(d18.evolucao.length===2 && d18.evolucao[1].resultado_pct===4 && d18.proventos_por_mes.length===12 && d18.proventos_por_mes[11].pct_do_custo===0.2 && typeof d18.ir.darf_a_pagar==="boolean" && !/R\\$/.test(JSON.stringify(d18)), "dados da IA com evolução, proventos por mês e imposto, sem reais");
+  S.metas = {acao:30,etf:0,fii:70,rf:0,cripto:0};
+  ok(dadosParaIA().classes.find(c=>c.classe==="Ações").diferenca_meta_pp === Math.round((dadosParaIA().classes.find(c=>c.classe==="Ações").carteira_pct-30)*10)/10, "diferença até a meta vai calculada para a IA");
+  S.metas = {acao:0,etf:0,fii:0,rf:0,cripto:0};
   ok(sugestoesIA().some(q=>/Por que PETR4 pesa tanto/.test(q)) && sugestoesIA().length<=4, "sugestões saem das leituras da carteira: "+sugestoesIA().join(" | "));
 
   let pedidos18 = [];

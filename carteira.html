@@ -1506,7 +1506,9 @@ function dadosParaIA(){
   const ant = ma===1 ? `${ya-1}-12` : `${ya}-${String(ma-1).padStart(2,"0")}`, ult = ks.length ? apur[ks[ks.length-1]] : null;
   return {
     data: hojeISO(),
-    classes: ORDEM.filter(k=>c.porClasse[k]>0 || S.metas[k]>0).map(k=>({classe:CLASSES[k].nome, carteira_pct: total>0?r1(c.porClasse[k]/total):0, meta_pct: soma>0?r1((S.metas[k]||0)/soma):null})),
+    // diferenca_meta_pp já vem calculada: modelos de linguagem erram contas (uma manchete disse 10 p.p. onde eram 15)
+    classes: ORDEM.filter(k=>c.porClasse[k]>0 || S.metas[k]>0).map(k=>{ const cp = total>0?r1(c.porClasse[k]/total):0, mp = soma>0?r1((S.metas[k]||0)/soma):null;
+      return {classe:CLASSES[k].nome, carteira_pct:cp, meta_pct:mp, diferenca_meta_pp: mp==null ? null : Math.round((cp-mp)*10)/10}; }),
     posicoes: c.lista.filter(p=>p.qtd>0).sort((a,b)=>b.valor-a.valor).slice(0,15).map(p=>({ativo:p.ticker, classe:CLASSES[p.classe].nome, peso_pct: total>0?r1(p.valor/total):0, resultado_pct: p.custo>0?r1(p.resultado/p.custo):null})),
     resultado_sobre_aportado_pct: c.aportado>0 ? r1(ganho/c.aportado) : null,
     contra_cdi_pct: comp && comp.cdi && comp.cdi.saldo ? r1((total-comp.cdi.saldo)/Math.abs(comp.cdi.saldo)) : null,
@@ -1520,7 +1522,7 @@ function dadosParaIA(){
   };
 }
 // Mesmas instruções de api/resumo.js, para quando a pessoa usa a própria chave
-const IA_REGRAS = "Você ajuda uma pessoa física no Brasil a entender a própria carteira de investimentos. Responda em português do Brasil. Use só os dados da mensagem, que vêm em percentuais, sem valores em reais; não invente números. Não recomende comprar ou vender ativos específicos e não faça previsão de preços: explique o que os números mostram e o que vale a pessoa verificar.";
+const IA_REGRAS = "Você ajuda uma pessoa física no Brasil a entender a própria carteira de investimentos. Responda em português do Brasil. Use só os dados da mensagem, que vêm em percentuais, sem valores em reais; não invente números e use as diferenças que já vêm calculadas (diferenca_meta_pp) em vez de fazer contas. Não recomende comprar ou vender ativos específicos e não faça previsão de preços: explique o que os números mostram e o que vale a pessoa verificar.";
 const IA_INSTRUCOES = {
   resumo: IA_REGRAS + " Responda em no máximo 6 tópicos curtos, cada um começando com \"- \", cobrindo o que for relevante entre concentração, distância das metas, desempenho contra o CDI e o Ibovespa, proventos e imposto de renda.",
   manchete: IA_REGRAS + " Escreva só a manchete do dia: no máximo 2 frases curtas (até 40 palavras no total), com o ponto mais importante da carteira agora. Sem tópicos, sem título, sem saudação.",

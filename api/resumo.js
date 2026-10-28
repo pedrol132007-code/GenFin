@@ -8,7 +8,7 @@
 // sincronização exige o token que só sai do código; o resumo só aceita o formato da carteira.
 const ORIGENS = ["https://genfin-rose.vercel.app", "https://localhost", "http://localhost", "capacitor://localhost", "null"];
 const TAMANHO_MAX = 24000;
-const REGRAS = "Você ajuda uma pessoa física no Brasil a entender a própria carteira de investimentos. Responda em português do Brasil. Use só os dados da mensagem, que vêm em percentuais, sem valores em reais; não invente números. Não recomende comprar ou vender ativos específicos e não faça previsão de preços: explique o que os números mostram e o que vale a pessoa verificar.";
+const REGRAS = "Você ajuda uma pessoa física no Brasil a entender a própria carteira de investimentos. Responda em português do Brasil. Use só os dados da mensagem, que vêm em percentuais, sem valores em reais; não invente números e use as diferenças que já vêm calculadas (diferenca_meta_pp) em vez de fazer contas. Não recomende comprar ou vender ativos específicos e não faça previsão de preços: explique o que os números mostram e o que vale a pessoa verificar.";
 const INSTRUCOES = {
   resumo: REGRAS + " Responda em no máximo 6 tópicos curtos, cada um começando com \"- \", cobrindo o que for relevante entre concentração, distância das metas, desempenho contra o CDI e o Ibovespa, proventos e imposto de renda.",
   manchete: REGRAS + " Escreva só a manchete do dia: no máximo 2 frases curtas (até 40 palavras no total), com o ponto mais importante da carteira agora. Sem tópicos, sem título, sem saudação.",
@@ -28,7 +28,7 @@ function limpar(d) {
   const ir = d.ir && typeof d.ir === "object" ? d.ir : {};
   return {
     data: texto(d.data, 10),
-    classes: d.classes.slice(0, 10).map(c => ({ classe: texto(c.classe, 30), carteira_pct: numero(c.carteira_pct), meta_pct: numero(c.meta_pct) })),
+    classes: d.classes.slice(0, 10).map(c => ({ classe: texto(c.classe, 30), carteira_pct: numero(c.carteira_pct), meta_pct: numero(c.meta_pct), diferenca_meta_pp: numero(c.diferenca_meta_pp) })),
     posicoes: d.posicoes.slice(0, 15).map(p => ({ ativo: texto(p.ativo, 40), classe: texto(p.classe, 30), peso_pct: numero(p.peso_pct), resultado_pct: numero(p.resultado_pct) })),
     resultado_sobre_aportado_pct: numero(d.resultado_sobre_aportado_pct),
     contra_cdi_pct: numero(d.contra_cdi_pct),
