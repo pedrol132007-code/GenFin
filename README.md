@@ -101,6 +101,17 @@ Como o app é montado: `npm run www` copia o `carteira.html` para `www/` com a f
 
 O mesmo arquivo também funciona como app instalável pelo navegador (PWA), por exemplo hospedado de graça na [Vercel](https://vercel.com): importe o repositório como projeto, com *Framework Preset* em **Other**. O `.vercelignore` publica só a página, o manifesto, o service worker e os ícones.
 
+### Sincronizar celular e computador
+
+Em **Backup e sincronização → Ativar sincronização**, o app gera um **código** (128 bits aleatórios, como `QTFY-993D-…`). No outro aparelho, a mesma tela → **Já tenho um código**. Daí em diante, cada alteração sobe sozinha alguns segundos depois, e ao abrir o app ele baixa a versão mais nova.
+
+- A carteira é compactada e **cifrada no aparelho** (AES-GCM, com a chave derivada do código por HKDF) antes de sair. A função `api/sync.js` guarda só o bloco cifrado num Vercel Blob **privado**; sem o código, ninguém lê, nem o servidor.
+- Do código também saem o identificador do arquivo e um token; o servidor guarda só o hash do token, que autoriza ler, gravar e apagar.
+- Se dois aparelhos gravarem ao mesmo tempo, a ETag do Blob acusa o conflito e vence a alteração mais recente, sem sobrescrever às cegas.
+- Ao entrar com um código num aparelho que já tem dados, o app pergunta qual carteira fica valendo.
+- As chaves da brapi e do Groq não sincronizam: ficam em cada aparelho.
+- Perdeu o código? Desligue e ative de novo para gerar outro. **Apagar da nuvem** remove os dados do servidor (os do aparelho continuam).
+
 ### Importar da B3
 
 Na [Área do Investidor da B3](https://www.investidor.b3.com.br), em **Extratos**, baixe em Excel e importe em **Lançamentos → importe o extrato da B3**:
@@ -143,7 +154,7 @@ flowchart LR
     S --> B[Backup<br>.json / .csv]
 ```
 
-- **Sempre no navegador**, na chave `carteira-v1` do `localStorage`. Fora do claude.ai, a carteira não sai do seu computador. Para as cotações, só os **códigos** dos ativos (como `PETR4` ou `BTC`) vão para a brapi e o Mercado Bitcoin; quantidades e valores nunca são enviados.
+- **Sempre no aparelho**, na chave `carteira-v1` do `localStorage`. Com a sincronização ligada, uma cópia **cifrada** vai para a nuvem (veja Sincronizar celular e computador); sem ela, a carteira não sai do aparelho. Para as cotações, só os **códigos** dos ativos (como `PETR4` ou `BTC`) vão para a brapi e o Mercado Bitcoin; quantidades e valores nunca são enviados.
 - **As chaves da brapi e do Groq** ficam só no navegador, separadas da carteira. Elas não entram no backup nem vão para a conta.
 - **Resumo com IA:** só vai para a IA o que aparece em "O que vai para a IA", na aba Análises: percentuais, códigos dos ativos e as leituras escritas sem valores em reais. Quantidades, preços e o patrimônio não saem do aparelho. Sem chave própria, os dados passam pela função `api/resumo.js` do GenFin na Vercel, que guarda a chave do Groq na variável de ambiente `GROQ_API_KEY`, aceita só esse formato de dados (e recusa valores em reais), usa uma instrução fixa e não guarda nada. Quem preferir pode colar a própria chave do Groq no app, que então fala direto com ele. A instrução pede que a IA explique os números e não recomende compra ou venda.
 - **No claude.ai**, também na conta do usuário, em quatro documentos (`carteira`, `lancamentos`, `proventos` e `historico`). Cada salvamento leva data e hora. Ao abrir, o lado mais recente vence, para não perder alterações feitas sem conexão.
@@ -187,12 +198,14 @@ Operações comuns de pessoa física, sem day trade:
 ├── icons/                 # ícones PNG do app instalado
 ├── vercel.json            # rota / → carteira.html e cabeçalhos
 ├── api/resumo.js          # função da Vercel: resumo com IA pelo Groq
+├── api/sync.js            # função da Vercel: guarda a carteira cifrada (sincronização)
 ├── capacitor.config.json  # app Android: nome, id e barras do sistema
 ├── assets/                # ícones-fonte do app Android (camadas do ícone adaptativo)
 ├── .github/workflows/     # compila e publica o APK
 ├── tests/
 │   ├── carteira.test.js   # testes da lógica, com um DOM falso
-│   └── api.test.js        # testes da função de IA, com o Groq simulado
+│   ├── api.test.js        # testes das funções da Vercel, com o Groq e o Blob simulados
+│   └── blob-falso.js      # Vercel Blob em memória para os testes
 ├── scripts/
 │   ├── capturas.sh        # gera as imagens de docs/img
 │   ├── icones.sh          # gera os PNGs de icons/ e assets/
@@ -249,7 +262,7 @@ Fonte: [Bricolage Grotesque](https://fonts.google.com/specimen/Bricolage+Grotesq
 - [x] Análises por regras e resumo opcional com IA (Groq)
 - [x] Importar extratos de Negociação e Movimentação da B3
 - [ ] Proventos anunciados: dividendos e JCP já aprovados que vão cair, pela brapi (depende do que o plano gratuito libera)
-- [ ] Sincronizar celular e computador sem servidor pago
+- [x] Sincronizar celular e computador, cifrado e sem servidor pago
 - [ ] Importar a nota de corretagem em PDF, para trazer as taxas
 
 ## Aviso

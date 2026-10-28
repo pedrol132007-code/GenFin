@@ -1,11 +1,9 @@
 # Só o app vai para a Vercel: página, manifesto, service worker e ícones.
-# Sem package.json, a Vercel trata o projeto como site estático e não roda build.
+# O package.json vai: a Vercel instala as dependências das funções em api/ (não há script de build).
 tests/
 scripts/
 docs/
 node_modules/
-package.json
-package-lock.json
 *.md
 .editorconfig
 www/

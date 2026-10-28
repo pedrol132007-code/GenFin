@@ -56,6 +56,36 @@ const dados = { data: "2026-10-28", classes: [{ classe: "Ações", carteira_pct:
   r = await chamar(carregar(), { body: dados });
   ok(r.statusCode === 502 && r.body.erro === "chave_invalida", "chave do servidor recusada vira 502");
 
+  // api/sync.js com o Blob em memória
+  const { instalar, chamar: chamarSync } = require("./blob-falso.js");
+  const blob = instalar();
+  const sync = require("../api/sync.js");
+  const id = "a".repeat(32), token = "T".repeat(43), outro = "U".repeat(43);
+  const cifra = { iv: "AAAAAAAAAAAAAAAA", dados: "QUJD" };
+  let s = await chamarSync(sync, { body: { acao: "ler", id, token } });
+  ok(s.status === 404 && s.body.erro === "nao_existe", "sync: ler o que não existe dá 404");
+  s = await chamarSync(sync, { body: { acao: "gravar", id: "xyz", token } });
+  ok(s.status === 400, "sync: id fora do formato é recusado");
+  s = await chamarSync(sync, { body: { acao: "gravar", id, token, etag: null, atualizado: 10, ...cifra } });
+  const etag1 = s.body.etag;
+  ok(s.status === 200 && etag1 && blob.arquivos[`sync/${id}.json`] && !/T{43}/.test(blob.arquivos[`sync/${id}.json`].txt), "sync: cria o arquivo e guarda só o hash do token");
+  s = await chamarSync(sync, { body: { acao: "ler", id, token: outro } });
+  ok(s.status === 403, "sync: outro token não lê");
+  s = await chamarSync(sync, { body: { acao: "gravar", id, token: outro, etag: etag1, ...cifra } });
+  ok(s.status === 403, "sync: outro token não grava");
+  s = await chamarSync(sync, { body: { acao: "gravar", id, token, etag: "\"velha\"", atualizado: 20, ...cifra } });
+  ok(s.status === 409 && s.body.etag === etag1 && s.body.atualizado === 10, "sync: versão velha dá conflito e mostra a atual");
+  s = await chamarSync(sync, { body: { acao: "gravar", id, token, etag: etag1, atualizado: 30, iv: cifra.iv, dados: "<script>" } });
+  ok(s.status === 400, "sync: dados que não são base64 são recusados");
+  s = await chamarSync(sync, { body: { acao: "gravar", id, token, etag: etag1, atualizado: 30, ...cifra } });
+  ok(s.status === 200 && s.body.etag !== etag1, "sync: grava com a versão certa e gera ETag nova");
+  s = await chamarSync(sync, { body: { acao: "ler", id, token } });
+  ok(s.status === 200 && s.body.atualizado === 30 && s.body.dados === cifra.dados, "sync: lê de volta o bloco cifrado");
+  s = await chamarSync(sync, { body: { acao: "apagar", id, token } });
+  ok(s.status === 200 && !blob.arquivos[`sync/${id}.json`], "sync: apagar remove da nuvem");
+  s = await chamarSync(sync, { method: "OPTIONS", origin: "https://localhost" });
+  ok(s.status === 204 && s.headers["access-control-allow-origin"] === "https://localhost", "sync: app Android pode chamar");
+
   console.log(falhas ? falhas + " falha(s)" : "todos passaram");
   if (falhas) process.exitCode = 1;
 })().catch(e => { console.error("ERRO:", e); process.exit(1); });

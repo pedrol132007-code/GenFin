@@ -40,6 +40,9 @@ function criarXLSX(linhas, {compactar=true}={}){
   const b = Buffer.concat([...partes, dir, fim]);
   return b.buffer.slice(b.byteOffset, b.byteOffset+b.length);
 }
+// A função real de sincronização (api/sync.js) com um Blob em memória, para testar dois aparelhos de ponta a ponta
+const blobSync = require("./blob-falso.js"), blobMem = blobSync.instalar(), funcaoSync = require("../api/sync.js");
+const servidorSync = op => blobSync.chamar(funcaoSync, { method: op.method || "POST", body: JSON.parse(op.body) });
 const mem = {};
 const ambiente = {
   document:{ querySelector:q, querySelectorAll:()=>[], addEventListener(){},
@@ -47,7 +50,7 @@ const ambiente = {
     body:{ appendChild(){} } },
   window:{ addEventListener(){}, scrollTo(){}, scrollY:0 },
   localStorage:{ getItem:k=>mem[k]??null, setItem:(k,v)=>{mem[k]=v;}, removeItem:k=>{delete mem[k];} },
-  location:{hash:""}, fakeEl, mem, criarXLSX,
+  location:{hash:""}, fakeEl, mem, criarXLSX, servidorSync, blobMem,
   // fetch simulado: cada teste troca globalThis.__fetch
   fetch:(...a)=>globalThis.__fetch(...a)
 };
@@ -476,6 +479,74 @@ const recarregado = vazio(); aplicarDocs(recarregado, {bens: DOCS.bens(S)}); ok(
 excluirBem(S.bens[1].id); ok(S.bens.length===1, "exclui o bem");
 const elRes = fakeEl(); abaAtual="ir"; rResumo(elRes);
 ok(/Investimentos hoje/.test(elRes.innerHTML) && /patrimônio total é/.test(elRes.innerHTML), "Resumo mostra o patrimônio total quando há bens");
+
+// 16. sincronização entre dois aparelhos (cifrada), passando pela função real api/sync.js
+{
+  const cod = novoCodigo();
+  ok(/^[A-Z2-9]{4}(-[A-Z2-9]{1,4}){6}$/.test(cod) && bytesDoCodigo(cod).length===16 && bytesDoCodigo(cod.toLowerCase().replace(/-/g," ")).every((x,i)=>x===bytesDoCodigo(cod)[i]), "código de sincronização: 128 bits, aceita minúsculas e sem traços: "+cod);
+  ok(bytesDoCodigo("ABCD-0000") === null && bytesDoCodigo(cod.slice(0,-1)+"I") === null, "código com caractere fora do alfabeto ou curto é recusado");
+  const c1 = await derivarSync(cod), c2 = await derivarSync(cod.toLowerCase());
+  ok(c1.id===c2.id && /^[a-f0-9]{32}$/.test(c1.id) && /^[A-Za-z0-9_-]{43}$/.test(c1.token), "mesmo código gera o mesmo id e token");
+  const cif = await cifrar(c1.chave, {ola:"mundo", n:[1,2,3]});
+  ok(JSON.stringify(await decifrar(c2.chave, cif.iv, cif.dados))==='{"ola":"mundo","n":[1,2,3]}', "cifra e decifra com a chave derivada");
+  let erroChave = ""; try{ await decifrar((await derivarSync(novoCodigo())).chave, cif.iv, cif.dados); }catch(e){ erroChave = e.tipo; }
+  ok(erroChave==="codigo", "outro código não decifra");
+
+  globalThis.__fetch = (url, op) => url.endsWith("/api/sync") ? servidorSync(op) : Promise.reject(new TypeError("offline"));
+  clearTimeout(tSync); delete mem[LS_SYNC];
+  // Aparelho A: carteira com um lançamento e um bem, ativa a sincronização
+  S = vazio(); S.atualizado = 1;
+  add({classe:"acao",tipo:"compra",data:"2026-02-02",ticker:"WEGE3",qtd:"10",preco:"40"});
+  S.bens.push({id:"b1", nome:"Moto", categoria:"veiculo", valor:12000, valorEm:hojeISO(), custo:null, divida:0});
+  const codA = await ativarSyncNovo();
+  const arq = Object.values(blobMem.arquivos)[0];
+  ok(codA && lerSync().codigo===codA && lerSync().etag && arq && !/WEGE3|Moto/.test(arq.txt), "ativar sobe a carteira cifrada (a nuvem não tem WEGE3 nem Moto em texto)");
+  const aparelhoA = {S: JSON.parse(JSON.stringify(S)), sync: mem[LS_SYNC]};
+
+  // Aparelho B: vazio, entra com o código
+  S = vazio(); delete mem[LS_SYNC];
+  let rB = await entrarSync("codigo-errado");
+  ok(rB.erro==="codigo", "código inválido é recusado");
+  rB = await entrarSync(novoCodigo());
+  ok(rB.erro==="nao_existe", "código válido sem sincronização dá não existe");
+  rB = await entrarSync(codA.toLowerCase());
+  ok(rB.ok==="baixado" && S.txs.length===1 && S.txs[0].ticker==="WEGE3" && S.bens[0].nome==="Moto" && lerSync().codigo===codA, "aparelho B baixa a carteira de A");
+  // B lança algo e sobe
+  await new Promise(r=>setTimeout(r,5));
+  add({classe:"acao",tipo:"compra",data:"2026-03-03",ticker:"ITSA4",qtd:"5",preco:"10"});
+  clearTimeout(tSync); await enviarSync();
+  const aparelhoB = {S: JSON.parse(JSON.stringify(S)), sync: mem[LS_SYNC]};
+
+  // De volta ao A: ao abrir, puxa a versão de B
+  S = aparelhoA.S; mem[LS_SYNC] = aparelhoA.sync; avisos2 = [];
+  await puxarSync();
+  ok(S.txs.length===2 && S.txs.some(t=>t.ticker==="ITSA4") && /outro aparelho/.test(avisos2[0]||""), "aparelho A recebe o lançamento feito em B");
+  // Conflito: B grava sem saber da mudança mais nova de A
+  await new Promise(r=>setTimeout(r,5));
+  S.bens.push({id:"b2", nome:"Notebook", categoria:"eletronico", valor:3000, valorEm:hojeISO(), custo:null, divida:0});
+  salvar("bens"); clearTimeout(tSync); await enviarSync();
+  const etagDepoisDeA = lerSync().etag;
+  S = aparelhoB.S; mem[LS_SYNC] = aparelhoB.sync;            // B ainda tem a ETag antiga
+  await enviarSync();                                         // 409 → puxa → a de A é mais nova → aplica
+  ok(S.bens.some(b=>b.nome==="Notebook") && lerSync().etag===etagDepoisDeA, "conflito: B recebe a alteração mais nova de A em vez de sobrescrever");
+
+  // Aparelho com dados próprios entrando: pede para escolher
+  const local = vazio(); local.atualizado = 5; local.txs = [{id:"z", criado:1, data:"2025-01-01", tipo:"compra", classe:"acao", ticker:"BBAS3", qtd:1, preco:1, taxas:0}];
+  S = local; delete mem[LS_SYNC];
+  rB = await entrarSync(codA);
+  ok(rB.escolher && rB.remoto.lancamentos===2 && rB.remoto.bens===2 && !lerSync().codigo, "aparelho com dados próprios precisa escolher qual carteira vale");
+  rB = await entrarSync(codA, {usar:"aqui"});
+  ok(rB.ok==="enviado" && S.txs[0].ticker==="BBAS3", "escolher a deste aparelho sobe ela para a nuvem");
+  const credA = await derivarSync(codA), lida = await servidorSync({body: JSON.stringify({acao:"ler", id:credA.id, token:credA.token})});
+  ok((await decifrar(credA.chave, lida.body.iv, lida.body.dados)).txs[0].ticker==="BBAS3", "a nuvem passa a ter a carteira escolhida");
+
+  renderSync(); const elSync = $("#sync-area");
+  ok(elSync.innerHTML.includes(codA) && /Desligar neste aparelho/.test(elSync.innerHTML), "tela mostra o código e as opções com a sincronização ligada");
+  await apagarSyncNuvem();
+  ok(!Object.keys(blobMem.arquivos).length && !lerSync().codigo, "apagar da nuvem remove o arquivo e desliga");
+  entrarDemo(); ok((await entrarSync(codA)).erro==="demo", "modo exemplo não sincroniza"); sairDemo();
+  clearTimeout(tSync);
+}
 
 console.log(falhas? falhas+" falha(s)" : "todos passaram");
 return falhas;

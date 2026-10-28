@@ -135,6 +135,12 @@ details.chave summary{cursor:pointer;color:var(--focus);width:max-content;max-wi
 .altura{max-height:460px;overflow:auto}
 tr.sel{background:var(--soft)}
 
+/* Sincronização */
+.botoes-sync{display:flex;gap:8px;flex-wrap:wrap}
+.codigo-sync{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:6px 0 10px}
+.codigo-sync code{font:600 1.05rem/1.3 ui-monospace,Menlo,monospace;letter-spacing:.04em;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:8px 12px;user-select:all;word-break:break-all}
+#dlg-backup{max-width:600px}
+
 /* Importar da B3 */
 #dlg-importar{max-width:620px}
 .imp-lista{padding-left:20px;margin:8px 0 12px}
@@ -327,7 +333,7 @@ textarea{width:100%;min-height:140px;font:12px/1.4 ui-monospace,Menlo,monospace;
   <button data-aba="inventario"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 7.5L12 3.5l8.5 4v9L12 20.5l-8.5-4z"/><path d="M3.5 7.5L12 11.5l8.5-4M12 11.5v9"/></svg><span>Inventário<small>Imóveis, veículos e outros bens</small></span></button>
   <button data-aba="noticias"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5" width="13" height="14" rx="1.5"/><path d="M16.5 9h3v8.5a1.5 1.5 0 0 1-3 0M7 9h6M7 12.5h6M7 16h4"/></svg><span>Notícias<small>Atalhos de cada ativo</small></span></button>
   <button data-act="abrir-importar"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11M7.5 10.5L12 15l4.5-4.5M4.5 17v2.5h15V17"/></svg><span>Importar da B3<small>Extratos de Negociação e Movimentação</small></span></button>
-  <button data-act="backup"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 18.5a4.5 4.5 0 0 1-.6-9 6 6 0 0 1 11.4 1.5A3.8 3.8 0 0 1 17 18.5z"/><path d="M12 15.5v-5M9.8 12.7L12 10.5l2.2 2.2"/></svg><span>Backup<small>Exportar, restaurar e apagar</small></span></button>
+  <button data-act="backup"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 18.5a4.5 4.5 0 0 1-.6-9 6 6 0 0 1 11.4 1.5A3.8 3.8 0 0 1 17 18.5z"/><path d="M12 15.5v-5M9.8 12.7L12 10.5l2.2 2.2"/></svg><span>Backup e sincronização<small>Celular e computador, arquivo de backup</small></span></button>
 </dialog>
 
 <datalist id="dl-ativos"></datalist>
@@ -342,7 +348,10 @@ textarea{width:100%;min-height:140px;font:12px/1.4 ui-monospace,Menlo,monospace;
 </dialog>
 
 <dialog id="dlg-backup">
-  <h2>Backup dos seus dados</h2>
+  <h2>Backup e sincronização</h2>
+  <h3 style="margin-top:8px">Sincronizar aparelhos</h3>
+  <div id="sync-area"></div>
+  <h3>Backup em arquivo</h3>
   <p class="sub">Exporte um arquivo com todos os lançamentos, proventos, cotações e metas, ou restaure um backup anterior.</p>
   <div style="display:flex;gap:10px;flex-wrap:wrap">
     <button class="btn" data-act="exportar-json">Exportar backup (.json)</button>
@@ -355,6 +364,7 @@ textarea{width:100%;min-height:140px;font:12px/1.4 ui-monospace,Menlo,monospace;
   </div>
   <p id="backup-msg" class="nota"></p>
   <h3>Zona de cuidado</h3>
+  <p class="nota">Com a sincronização ligada, apagar aqui também esvazia a carteira nos outros aparelhos.</p>
   <button class="btn perigo" data-act="apagar-tudo" data-armar="Confirmar: apagar tudo">Apagar todos os dados</button>
   <div style="margin-top:18px;text-align:right"><button class="btn" data-act="fechar-backup">Fechar</button></div>
 </dialog>
@@ -453,6 +463,7 @@ function salvar(...nomes){
   if(demo) return;
   S.atualizado = Date.now();
   gravarLocal();
+  agendarSync();   // com a sincronização ligada, sobe a alteração alguns segundos depois
   if(!base){ return; }
   nomes.forEach(n=>pendentes.add(n));
   estado("Salvando…");
@@ -502,6 +513,172 @@ async function conectar(){
   }catch(e){
     base = null; estado(LOCAL);
   }
+}
+
+/* ---------- Sincronização entre aparelhos ---------- */
+// O código de sincronização (128 bits aleatórios) fica só nos aparelhos. Dele saem, por HKDF:
+// o id do arquivo no servidor, o token que autoriza ler/gravar e a chave AES-GCM que cifra a carteira.
+// O servidor (api/sync.js) guarda só o bloco cifrado; sem o código, ninguém lê, nem o servidor.
+const LS_SYNC = "genfin-sync";               // {codigo, etag, em}
+const ALFABETO = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";   // sem I, O, 0 e 1, que se confundem
+const b64 = u => btoa(String.fromCharCode(...u));
+const de64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
+const b64url = u => b64(u).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,"");
+function lerSync(){ try{ return JSON.parse(lerLS(LS_SYNC)||"null") || {}; }catch(e){ return {}; } }
+function gravarSync(o){ gravarLS(LS_SYNC, o && o.codigo ? JSON.stringify(o) : ""); }
+const syncAtivo = () => !!lerSync().codigo && !demo;
+function novoCodigo(){
+  const u = crypto.getRandomValues(new Uint8Array(16)); let bits = "", s = "";
+  u.forEach(x=>{ bits += x.toString(2).padStart(8,"0"); });
+  for(let i=0; i<bits.length; i+=5) s += ALFABETO[parseInt(bits.slice(i,i+5).padEnd(5,"0"), 2)];
+  return s.match(/.{1,4}/g).join("-");
+}
+function bytesDoCodigo(codigo){
+  const s = String(codigo).toUpperCase().replace(/[^A-Z0-9]/g,"");
+  if(s.length!==26 || [...s].some(c=>!ALFABETO.includes(c))) return null;
+  const bits = [...s].map(c=>ALFABETO.indexOf(c).toString(2).padStart(5,"0")).join("").slice(0,128);
+  return Uint8Array.from(bits.match(/.{8}/g), b=>parseInt(b,2));
+}
+const formatarCodigo = c => String(c).toUpperCase().replace(/[^A-Z0-9]/g,"").match(/.{1,4}/g).join("-");
+async function derivarSync(codigo){
+  const bruto = bytesDoCodigo(codigo); if(!bruto) throw erroCot("codigo");
+  const base = await crypto.subtle.importKey("raw", bruto, "HKDF", false, ["deriveBits","deriveKey"]);
+  const p = info => ({name:"HKDF", hash:"SHA-256", salt:new TextEncoder().encode("genfin-sync-v1"), info:new TextEncoder().encode(info)});
+  const hex = u => [...u].map(x=>x.toString(16).padStart(2,"0")).join("");
+  return {
+    id: hex(new Uint8Array(await crypto.subtle.deriveBits(p("id"), base, 128))),
+    token: b64url(new Uint8Array(await crypto.subtle.deriveBits(p("token"), base, 256))),
+    chave: await crypto.subtle.deriveKey(p("chave"), base, {name:"AES-GCM", length:256}, false, ["encrypt","decrypt"])
+  };
+}
+const fluxoParaBytes = async s => new Uint8Array(await new Response(s).arrayBuffer());
+async function cifrar(chave, obj){
+  const zip = await fluxoParaBytes(new Blob([JSON.stringify(obj)]).stream().pipeThrough(new CompressionStream("gzip")));
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  return {iv: b64(iv), dados: b64(new Uint8Array(await crypto.subtle.encrypt({name:"AES-GCM", iv}, chave, zip)))};
+}
+async function decifrar(chave, iv, dados){
+  let claro; try{ claro = await crypto.subtle.decrypt({name:"AES-GCM", iv:de64(iv)}, chave, de64(dados)); }catch(e){ throw erroCot("codigo"); }
+  return JSON.parse(new TextDecoder().decode(await fluxoParaBytes(new Blob([claro]).stream().pipeThrough(new DecompressionStream("gzip")))));
+}
+async function chamarSync(acao, cred, extra){
+  let r; try{ r = await fetch(baseServidor()+"/api/sync", {method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({acao, id:cred.id, token:cred.token, ...extra}), ...comPrazo()}); }
+  catch(e){ throw erroCot("rede"); }
+  let j = null; try{ j = await r.json(); }catch(e){}
+  return {status: r.status, j: j || {}};
+}
+let filaSync = Promise.resolve(), tSync = null, sincronizando = false;
+function agendarSync(){ if(!syncAtivo()) return; clearTimeout(tSync); tSync = setTimeout(()=>{ filaSync = filaSync.then(()=>enviarSync()).catch(()=>{}); }, 2500); }
+function estadoSync(t){ if(!demo) estado(t); }
+function textoSincronizado(){ const s = lerSync(); return s.em ? "Sincronizado às "+new Date(s.em).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"}) : "Sincronizado"; }
+// Sobe a carteira; se outro aparelho gravou antes, puxa e decide pela alteração mais recente
+async function enviarSync(tentativa=0){
+  const s = lerSync(); if(!s.codigo || demo) return;
+  sincronizando = true; estadoSync("Sincronizando…");
+  try{
+    const cred = await derivarSync(s.codigo), alvo = S;
+    const r = await chamarSync("gravar", cred, {etag: s.etag || null, atualizado: alvo.atualizado||0, ...await cifrar(cred.chave, alvo)});
+    if(r.status===200){ gravarSync({...lerSync(), etag:r.j.etag, em:Date.now()}); estadoSync(textoSincronizado()); return; }
+    if(r.status===409 && tentativa<2){ await puxarSync({depoisDeConflito:true}); return; }
+    estadoSync(r.status===403 ? "Sincronização recusada" : "Sincronização falhou; tenta de novo depois");
+  }catch(e){ estadoSync(e.tipo==="rede" ? "Sem conexão: sincroniza depois" : "Sincronização falhou; tenta de novo depois"); }
+  finally{ sincronizando = false; }
+}
+// Baixa a versão da nuvem: aplica se for mais nova que a deste aparelho; se a daqui for mais nova, sobe
+async function puxarSync({depoisDeConflito=false}={}){
+  const s = lerSync(); if(!s.codigo || demo) return;
+  try{
+    const cred = await derivarSync(s.codigo);
+    const r = await chamarSync("ler", cred, {});
+    if(r.status===404){ gravarSync({...s, etag:null}); return enviarSync(1); }
+    if(r.status!==200) throw erroCot("servico");
+    if(r.j.etag===s.etag && !depoisDeConflito){ estadoSync(textoSincronizado()); return; }
+    if((r.j.atualizado||0) > (S.atualizado||0)){
+      const remoto = await decifrar(cred.chave, r.j.iv, r.j.dados);
+      S = Object.assign(vazio(), remoto); gravarLocal();
+      gravarSync({...lerSync(), etag:r.j.etag, em:Date.now()});
+      renderTudo(); estadoSync(textoSincronizado()); toast("Atualizado com os dados do outro aparelho");
+    } else {
+      gravarSync({...lerSync(), etag:r.j.etag});
+      if((r.j.atualizado||0) < (S.atualizado||0)) return enviarSync(depoisDeConflito ? 2 : 1);
+      estadoSync(textoSincronizado());
+    }
+  }catch(e){ estadoSync(e.tipo==="rede" ? "Sem conexão: sincroniza depois" : "Sincronização falhou; tenta de novo depois"); }
+}
+// Liga neste aparelho com um código novo (cria na nuvem) ou com um código vindo de outro aparelho
+async function ativarSyncNovo(){
+  if(demo){ toast("Saia do modo exemplo para sincronizar."); return null; }
+  const codigo = novoCodigo();
+  gravarSync({codigo, etag:null}); if(!S.atualizado) S.atualizado = Date.now();
+  await enviarSync();
+  return lerSync().em ? codigo : (gravarSync(null), null);
+}
+async function entrarSync(codigo, {usar}={}){
+  if(demo) return {erro:"demo"};
+  if(!bytesDoCodigo(codigo)) return {erro:"codigo"};
+  try{
+    const cred = await derivarSync(codigo), r = await chamarSync("ler", cred, {});
+    if(r.status===404) return {erro:"nao_existe"};
+    if(r.status!==200) return {erro: r.status===403 ? "codigo" : "servico"};
+    const remoto = await decifrar(cred.chave, r.j.iv, r.j.dados);
+    const temLocal = temDados(S) || (S.bens||[]).length;
+    if(temLocal && !usar) return {escolher:true, remoto:{lancamentos:(remoto.txs||[]).length, bens:(remoto.bens||[]).length}};
+    if(usar==="aqui"){ gravarSync({codigo:formatarCodigo(codigo), etag:r.j.etag}); S.atualizado = Date.now(); gravarLocal(); await enviarSync(); return {ok:"enviado"}; }
+    S = Object.assign(vazio(), remoto); gravarLocal();
+    gravarSync({codigo:formatarCodigo(codigo), etag:r.j.etag, em:Date.now()});
+    renderTudo(); estadoSync(textoSincronizado());
+    return {ok:"baixado"};
+  }catch(e){ return {erro: e.tipo==="rede" ? "rede" : e.tipo==="codigo" ? "codigo" : "servico"}; }
+}
+let codigoPendente = null;   // código digitado que espera a escolha "nuvem ou este aparelho"
+function renderSync(msg, tipo){
+  const el = $("#sync-area"); if(!el) return;
+  const s = lerSync(), aviso = msg ? `<p class="${tipo||"nota"}">${esc(msg)}</p>` : "";
+  if(demo){ el.innerHTML = `<p class="nota">Saia do modo exemplo para sincronizar.</p>`; return; }
+  if(codigoPendente && !s.codigo){
+    el.innerHTML = `<p class="nota">Este aparelho já tem dados, e a nuvem também. Qual carteira fica valendo nos dois?</p>
+    <div class="botoes-sync"><button class="btn pri" data-act="sync-usar-nuvem">Usar a da nuvem</button><button class="btn" data-act="sync-usar-aqui" data-armar="Confirmar: substituir a da nuvem">Usar a deste aparelho</button><button class="btn" data-act="sync-cancelar">Cancelar</button></div>
+    <p class="nota">A outra é substituída. Se tiver dúvida, faça um backup em arquivo antes.</p>${aviso}`;
+    return;
+  }
+  if(s.codigo){
+    el.innerHTML = `<p class="ok" style="margin-top:0">Ligada neste aparelho. ${esc(textoSincronizado())}.</p>
+    <p class="nota">Para ligar em outro aparelho, abra lá esta mesma tela, toque em <strong>Já tenho um código</strong> e digite:</p>
+    <div class="codigo-sync"><code>${esc(s.codigo)}</code><button class="btn peq" data-act="copiar-codigo">Copiar</button></div>
+    <p class="nota">Guarde o código em lugar seguro, como um gerenciador de senhas. Quem tem o código vê a carteira; sem ele, ninguém lê os dados na nuvem, nem o GenFin. Se perder, desligue e ative de novo para gerar outro.</p>
+    <div class="botoes-sync"><button class="btn" data-act="sync-agora">Sincronizar agora</button><button class="btn" data-act="sync-desligar" data-armar="Confirmar">Desligar neste aparelho</button><button class="btn perigo" data-act="sync-apagar" data-armar="Confirmar: apagar da nuvem">Apagar da nuvem</button></div>${aviso}`;
+    return;
+  }
+  el.innerHTML = `<p class="nota" style="margin-top:0">Use a mesma carteira no celular e no computador. Os dados são cifrados neste aparelho antes de sair, e o servidor guarda só um bloco que não consegue ler. As chaves da brapi e do Groq não vão junto.</p>
+  <div class="botoes-sync"><button class="btn pri" data-act="sync-ativar">Ativar sincronização</button></div>
+  <details class="chave" style="margin-top:12px"><summary>Já tenho um código</summary>
+    <div class="linha-chave"><input id="codigo-sync" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XX" aria-label="Código de sincronização"><button class="btn" data-act="sync-entrar">Entrar</button></div>
+  </details>${aviso}`;
+}
+const MSG_SYNC = { codigo:"Código inválido ou que não confere. Confira as letras e os números.", nao_existe:"Não há sincronização com esse código. Confira se ela foi ativada no outro aparelho.",
+  rede:"Sem conexão. Tente de novo quando estiver na internet.", servico:"O servidor não respondeu como esperado. Tente de novo.", demo:"Saia do modo exemplo para sincronizar." };
+async function acaoSync(a, b){
+  const travar = on => { if(b) b.disabled = on; };
+  if(a==="sync-ativar"){ travar(true); const c = await ativarSyncNovo(); travar(false);
+    renderSync(c ? "Sincronização ativada. Agora ligue no outro aparelho com o código acima." : "Não foi possível ativar agora. Confira a internet e tente de novo.", c ? "ok" : "erro"); }
+  else if(a==="sync-entrar" || a==="sync-usar-nuvem" || a==="sync-usar-aqui"){
+    const codigo = a==="sync-entrar" ? $("#codigo-sync").value : codigoPendente;
+    travar(true); const r = await entrarSync(codigo, a==="sync-entrar" ? {} : {usar: a==="sync-usar-aqui" ? "aqui" : "nuvem"}); travar(false);
+    if(r.escolher){ codigoPendente = codigo; renderSync(`Na nuvem: ${r.remoto.lancamentos} lançamentos e ${r.remoto.bens} bens.`); return; }
+    codigoPendente = null;
+    if(r.erro){ renderSync(MSG_SYNC[r.erro] || MSG_SYNC.servico, "erro"); return; }
+    renderSync(r.ok==="baixado" ? "Pronto: este aparelho agora usa a carteira sincronizada." : "Pronto: a carteira deste aparelho foi para a nuvem.", "ok");
+  }
+  else if(a==="sync-cancelar"){ codigoPendente = null; renderSync(); }
+  else if(a==="sync-agora"){ travar(true); await puxarSync(); travar(false); renderSync(); }
+  else if(a==="sync-desligar"){ gravarSync(null); estado(LOCAL); renderSync("Desligada neste aparelho. Os dados continuam aqui e na nuvem."); }
+  else if(a==="sync-apagar"){ travar(true); await apagarSyncNuvem(); travar(false); renderSync("Os dados foram apagados da nuvem. Neste aparelho, continuam."); }
+  else if(a==="copiar-codigo"){ try{ await navigator.clipboard.writeText(lerSync().codigo); toast("Código copiado"); }catch(e){ toast("Não deu para copiar; selecione o código e copie à mão."); } }
+}
+async function apagarSyncNuvem(){
+  const s = lerSync(); if(!s.codigo) return;
+  try{ const cred = await derivarSync(s.codigo); await chamarSync("apagar", cred, {}); }catch(e){}
+  gravarSync(null); estado(LOCAL);
 }
 
 /* ---------- Cálculos ---------- */
@@ -1982,7 +2159,7 @@ document.addEventListener("click", e=>{
   else if(a==="del-bem"){ if(demo){ toast("No modo exemplo nada é alterado."); return; } excluirBem(b.dataset.id); }
   else if(a==="cancelar-bem"){ editandoBem = null; render("inventario"); }
   else if(a==="del-prov"){ if(demo){ toast("No modo exemplo nada é alterado."); return; } delProv(b.dataset.id); }
-  else if(a==="backup"){ if($("#dlg-mais").open) $("#dlg-mais").close(); $("#backup-texto").classList.add("oculto"); $("#backup-msg").textContent=""; $("#dlg-backup").showModal(); }
+  else if(a==="backup"){ if($("#dlg-mais").open) $("#dlg-mais").close(); $("#backup-texto").classList.add("oculto"); $("#backup-msg").textContent=""; codigoPendente = null; renderSync(); $("#dlg-backup").showModal(); }
   else if(a==="fechar-backup") $("#dlg-backup").close();
   else if(a==="exportar-json"){ gravarLS(LS_BACKUP, String(Date.now())); baixar("carteira-backup-"+hojeISO()+".json", JSON.stringify(demo?realGuardado:S,null,1)); }
   else if(a==="exportar-csv") baixar("lancamentos-"+hojeISO()+".csv", csvLanc());
@@ -1994,6 +2171,7 @@ document.addEventListener("click", e=>{
   }
   else if(a==="remover-chave"){ gravarLS(LS_CHAVE, ""); render("ativos"); toast("Chave removida"); }
   else if(a==="abrir-mais") $("#dlg-mais").showModal();
+  else if(a.startsWith("sync-") || a==="copiar-codigo") acaoSync(a, b);
   else if(a==="abrir-importar"){ if($("#dlg-mais").open) $("#dlg-mais").close(); importacao = null; $("#imp-res").innerHTML = ""; $("#dlg-importar").showModal(); }
   else if(a==="fechar-importar") $("#dlg-importar").close();
   else if(a==="confirmar-importar" && importacao){
@@ -2029,14 +2207,14 @@ window.addEventListener("hashchange", ()=>{ const h=location.hash.slice(1); if(A
 carregarLocal();
 atualizarDatalist();
 irPara(ABAS.includes(location.hash.slice(1)) ? location.hash.slice(1) : "resumo");
-estado(LOCAL);
+estado(syncAtivo() ? "Sincronização ligada" : LOCAL);
 // Busca cotações depois de carregar os dados da conta, para atualizar a carteira mais recente
-conectar().then(()=>{ if(precisaBuscar()) atualizarCotacoes({auto:true}); atualizarIndices(); });
+conectar().then(()=>{ if(syncAtivo()) puxarSync(); if(precisaBuscar()) atualizarCotacoes({auto:true}); atualizarIndices(); });
 // App instalável pelo navegador: o service worker só funciona servido por https (Vercel) ou localhost, e não é preciso no app Android
 if("serviceWorker" in navigator && !nativo() && (location.protocol==="https:" || location.hostname==="localhost"))
   navigator.serviceWorker.register("sw.js").catch(()=>{});
 // Ao voltar para o app aberto há tempo (comum no celular), atualiza as cotações se já passou o intervalo
-document.addEventListener("visibilitychange", ()=>{ if(document.visibilityState!=="visible") return; if(precisaBuscar()) atualizarCotacoes({auto:true}); atualizarIndices(); });
+document.addEventListener("visibilitychange", ()=>{ if(document.visibilityState!=="visible") return; if(syncAtivo()) puxarSync(); if(precisaBuscar()) atualizarCotacoes({auto:true}); atualizarIndices(); });
 </script>
 </body>
 </html>
