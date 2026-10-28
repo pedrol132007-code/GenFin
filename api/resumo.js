@@ -99,8 +99,9 @@ module.exports = async (req, res) => {
     if (r.status === 401) return res.status(502).json({ erro: "chave_invalida" });
     if (r.status === 429) return res.status(429).json({ erro: "limite" });
     if (!r.ok) return res.status(502).json({ erro: "servico" });
-    const j = await r.json(), resposta = j.choices && j.choices[0] && j.choices[0].message && j.choices[0].message.content;
-    if (!resposta) return res.status(502).json({ erro: "servico" });
+    const j = await r.json(), escolha = j.choices && j.choices[0], resposta = escolha && escolha.message && escolha.message.content;
+    // Sem texto: devolve o motivo de parada (por exemplo "length"), que ajuda a diagnosticar
+    if (!resposta) return res.status(502).json({ erro: "servico", motivo: (escolha && escolha.finish_reason) || null });
     return res.status(200).json({ texto: String(resposta).trim().slice(0, 6000), modelo });
   } catch (e) {
     if (e.status === 401) return res.status(502).json({ erro: "chave_invalida" });
