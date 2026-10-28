@@ -2421,7 +2421,9 @@ const LS_NOTICIAS = "genfin-noticias", LS_NOT_VISTO = "genfin-noticias-vistas";
 const MAX_ATIVOS_NOTICIAS = 10;
 let filtroNoticias = "todos", buscandoNoticias = false;
 function lerNoticias(){ try{ return JSON.parse(lerLS(LS_NOTICIAS)||"null") || {}; }catch(e){ return {}; } }
-const buscaNoticia = p => p.classe==="cripto" ? p.ticker+" cripto" : p.ticker;
+// Cripto rende manchetes melhores pelo nome ("Bitcoin"); as demais vão com a palavra "cripto" junto do código
+const NOMES_CRIPTO = {BTC:"Bitcoin", ETH:"Ethereum", SOL:"Solana", XRP:"XRP Ripple", ADA:"Cardano", DOGE:"Dogecoin", BNB:"BNB Binance", LTC:"Litecoin", DOT:"Polkadot", AVAX:"Avalanche cripto", LINK:"Chainlink", USDT:"Tether USDT", USDC:"USDC stablecoin"};
+const buscaNoticia = p => p.classe==="cripto" ? (NOMES_CRIPTO[p.ticker.toUpperCase()] || p.ticker+" cripto") : p.ticker;
 function ativosNoticias(){ return calcular().lista.filter(p=>p.qtd>0 && p.classe!=="rf").sort((a,b)=>b.valor-a.valor).slice(0, MAX_ATIVOS_NOTICIAS); }
 // Todas as manchetes guardadas dos ativos atuais, sem repetir, das mais novas para as mais antigas
 function feedNoticias(){

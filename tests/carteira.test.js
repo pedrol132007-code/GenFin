@@ -488,11 +488,11 @@ ok(/Investimentos hoje/.test(elRes.innerHTML) && /patrimônio total é/.test(elR
   add({classe:"rf",tipo:"compra",data:"2026-01-05",ticker:"CDB N",valor:"1000"});
   const agoraIso = new Date().toISOString(), antes = new Date(Date.now()-3*3600e3).toISOString();
   let buscas = [];
-  globalThis.__fetch = url => { buscas.push(decodeURIComponent(url.split("q=")[1]||"")); return resp(200, {itens: url.includes("BTC") ?
+  globalThis.__fetch = url => { buscas.push(decodeURIComponent(url.split("q=")[1]||"")); return resp(200, {itens: url.includes("Bitcoin") ?
     [{titulo:"Bitcoin sobe", fonte:"Portal", link:"https://news.google.com/rss/articles/X1", data:antes}]
     : [{titulo:"Petrobras anuncia JCP", fonte:"ISTOÉ", link:"https://news.google.com/rss/articles/P1", data:agoraIso}, {titulo:"Bitcoin sobe", fonte:"Outro", link:"https://news.google.com/rss/articles/P2", data:antes}]}); };
   await carregarNoticias();
-  ok(buscas.sort().join("|")==="BTC cripto|PETR4" && !buscas.some(b=>/CDB/.test(b)), "busca as notícias dos ativos de renda variável (cripto com a palavra cripto)");
+  ok(buscas.sort().join("|")==="Bitcoin|PETR4" && !buscas.some(b=>/CDB/.test(b)), "busca as notícias dos ativos de renda variável (cripto pelo nome)");
   const feed = feedNoticias();
   ok(feed.length===2 && feed[0].titulo==="Petrobras anuncia JCP" && feed[0].ticker==="PETR4" && feed[1].titulo==="Bitcoin sobe", "feed junta, tira repetidas e ordena das mais novas");
   ok(noticiasNovas()===2 && $("#cont-noticias").textContent==="2" && $("#cont-noticias").hidden===false, "contador mostra as notícias novas");
