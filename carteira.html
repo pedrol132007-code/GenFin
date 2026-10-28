@@ -135,6 +135,77 @@ details.chave summary{cursor:pointer;color:var(--focus);width:max-content;max-wi
 .altura{max-height:460px;overflow:auto}
 tr.sel{background:var(--soft)}
 
+/* Ativos: lista compacta */
+#v-ativos{max-width:860px}
+.ativos-topo{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px}
+.ativos-topo h2{margin:0}
+.filtros{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;margin:0 0 16px;padding:2px 0}
+.filtros::-webkit-scrollbar{display:none}
+.filtro{flex:none;display:inline-flex;align-items:center;gap:7px;border:1px solid var(--line);background:var(--surface);color:var(--ink);
+  border-radius:999px;padding:6px 13px;font-size:.88rem;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.filtro span{color:var(--muted);font-size:.8rem}
+.filtro .pinta{width:9px;height:9px;border-radius:50%}
+.filtro[aria-pressed="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.filtro[aria-pressed="true"] span{color:inherit;opacity:.65}
+.ativos-resumo{display:flex;justify-content:space-between;align-items:flex-end;gap:10px 16px;flex-wrap:wrap;margin-bottom:12px}
+.ativos-resumo > div:first-child span{display:block;color:var(--muted);font-size:.85rem}
+.ativos-resumo > div:first-child span.pos{color:var(--pos)} .ativos-resumo > div:first-child span.neg{color:var(--neg)}
+.ativos-resumo strong{display:block;font-size:1.75rem;font-weight:700;letter-spacing:-.025em;line-height:1.15}
+.ativos-cot{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.ativos-cot .nota{margin:0;font-size:.8rem}
+.lista-ativos{background:var(--surface);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.grupo-ativos{display:flex;justify-content:space-between;gap:10px;padding:9px 16px;font-size:.8rem;color:var(--muted);background:var(--soft);border-top:1px solid var(--line)}
+.grupo-ativos:first-child{border-top:0}
+.grupo-ativos .pinta{width:9px;height:9px;border-radius:50%;margin-right:7px;vertical-align:0}
+.ativo{position:relative;display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;border-top:1px solid var(--line)}
+.grupo-ativos + .ativo{border-top:0}
+.ativo::before{content:"";position:absolute;left:0;top:12px;height:28px;width:3px;border-radius:0 3px 3px 0;background:var(--cor)}
+.ativo-linha{display:flex;justify-content:space-between;align-items:center;gap:12px;min-width:0;padding:11px 10px 11px 16px;
+  background:none;border:0;text-align:left;cursor:pointer;color:inherit;font:inherit;-webkit-tap-highlight-color:transparent}
+.ativo-linha:hover{background:var(--soft)}
+.ativo-nome{min-width:0}
+.ativo-nome strong{display:block;font-weight:650;font-size:1rem;letter-spacing:-.005em}
+.ativo-nome small, .ativo-valor small{display:block;font-size:.8rem;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ativo-nome small.alerta{color:var(--warn)}
+.ativo-valor{text-align:right;flex:none}
+.ativo-valor strong{display:block;font-weight:600}
+.ativo-valor small.pos{color:var(--pos)} .ativo-valor small.neg{color:var(--neg)}
+.ativo-ops{display:flex;gap:6px;padding:0 12px 0 2px}
+.op{width:36px;height:36px;border-radius:50%;border:1px solid var(--line);background:var(--bg);color:var(--ink);
+  font-size:1.25rem;line-height:1;display:grid;place-items:center;cursor:pointer;padding:0 0 2px;-webkit-tap-highlight-color:transparent}
+.op:hover{border-color:var(--muted)}
+.op.mais{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.ativo.aberto{background:var(--soft)}
+.ativo-det{grid-column:1/-1;display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px 18px;padding:2px 16px 16px}
+.ativo-det span{display:block;font-size:.78rem;color:var(--muted)}
+.ativo-det strong{font-weight:600;font-size:.95rem}
+.det-cot{grid-column:1/-1;max-width:320px}
+.det-cot input{background:var(--surface)}
+.det-cot small{font-size:.78rem}
+
+/* Compra e venda rápida */
+#dlg-op{max-width:440px}
+.op-cab{display:flex;align-items:center;gap:10px}
+.op-cab h2{margin:0;font-size:1.35rem}
+.op-cab .pinta{width:12px;height:12px;border-radius:50%}
+.op-sub{color:var(--muted);margin:4px 0 0;font-size:.9rem}
+.segmento{display:inline-flex;background:var(--soft);border-radius:10px;padding:3px;margin:12px 0 4px}
+.segmento button{border:0;background:none;padding:7px 18px;border-radius:8px;font-weight:600;cursor:pointer;color:var(--muted)}
+.segmento button[aria-pressed="true"]{background:var(--surface);color:var(--ink);box-shadow:0 1px 2px rgba(0,0,0,.12)}
+#op-conteudo > label, #op-conteudo .op-linha2 label{margin-top:12px}
+#op-conteudo label small{color:var(--muted);font-size:.78rem}
+.op-classes{margin-top:12px}
+.stepper{display:grid;grid-template-columns:46px minmax(0,1fr) 46px;gap:6px}
+.stepper button{border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:8px;font-size:1.3rem;cursor:pointer}
+.stepper input{text-align:center;font-size:1.25rem;font-weight:650}
+.op-tudo{margin-top:6px;font-size:.88rem}
+.op-linha2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.op-previa{background:var(--soft);border-radius:10px;padding:10px 12px;margin:14px 0 0;font-size:.9rem;line-height:1.55}
+.op-acoes{display:flex;gap:8px;margin-top:12px}
+.op-acoes .pri{flex:1;justify-content:center}
+.op-acoes .pri:disabled{opacity:.45;cursor:not-allowed}
+#op-msg:empty{display:none}
+
 /* Sincronização */
 .botoes-sync{display:flex;gap:8px;flex-wrap:wrap}
 .codigo-sync{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:6px 0 10px}
@@ -260,11 +331,11 @@ textarea{width:100%;min-height:140px;font:12px/1.4 ui-monospace,Menlo,monospace;
   table.cartoes tr.grupo td:not(.titulo):not([data-label="Valor"]):not([data-label="Vale hoje"]){display:none}
   table.cartoes tfoot tr{border-color:var(--ink)}
   input.cot{width:130px}
-  dialog.folha button{display:flex;align-items:center;gap:14px;width:100%;background:none;border:0;border-radius:12px;
+  #dlg-mais button{display:flex;align-items:center;gap:14px;width:100%;background:none;border:0;border-radius:12px;
     padding:12px;text-align:left;cursor:pointer;color:var(--ink);font-size:1rem;font-weight:600}
-  dialog.folha button:active{background:var(--soft)}
-  dialog.folha svg{width:24px;height:24px;flex:none;fill:none;stroke:var(--muted);stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
-  dialog.folha small{display:block;font-weight:400;font-size:.82rem;color:var(--muted)}
+  #dlg-mais button:active{background:var(--soft)}
+  #dlg-mais svg{width:24px;height:24px;flex:none;fill:none;stroke:var(--muted);stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+  #dlg-mais small{display:block;font-weight:400;font-size:.82rem;color:var(--muted)}
 }
 @media (prefers-reduced-motion:no-preference) and (max-width:720px){
   dialog.folha[open]{animation:sobe .2s ease-out}
@@ -338,6 +409,11 @@ textarea{width:100%;min-height:140px;font:12px/1.4 ui-monospace,Menlo,monospace;
 
 <datalist id="dl-ativos"></datalist>
 <div id="toast" role="status" aria-live="polite"></div>
+
+<dialog id="dlg-op" class="folha folha-op" aria-label="Compra ou venda">
+  <div class="alca" tabindex="-1" aria-hidden="true"></div>
+  <div id="op-conteudo"></div>
+</dialog>
 
 <dialog id="dlg-importar">
   <h2>Importar da B3</h2>
@@ -1007,7 +1083,7 @@ async function atualizarCotacoes({auto=false}={}){
   await Promise.all([1,2,3,4].map(trabalhador));
   falhas.push(...fila);   // o que ficou na fila depois de um erro geral
   const hoje = hojeISO();
-  Object.entries(novos).forEach(([t,v])=>{ alvo.precos[t] = {v, em:hoje}; });
+  const agora = Date.now(); Object.entries(novos).forEach(([t,v])=>{ alvo.precos[t] = {v, em:hoje, ts:agora}; });
   const ok = Object.keys(novos).length;
   if(ok && S===alvo){ registrarHist(); salvar("carteira","historico"); }
   gravarLS(LS_BUSCA, String(Date.now()));
@@ -1479,44 +1555,72 @@ function rAnalises(el){
 }
 
 /* ---------- Ativos e cotações ---------- */
+// Lista compacta: uma linha por ativo (código, quantidade × cotação, valor e resultado), com − e + para vender
+// e comprar na hora; tocar na linha abre os detalhes e a cotação para corrigir à mão.
+let filtroAtivos = "todos", abertoAtivo = null;
+function linhaAtivo(p, total){
+  const rf = p.classe==="rf", aberto = abertoAtivo===p.ticker, pr = S.precos[p.ticker], t = esc(p.ticker);
+  const sub = rf ? "aplicado "+brl(p.custo) : qtdFmt(p.qtd)+" × "+(p.cot!=null ? brl(p.cot) : "sem cotação");
+  const rotMenos = rf ? "Resgatar de " : "Vender ", rotMais = rf ? "Aplicar em " : "Comprar ";
+  return `<div class="ativo${aberto?" aberto":""}" style="--cor:${corDe(p.classe)}">
+    <button class="ativo-linha" data-act="abrir-ativo" data-t="${t}" aria-expanded="${aberto}">
+      <span class="ativo-nome"><strong>${t}</strong><small${p.semCot&&!rf?' class="alerta"':""}>${sub}</small></span>
+      <span class="ativo-valor"><strong>${brl(p.valor)}</strong><small class="${cls(p.resultado)}">${p.custo>0 ? pctSinal(p.resultado/p.custo) : "—"}</small></span>
+    </button>
+    <span class="ativo-ops">
+      <button class="op" data-act="op-venda" data-t="${t}" aria-label="${rotMenos}${t}" title="${rotMenos}${t}">−</button>
+      <button class="op mais" data-act="op-compra" data-t="${t}" aria-label="${rotMais}${t}" title="${rotMais}${t}">+</button>
+    </span>
+    ${aberto ? `<div class="ativo-det">
+      <div><span>${rf?"Aplicado":"Preço médio"}</span><strong>${rf ? brl(p.custo) : brl(p.pm)}</strong></div>
+      <div><span>Resultado</span><strong class="${cls(p.resultado)}">${brlSinal(p.resultado)}</strong></div>
+      <div><span>Peso na carteira</span><strong>${pct(total ? p.valor/total : 0)}</strong></div>
+      <div><span>Proventos recebidos</span><strong>${p.provs ? brl(p.provs) : "—"}</strong></div>
+      <label class="det-cot">${rf ? "Valor atual do título (R$)" : "Cotação (R$)"}
+        <input class="cot${p.semCot?" vazio":""}" inputmode="decimal" data-t="${t}" value="${esc(numInput(p.cot))}" placeholder="${rf?"valor atual":"preço"}" aria-label="${rf?"Valor atual de ":"Cotação de "}${t}">
+        <small>${pr && pr.em ? "atualizada em "+dataBR(pr.em)+(rf ? "" : "; edite para corrigir") : (rf ? "sem valor atual: entra pelo valor aplicado" : "sem cotação: entra pelo preço médio")}</small></label>
+    </div>` : ""}
+  </div>`;
+}
 function rAtivos(el){
-  const c = calcular();
-  const ativas = c.lista.filter(p=>p.qtd>0);
+  const c = calcular(), ativas = c.lista.filter(p=>p.qtd>0);
+  const topo = `<div class="ativos-topo"><h2>Ativos</h2><button class="btn pri" data-act="op-novo">+ Novo ativo</button></div>`;
   // Sem posições ainda, a chave já pode ser configurada (as cotações entram assim que houver lançamentos)
-  if(!ativas.length){ el.innerHTML = `<h2>Ativos e cotações</h2><p class="sub">Nenhuma posição aberta ainda. <button class="link" data-act="ir-aba" data-aba="lancamentos">Adicione um lançamento</button> para começar.</p>${blocoChaveBrapi(!lerLS(LS_CHAVE) && !demo)}`; return; }
-  let linhas="";
-  for(const k of ORDEM){
-    const grupo = ativas.filter(p=>p.classe===k).sort((a,b)=>b.valor-a.valor);
-    if(!grupo.length) continue;
-    const tv = grupo.reduce((s,p)=>s+p.valor,0), tc = grupo.reduce((s,p)=>s+p.custo,0);
-    linhas += `<tr class="grupo"><td><i class="pinta" style="background:${corDe(k)};margin-right:8px"></i>${CLASSES[k].nome}</td><td></td><td></td><td></td><td>${brl(tv)}</td><td class="${cls(tv-tc)}">${brlSinal(tv-tc)}</td><td></td><td>${pct(c.total?tv/c.total:0)}</td></tr>`;
-    for(const p of grupo){
-      const rf = k==="rf";
-      linhas += `<tr>
-        <td><span class="tk">${esc(p.ticker)}</span>${p.cot!=null&&S.precos[p.ticker].em?`<span class="mini">cotação de ${dataBR(S.precos[p.ticker].em)}</span>`:""}</td>
-        <td>${rf?"—":qtdFmt(p.qtd)}</td>
-        <td>${rf?brl(p.custo):brl(p.pm)}</td>
-        <td><input class="cot${p.semCot?" vazio":""}" inputmode="decimal" data-t="${esc(p.ticker)}" value="${esc(numInput(p.cot))}" placeholder="${rf?"valor atual":"preço"}" aria-label="${rf?"Valor atual de ":"Cotação de "}${esc(p.ticker)}"></td>
-        <td>${brl(p.valor)}</td>
-        <td class="${cls(p.resultado)}">${brlSinal(p.resultado)}<span class="mini">${p.custo>0?pctSinal(p.resultado/p.custo):""}</span></td>
-        <td>${p.provs?brl(p.provs):"—"}</td>
-        <td>${pct(c.total?p.valor/c.total:0)}</td></tr>`;
+  if(!ativas.length){ el.innerHTML = topo + `<p class="sub">Nenhuma posição aberta ainda. Toque em <strong>+ Novo ativo</strong> para registrar a primeira compra.</p>${blocoChaveBrapi(!lerLS(LS_CHAVE) && !demo)}`; return; }
+  const classes = ORDEM.filter(k=>ativas.some(p=>p.classe===k));
+  if(filtroAtivos!=="todos" && !classes.includes(filtroAtivos)) filtroAtivos = "todos";
+  const vis = ativas.filter(p=>filtroAtivos==="todos" || p.classe===filtroAtivos).sort((a,b)=>b.valor-a.valor);
+  const tot = vis.reduce((s,p)=>s+p.valor,0), custo = vis.reduce((s,p)=>s+p.custo,0), res = tot-custo;
+  const filtros = [["todos","Todos",ativas.length], ...classes.map(k=>[k, CLASSES[k].nome, ativas.filter(p=>p.classe===k).length])]
+    .map(([k,n,q])=>`<button class="filtro" data-act="filtro-ativos" data-k="${k}" aria-pressed="${filtroAtivos===k}">${k!=="todos"?`<i class="pinta" style="background:${corDe(k)}"></i>`:""}${n}<span>${q}</span></button>`).join("");
+  let lista = "";
+  if(filtroAtivos==="todos"){
+    for(const k of classes){
+      const g = vis.filter(p=>p.classe===k), gv = g.reduce((s,p)=>s+p.valor,0);
+      lista += `<div class="grupo-ativos"><span><i class="pinta" style="background:${corDe(k)}"></i>${CLASSES[k].nome}</span><span>${brl(gv)} · ${pct(c.total ? gv/c.total : 0)}</span></div>` + g.map(p=>linhaAtivo(p, c.total)).join("");
     }
-  }
-  const chave = lerLS(LS_CHAVE), temB3 = ativas.some(p=>B3.includes(p.classe));
-  el.innerHTML = `<h2>Ativos e cotações</h2>
-  <p class="sub">Ações, ETFs, FIIs e cripto são atualizados sozinhos ao abrir o app, no máximo a cada 30 minutos. Na renda fixa, digite o valor total atual do título, como aparece no app da corretora. Você pode corrigir qualquer cotação à mão.</p>
-  <div class="cotbar">
-    <button class="btn" data-act="atualizar-cot"${buscando?" disabled":""}>${buscando?"Buscando cotações…":"Atualizar cotações"}</button>
-    <span class="nota" aria-live="polite">${esc(statusBusca())}</span>
+  } else lista = vis.map(p=>linhaAtivo(p, c.total)).join("");
+  const semCot = ativas.filter(p=>p.semCot && p.classe!=="rf").length;
+  el.innerHTML = topo + `
+  <div class="filtros" aria-label="Filtrar por classe">${filtros}</div>
+  <div class="ativos-resumo">
+    <div><span>${filtroAtivos==="todos" ? "Valor da carteira" : CLASSES[filtroAtivos].nome}</span><strong>${brl(tot)}</strong>
+      <span class="${cls(res)}">${brlSinal(res)}${custo>0 ? " ("+pctSinal(res/custo)+")" : ""}</span></div>
+    <div class="ativos-cot"><button class="btn peq" data-act="atualizar-cot"${buscando?" disabled":""}>${buscando?"Buscando cotações…":"Atualizar cotações"}</button><span class="nota" aria-live="polite">${esc(statusBusca())}</span></div>
   </div>
-  ${blocoChaveBrapi(!chave && temB3 && !demo)}
-  <div class="rolagem"><table class="cartoes">
-    <thead><tr><th>Ativo</th><th>Quantidade</th><th>Preço médio<span class="mini">custo, na renda fixa</span></th><th>Cotação atual</th><th>Valor</th><th>Resultado</th><th>Proventos</th><th>% carteira</th></tr></thead>
-    <tbody>${linhas}</tbody>
-    <tfoot><tr><td>Total</td><td></td><td>${brl(c.custo)}</td><td></td><td>${brl(c.total)}</td><td class="${cls(c.total-c.custo)}">${brlSinal(c.total-c.custo)}</td><td>${brl(c.provs)}</td><td>100%</td></tr></tfoot>
-  </table></div>
-  <p class="nota">Ativos com borda destacada estão sem cotação e entram no total pelo preço médio.</p>`;
+  <div class="lista-ativos">${lista}</div>
+  <p class="nota">Toque num ativo para ver os detalhes e corrigir a cotação. Use <strong>+</strong> e <strong>−</strong> para registrar uma compra ou venda pelo preço de agora.${semCot ? ` ${semCot===1?"Um ativo está":semCot+" ativos estão"} sem cotação e ${semCot===1?"entra":"entram"} pelo preço médio.` : ""}</p>
+  ${blocoChaveBrapi(!lerLS(LS_CHAVE) && ativas.some(p=>B3.includes(p.classe)) && !demo)}`;
+}
+// Cotação de agora de um ativo só (para a compra/venda rápida); guarda se o ativo já está na carteira
+async function cotacaoAgora(t, classe){
+  let v = null;
+  try{
+    if(classe==="cripto") v = (await cotacoesCripto([t]))[t] || null;
+    else if(B3.includes(classe) && lerLS(LS_CHAVE)) v = await cotacaoB3(t, lerLS(LS_CHAVE));
+  }catch(e){ v = null; }
+  if(v && S.ativos[t] && !demo){ S.precos[t] = {v, em:hojeISO(), ts:Date.now()}; salvar("carteira"); }
+  return v;
 }
 function blocoChaveBrapi(aberto){
   const chave = lerLS(LS_CHAVE);
@@ -1539,10 +1643,127 @@ function salvarCotacao(inp){
   const t = inp.dataset.t; const v = parseNum(inp.value);
   if(inp.value.trim()===""){ delete S.precos[t]; }
   else if(!Number.isFinite(v) || v<0){ toast("Cotação inválida. Use números, por exemplo 38,50."); return; }
-  else S.precos[t] = {v, em:hojeISO()};
+  else S.precos[t] = {v, em:hojeISO(), ts:Date.now()};
   registrarHist(); salvar("carteira","historico");
   const y = window.scrollY; render("ativos"); window.scrollTo(0,y);
   toast("Cotação de "+t+" atualizada");
+}
+
+/* ---------- Compra e venda rápida (folha aberta pelo + e pelo − em Ativos) ---------- */
+// Já vem com o preço de agora (busca de novo se a cotação passou de 30 minutos), a data de hoje e o que muda:
+// total, novo preço médio e, na venda, o resultado e o limite de isenção do mês. Grava por registrarTx.
+const LS_ULT_CLASSE = "genfin-ultima-classe";
+let op = null;
+const posDe = t => t ? calcular().lista.find(p=>p.ticker===t && p.qtd>0) || null : null;
+function abrirOp(modo, ticker){
+  if(demo){ toast("No modo exemplo nada é salvo. Saia do exemplo para registrar seus dados."); return; }
+  const p = posDe(ticker), pr = ticker && S.precos[ticker];
+  const classe = p ? p.classe : (S.ativos[ticker]||{}).classe || lerLS(LS_ULT_CLASSE) || "acao";
+  const fresca = pr && pr.ts && Date.now()-pr.ts < INTERVALO_AUTO;
+  op = {modo, ticker: ticker||"", classe, preco: pr ? pr.v : (p ? p.pm : null), precoTs: fresca ? pr.ts : null, precoEm: pr ? pr.em : null, precoEditado:false, buscando:false};
+  $("#dlg-op").showModal(); renderOp();
+  if(ticker && classe!=="rf" && !fresca) buscarPrecoOp();
+}
+const tickerOp = () => op.ticker || normTicker(campoOp("op-ticker"), op.classe);
+async function buscarPrecoOp(){
+  if(!op || op.classe==="rf" || !tickerOp()) return;
+  const t = tickerOp(), cl = op.classe;
+  op.buscando = true; atualizarOp();
+  const v = await cotacaoAgora(t, cl);
+  if(!op || tickerOp()!==t) return;
+  op.buscando = false;
+  if(v){ op.precoTs = Date.now(); op.precoEm = hojeISO(); if(!op.precoEditado){ op.preco = v; const i = $("#op-preco"); if(i) i.value = numInput(v); } }
+  atualizarOp();
+}
+function campoOp(id){ const i = $("#"+id); return i ? i.value : ""; }
+function dadosOp(){
+  const classe = op.classe, rf = classe==="rf";
+  const d = {data: campoOp("op-data") || hojeISO(), tipo: op.modo==="venda" ? "venda" : "compra", classe, ticker: normTicker(op.ticker || campoOp("op-ticker"), classe)};
+  if(rf) d.valor = parseNum(campoOp("op-valor"));
+  else Object.assign(d, {qtd: parseNum(campoOp("op-qtd")), preco: parseNum(campoOp("op-preco")), taxas: campoOp("op-taxas").trim() ? parseNum(campoOp("op-taxas")) : 0});
+  return d;
+}
+function renderOp(){
+  const p = posDe(op.ticker), rf = op.classe==="rf", novo = op.modo==="novo", venda = op.modo==="venda";
+  const nome = op.ticker ? esc(op.ticker) : "novo ativo";
+  const verbo = venda ? (rf ? "Resgatar" : "Vender") : (rf ? "Aplicar" : "Comprar");
+  $("#op-conteudo").innerHTML = `
+    <div class="op-cab"><i class="pinta" style="background:${corDe(op.classe)}"></i><h2>${novo ? "Novo ativo" : verbo+" "+nome}</h2></div>
+    ${p ? `<p class="op-sub">${rf ? "Aplicado "+brl(p.custo)+" · vale "+brl(p.valor) : "Você tem "+qtdFmt(p.qtd)+" · preço médio "+brl(p.pm)}</p>` : ""}
+    ${p ? `<div class="segmento" role="group" aria-label="Operação">
+        <button data-act="op-modo" data-m="compra" aria-pressed="${!venda}">${rf?"Aplicar":"Comprar"}</button>
+        <button data-act="op-modo" data-m="venda" aria-pressed="${venda}">${rf?"Resgatar":"Vender"}</button></div>` : ""}
+    ${novo ? `<fieldset class="chips-cat op-classes"><legend>Classe</legend>${ORDEM.map(k=>`<label class="chip"><input type="radio" name="op-classe" value="${k}"${op.classe===k?" checked":""}><i class="pinta" style="background:${corDe(k)}"></i><span>${CLASSES[k].nome}</span></label>`).join("")}</fieldset>
+      <label>${rf ? "Nome do título" : "Código do ativo"}<input id="op-ticker" list="dl-ativos" autocomplete="off" autocapitalize="characters" placeholder="${rf?"CDB Banco X 2028":op.classe==="cripto"?"BTC":op.classe==="fii"?"HGLG11":op.classe==="etf"?"BOVA11":"PETR4"}" value="${esc(op.tickerDigitado||"")}"></label>` : ""}
+    ${rf ? `<label>${venda ? "Valor resgatado (R$)" : "Valor aplicado (R$)"}<input id="op-valor" inputmode="decimal" placeholder="1.000,00"></label>`
+    : `<label>Quantidade
+        <div class="stepper"><button type="button" data-act="op-menos" aria-label="Diminuir">−</button><input id="op-qtd" inputmode="decimal" placeholder="0"><button type="button" data-act="op-mais" aria-label="Aumentar">+</button></div></label>
+      ${venda && p ? `<button class="link op-tudo" data-act="op-tudo">Vender tudo (${qtdFmt(p.qtd)})</button>` : ""}
+      <label>Preço por unidade (R$)<input id="op-preco" inputmode="decimal" placeholder="38,50" value="${op.preco!=null ? esc(numInput(op.preco)) : ""}"><small id="op-preco-info"></small></label>`}
+    <div class="op-linha2"><label>Data<input type="date" id="op-data" value="${hojeISO()}"></label>${rf ? "" : `<label>Taxas (R$)<input id="op-taxas" inputmode="decimal" placeholder="0,00"></label>`}</div>
+    <div class="op-previa" id="op-previa" aria-live="polite"></div>
+    <p class="erro" id="op-msg"></p>
+    <div class="op-acoes"><button class="btn" data-act="op-fechar">Cancelar</button><button class="btn pri" data-act="op-confirmar" id="op-ok">${verbo}</button></div>`;
+  atualizarOp();
+  const foco = $(rf ? "#op-valor" : novo ? "#op-ticker" : "#op-qtd"); if(foco) foco.focus();
+}
+// Recalcula a prévia e o botão a cada tecla, sem redesenhar a folha (para não tirar o foco do campo)
+function atualizarOp(){
+  if(!op || !$("#op-previa")) return;
+  const d = dadosOp(), p = posDe(d.ticker), rf = d.classe==="rf", venda = d.tipo==="venda";
+  const info = $("#op-preco-info");
+  if(info) info.textContent = op.buscando ? "buscando a cotação de agora…"
+    : op.precoTs && !op.precoEditado ? "cotação de agora ("+new Date(op.precoTs).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})+")"
+    : op.precoEm && !op.precoEditado ? "última cotação, de "+dataBR(op.precoEm) : "";
+  let previa = "", rotulo = "", ok = false;
+  const nome = d.ticker || "o ativo";
+  if(rf){
+    ok = d.valor>0 && !!d.ticker;
+    if(ok && venda && p) previa = `Resgata ${pct(Math.min(1, d.valor/(p.valor||d.valor)))} do título. ${d.valor>=p.valor-0.01 ? "O título sai da carteira." : "Fica valendo "+brl(p.valor-d.valor)+"."}`;
+    else if(ok) previa = p ? `O título passa a valer ${brl(p.valor+d.valor)}.` : `Primeira aplicação em ${esc(nome)}.`;
+    rotulo = ok ? `${venda?"Resgatar":"Aplicar"} ${brl(d.valor)}` : (venda?"Resgatar":"Aplicar");
+  } else {
+    const q = d.qtd, pu = d.preco, tx = d.taxas||0;
+    ok = q>0 && pu>0 && tx>=0 && !!d.ticker;
+    if(ok && !venda){
+      const total = q*pu + tx;
+      previa = `<strong>Total ${brl(total)}</strong>` + (p ? `<br>Preço médio vai de ${brl(p.pm)} para ${brl((p.custo+total)/(p.qtd+q))}` : "");
+    } else if(ok && venda){
+      if(!p || q > p.qtd+1e-9){ previa = `<span class="neg">Você tem ${p ? qtdFmt(p.qtd) : 0} de ${esc(nome)}.</span>`; ok = false; }
+      else {
+        const recebe = q*pu - tx, lucro = recebe - p.pm*q;
+        previa = `<strong>Você recebe ${brl(recebe)}</strong><br>Resultado da venda: <span class="${cls(lucro)}">${brlSinal(lucro)} (${pctSinal(lucro/(p.pm*q))})</span>`;
+        // Imposto: limite de isenção do mês (ações R$ 20 mil, cripto R$ 35 mil); ETFs e FIIs pagam sobre qualquer lucro
+        const mes = d.data.slice(0,7), vendido = calcular().vendas.filter(v=>v.mes===mes && v.classe===d.classe).reduce((s,v)=>s+v.venda,0) + q*pu;
+        const lim = d.classe==="acao" ? 20000 : d.classe==="cripto" ? 35000 : 0;
+        if(lucro>0) previa += lim ? `<br>Vendas de ${CLASSES[d.classe].nome.toLowerCase()} no mês: ${brl(vendido)} de ${brl(lim)} isentos${vendido>lim ? ` <span class="neg">— passa do limite: o lucro paga imposto</span>` : ""}`
+          : `<br>${CLASSES[d.classe].nome}: o lucro paga ${d.classe==="fii"?"20%":"15%"} de imposto (DARF até o fim do mês que vem)`;
+        if(q >= p.qtd-1e-9) previa += `<br>${esc(nome)} sai da carteira.`;
+      }
+    }
+    rotulo = ok ? `${venda?"Vender":"Comprar"} ${qtdFmt(q)} ${esc(nome)}` : (venda?"Vender":"Comprar");
+  }
+  $("#op-previa").innerHTML = previa;
+  $("#op-previa").hidden = !previa;
+  const b = $("#op-ok"); b.innerHTML = rotulo; b.disabled = !ok;
+}
+function passoOp(sinal){
+  const i = $("#op-qtd"); if(!i) return;
+  const passo = op.classe==="cripto" ? 0.001 : 1, atual = parseNum(i.value) || 0;
+  const v = Math.max(0, Math.round((atual + sinal*passo)/passo)*passo);
+  i.value = numInput(+v.toFixed(8)); atualizarOp();
+}
+function confirmarOp(){
+  const d = dadosOp(), msg = $("#op-msg");
+  const erro = validarTx(d); if(erro){ msg.textContent = erro; return; }
+  const r = registrarTx(d); if(r.erro){ msg.textContent = r.erro; return; }
+  // Primeira compra com o preço de agora: já fica como cotação do ativo
+  if(op.modo==="novo" && !S.precos[d.ticker] && d.classe!=="rf" && op.precoTs && !op.precoEditado){ S.precos[d.ticker] = {v:d.preco, em:hojeISO(), ts:op.precoTs}; salvar("carteira"); }
+  gravarLS(LS_ULT_CLASSE, d.classe);
+  $("#dlg-op").close(); op = null;
+  const y = window.scrollY; render("ativos"); window.scrollTo(0,y);
+  toast(d.classe==="rf" ? `${d.tipo==="venda"?"Resgate":"Aplicação"} de ${brl(d.valor)} em ${d.ticker} registrado`
+    : `${d.tipo==="venda"?"Venda":"Compra"} de ${qtdFmt(d.qtd)} ${d.ticker} registrada`);
 }
 
 /* ---------- Lançamentos ---------- */
@@ -1603,60 +1824,56 @@ function rLancamentos(el){
   }
   ajustar();
 }
-// Lê e valida o formulário de lançamento. Devolve os campos ou null, com o erro já escrito em msg.
+// Valida os campos de um lançamento. Devolve a mensagem de erro ou null.
 // idIgnorar: na edição, o próprio lançamento não conta como conflito de classe.
+function validarTx(d, idIgnorar){
+  if(!d.data) return "Informe a data.";
+  if(!d.ticker) return d.classe==="rf" ? "Informe o nome do título." : "Informe o código do ativo.";
+  const outro = S.txs.find(x=>x.id!==idIgnorar && x.ticker===d.ticker);
+  const classeAtual = outro ? outro.classe : (!idIgnorar && S.ativos[d.ticker] ? S.ativos[d.ticker].classe : null);
+  if(classeAtual && classeAtual!==d.classe) return `${d.ticker} já está cadastrado como ${CLASSES[classeAtual].nome}.`;
+  if(d.classe==="rf") return d.valor>0 ? null : "Informe um valor maior que zero.";
+  if(!(d.qtd>0)) return "Informe uma quantidade maior que zero.";
+  if(!(d.preco>0)) return "Informe o preço por unidade.";
+  if(!(d.taxas>=0)) return "Taxas inválidas.";
+  if(d.classe!=="cripto" && !Number.isInteger(d.qtd)) return "Para ações, ETFs e FIIs a quantidade é um número inteiro.";
+  return null;
+}
+// Lê e valida o formulário de lançamento. Devolve os campos ou null, com o erro já escrito em msg.
 function lerFormTx(f, msg, idIgnorar){
   const campo = n => f.elements.namedItem(n).value;
   const classe=campo("classe"), tipo=campo("tipo"), data=campo("data"), ticker=normTicker(campo("ticker"), classe);
-  if(!data){ msg.textContent="Informe a data."; return null; }
-  if(!ticker){ msg.textContent = classe==="rf"?"Informe o nome do título.":"Informe o código do ativo."; return null; }
-  const outro = S.txs.find(x=>x.id!==idIgnorar && x.ticker===ticker);
-  const classeAtual = outro ? outro.classe : (!idIgnorar && S.ativos[ticker] ? S.ativos[ticker].classe : null);
-  if(classeAtual && classeAtual!==classe){ msg.textContent=`${ticker} já está cadastrado como ${CLASSES[classeAtual].nome}.`; return null; }
   const d = {data, tipo, classe, ticker};
-  if(classe==="rf"){
-    const valor = parseNum(campo("valor"));
-    if(!(valor>0)){ msg.textContent="Informe um valor maior que zero."; return null; }
-    d.valor = valor;
-  } else {
-    const qtd=parseNum(campo("qtd")), preco=parseNum(campo("preco")), taxas=campo("taxas").trim()?parseNum(campo("taxas")):0;
-    if(!(qtd>0)){ msg.textContent="Informe uma quantidade maior que zero."; return null; }
-    if(!(preco>0)){ msg.textContent="Informe o preço por unidade."; return null; }
-    if(!(taxas>=0)){ msg.textContent="Taxas inválidas."; return null; }
-    if(classe!=="cripto" && !Number.isInteger(qtd)){ msg.textContent="Para ações, ETFs e FIIs a quantidade é um número inteiro."; return null; }
-    Object.assign(d, {qtd, preco, taxas});
-  }
+  if(classe==="rf") d.valor = parseNum(campo("valor"));
+  else Object.assign(d, {qtd:parseNum(campo("qtd")), preco:parseNum(campo("preco")), taxas:campo("taxas").trim()?parseNum(campo("taxas")):0});
+  const erro = validarTx(d, idIgnorar);
+  if(erro){ msg.textContent = erro; return null; }
   return d;
 }
-function addTx(f){
-  const msg = $("#tx-msg"); msg.className="erro";
-  if(demo){ msg.textContent="No modo exemplo nada é salvo. Saia do exemplo para registrar seus dados."; return; }
-  const d = lerFormTx(f, msg); if(!d) return;
-  const {classe, tipo, data, ticker} = d;
-  const c = calcular(); const pos = c.lista.find(p=>p.ticker===ticker);
+// Grava um lançamento já validado: confere o saldo de vendas (inclusive as posteriores), ajusta o valor atual
+// do título na renda fixa e salva. Usado pelo formulário de Lançamentos e pela compra/venda rápida em Ativos.
+function registrarTx(d){
+  const {classe, tipo, ticker} = d;
+  const pos = calcular().lista.find(p=>p.ticker===ticker);
   const tx = Object.assign({id:uid(), criado:Date.now()}, d);
   let novoPreco; // na renda fixa, o valor atual do título muda junto com a aplicação ou o resgate
   if(classe==="rf"){
-    const valor = d.valor;
     if(tipo==="venda"){
-      if(!pos || pos.qtd<=0){ msg.textContent="Não há saldo aplicado nesse título."; return; }
+      if(!pos || pos.qtd<=0) return {erro:"Não há saldo aplicado nesse título."};
       const atual = pos.valor;
-      tx.frac = atual>0 ? Math.min(1, valor/atual) : 1;
-      const restante = atual - valor;
+      tx.frac = atual>0 ? Math.min(1, d.valor/atual) : 1;
+      const restante = atual - d.valor;
       novoPreco = restante>0.01 ? {v:restante, em:hojeISO()} : null;
     } else {
       const pr = S.precos[ticker];
-      if(pr) novoPreco = {v:pr.v+valor, em:pr.em};
+      if(pr) novoPreco = {v:pr.v+d.valor, em:pr.em};
     }
   }
   if(tipo==="venda"){
     const prob = vendaSemSaldo([...S.txs, tx]);
-    if(prob && prob.tx===tx){
-      msg.textContent = classe==="rf" ? `Não havia saldo aplicado em ${ticker} nessa data. Confira a data.`
-        : `Você tinha ${qtdFmt(prob.tinha)} de ${ticker} nessa data. Confira a quantidade ou a data.`;
-      return;
-    }
-    if(prob && !vendaSemSaldo(S.txs)){ msg.textContent=`Com esse lançamento, ${descreverVenda(prob.tx)} ficaria sem saldo. Confira a quantidade ou a data.`; return; }
+    if(prob && prob.tx===tx) return {erro: classe==="rf" ? `Não havia saldo aplicado em ${ticker} nessa data. Confira a data.`
+      : `Você tinha ${qtdFmt(prob.tinha)} de ${ticker} nessa data. Confira a quantidade ou a data.`};
+    if(prob && !vendaSemSaldo(S.txs)) return {erro:`Com esse lançamento, ${descreverVenda(prob.tx)} ficaria sem saldo. Confira a quantidade ou a data.`};
   }
   if(novoPreco) S.precos[ticker] = novoPreco; else if(novoPreco===null) delete S.precos[ticker];
   S.ativos[ticker] = {classe};
@@ -1664,10 +1881,18 @@ function addTx(f){
   registrarHist();
   salvar("lancamentos","carteira","historico");
   atualizarDatalist();
-  const keep = {classe, tipo, data};
+  return {ok:true, tx};
+}
+function addTx(f){
+  const msg = $("#tx-msg"); msg.className="erro";
+  if(demo){ msg.textContent="No modo exemplo nada é salvo. Saia do exemplo para registrar seus dados."; return; }
+  const d = lerFormTx(f, msg); if(!d) return;
+  const r = registrarTx(d);
+  if(r.erro){ msg.textContent = r.erro; return; }
+  const keep = {classe:d.classe, tipo:d.tipo, data:d.data};
   render("lancamentos");
   const nf = $("#f-tx"); nf.elements.namedItem("classe").value=keep.classe; nf.elements.namedItem("tipo").value=keep.tipo; nf.elements.namedItem("data").value=keep.data; nf.elements.namedItem("classe").dispatchEvent(new Event("change"));
-  const m=$("#tx-msg"); m.className="ok"; m.textContent=`Lançamento de ${ticker} adicionado.`;
+  const m=$("#tx-msg"); m.className="ok"; m.textContent=`Lançamento de ${d.ticker} adicionado.`;
 }
 /* Edição: o lançamento mantém id e ordem de criação; a validação de saldo é a mesma do lançamento novo */
 let editando = null;
@@ -2171,6 +2396,15 @@ document.addEventListener("click", e=>{
   }
   else if(a==="remover-chave"){ gravarLS(LS_CHAVE, ""); render("ativos"); toast("Chave removida"); }
   else if(a==="abrir-mais") $("#dlg-mais").showModal();
+  else if(a==="abrir-ativo"){ abertoAtivo = abertoAtivo===b.dataset.t ? null : b.dataset.t; const y = window.scrollY; render("ativos"); window.scrollTo(0,y); }
+  else if(a==="filtro-ativos"){ filtroAtivos = b.dataset.k; abertoAtivo = null; render("ativos"); }
+  else if(a==="op-compra" || a==="op-venda") abrirOp(a==="op-venda" ? "venda" : "compra", b.dataset.t);
+  else if(a==="op-novo") abrirOp("novo", "");
+  else if(a==="op-modo"){ op.modo = b.dataset.m; renderOp(); }
+  else if(a==="op-menos" || a==="op-mais") passoOp(a==="op-mais" ? 1 : -1);
+  else if(a==="op-tudo"){ const p = posDe(op.ticker); if(p){ $("#op-qtd").value = numInput(p.qtd); atualizarOp(); } }
+  else if(a==="op-confirmar") confirmarOp();
+  else if(a==="op-fechar"){ $("#dlg-op").close(); op = null; }
   else if(a.startsWith("sync-") || a==="copiar-codigo") acaoSync(a, b);
   else if(a==="abrir-importar"){ if($("#dlg-mais").open) $("#dlg-mais").close(); importacao = null; $("#imp-res").innerHTML = ""; $("#dlg-importar").showModal(); }
   else if(a==="fechar-importar") $("#dlg-importar").close();
@@ -2193,8 +2427,22 @@ document.addEventListener("change", e=>{
   if(e.target.matches("input.valbem")){ if(demo){ toast("No modo exemplo nada é salvo."); return; } atualizarValorBem(e.target); return; }
   if(e.target.matches("input.cot")){ if(demo){ toast("No modo exemplo nada é salvo."); return; } salvarCotacao(e.target); }
   if(e.target.id==="arq-import" && e.target.files[0]){ importar(e.target.files[0]); e.target.value=""; }
+  if(op && e.target.name==="op-classe"){ op.classe = e.target.value; op.tickerDigitado = campoOp("op-ticker"); op.preco = null; op.precoTs = null; op.precoEm = null; renderOp(); }
+  if(op && e.target.id==="op-ticker"){
+    // Código já na carteira: usa a classe dele; depois busca a cotação de agora
+    const t = normTicker(e.target.value, op.classe), cl = (S.ativos[t]||{}).classe;
+    if(cl && cl!==op.classe){ op.classe = cl; op.tickerDigitado = e.target.value; renderOp(); }
+    const pr = S.precos[t]; if(pr && !op.precoEditado){ op.preco = pr.v; op.precoEm = pr.em; const i = $("#op-preco"); if(i) i.value = numInput(pr.v); }
+    buscarPrecoOp();
+  }
   if(e.target.id==="arq-b3" && e.target.files[0]){ lerArquivoB3(e.target.files[0]); e.target.value=""; }
   if(e.target.matches("select.imp-classe") && importacao) importacao.classes[e.target.dataset.t] = e.target.value;
+});
+document.addEventListener("input", e=>{
+  if(!op || !e.target.closest("#dlg-op")) return;
+  if(e.target.id==="op-preco") op.precoEditado = true;
+  if(e.target.id==="op-ticker") op.tickerDigitado = e.target.value;
+  atualizarOp();
 });
 document.addEventListener("keydown", e=>{
   if(e.key==="Enter" && e.target.matches("input.cot")) e.target.blur();
@@ -2207,6 +2455,7 @@ window.addEventListener("hashchange", ()=>{ const h=location.hash.slice(1); if(A
 carregarLocal();
 atualizarDatalist();
 irPara(ABAS.includes(location.hash.slice(1)) ? location.hash.slice(1) : "resumo");
+$("#dlg-op").addEventListener("close", ()=>{ op = null; });
 estado(syncAtivo() ? "Sincronização ligada" : LOCAL);
 // Busca cotações depois de carregar os dados da conta, para atualizar a carteira mais recente
 conectar().then(()=>{ if(syncAtivo()) puxarSync(); if(precisaBuscar()) atualizarCotacoes({auto:true}); atualizarIndices(); });

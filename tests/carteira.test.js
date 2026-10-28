@@ -480,6 +480,58 @@ excluirBem(S.bens[1].id); ok(S.bens.length===1, "exclui o bem");
 const elRes = fakeEl(); abaAtual="ir"; rResumo(elRes);
 ok(/Investimentos hoje/.test(elRes.innerHTML) && /patrimônio total é/.test(elRes.innerHTML), "Resumo mostra o patrimônio total quando há bens");
 
+// 17. Ativos: compra e venda rápida pela folha do + e do −
+{
+  S = vazio(); S.atualizado = 1; mem[LS_CHAVE] = "chave-boa"; delete mem[LS_ULT_CLASSE];
+  add({classe:"acao",tipo:"compra",data:"2026-01-05",ticker:"PETR4",qtd:"100",preco:"30"});
+  S.precos.PETR4 = {v:31, em:"2026-01-10"};   // cotação velha: a folha busca a de agora
+  const campos = v => Object.entries(v).forEach(([k,x])=>{ $("#"+k).value = x; });
+  globalThis.__fetch = url => url.includes("brapi") ? resp(200, {results:[{regularMarketPrice:35.5}]}) : resp(404, {});
+  avisos2 = [];
+  abrirOp("compra", "PETR4");
+  ok(op && op.modo==="compra" && op.classe==="acao" && op.buscando, "folha abre na compra e busca a cotação de agora");
+  await new Promise(r=>setTimeout(r,0)); await new Promise(r=>setTimeout(r,0));
+  ok(op.preco===35.5 && S.precos.PETR4.v===35.5 && S.precos.PETR4.ts, "cotação de agora entra no preço e fica guardada no ativo");
+  campos({"op-qtd":"10", "op-preco":"35,50", "op-taxas":"", "op-data":""});
+  atualizarOp();
+  ok($("#op-ok").innerHTML==="Comprar 10 PETR4" && !$("#op-ok").disabled && /Total R\\$\\s355,00/.test($("#op-previa").innerHTML) && /Preço médio vai de R\\$\\s30,00 para R\\$\\s30,50/.test($("#op-previa").innerHTML), "prévia da compra: total e novo preço médio");
+  confirmarOp();
+  ok(S.txs.length===2 && S.txs[1].qtd===10 && S.txs[1].preco===35.5 && S.txs[1].data===hojeISO() && /Compra de 10 PETR4 registrada/.test(avisos2.pop()||""), "confirmar registra a compra com a data de hoje");
+
+  abrirOp("venda", "PETR4"); op.buscando = false;
+  campos({"op-qtd":"200", "op-preco":"40", "op-taxas":""}); atualizarOp();
+  ok($("#op-ok").disabled && /Você tem 110/.test($("#op-previa").innerHTML), "venda acima do que tem fica bloqueada");
+  campos({"op-qtd":"50", "op-preco":"40", "op-taxas":"5"}); atualizarOp();
+  ok($("#op-ok").innerHTML==="Vender 50 PETR4" && /Você recebe R\\$\\s1\\.995,00/.test($("#op-previa").innerHTML) && /isentos/.test($("#op-previa").innerHTML), "prévia da venda: valor recebido, resultado e limite de isenção");
+  confirmarOp();
+  ok(calcular().lista.find(p=>p.ticker==="PETR4").qtd===60 && /Venda de 50 PETR4/.test(avisos2.pop()||""), "confirmar registra a venda");
+
+  // novo ativo: código digitado, classe escolhida, primeira compra já guarda a cotação de agora
+  abrirOp("novo", ""); op.classe = "fii";
+  campos({"op-ticker":"knri11", "op-qtd":"3", "op-preco":"", "op-taxas":""});
+  await buscarPrecoOp();
+  ok(op.preco===35.5 && $("#op-preco").value==="35,5", "novo ativo busca a cotação ao informar o código");
+  atualizarOp(); confirmarOp();
+  ok(S.ativos.KNRI11 && S.ativos.KNRI11.classe==="fii" && S.precos.KNRI11 && S.precos.KNRI11.v===35.5 && mem[LS_ULT_CLASSE]==="fii", "novo ativo entra com a classe e a cotação de agora");
+
+  // renda fixa: aplicar e resgatar pelo valor
+  add({classe:"rf",tipo:"compra",data:"2026-01-02",ticker:"CDB Q",valor:"1000"});
+  S.precos["CDB Q"] = {v:1100, em:"2026-06-01"};
+  abrirOp("venda", "CDB Q");
+  ok(!op.buscando, "renda fixa não busca cotação");
+  campos({"op-valor":"550"}); atualizarOp();
+  ok($("#op-ok").innerHTML.startsWith("Resgatar R$") && /Resgata 50,0% do título/.test($("#op-previa").innerHTML), "resgate mostra a fração do título");
+  confirmarOp();
+  ok(Math.abs(S.precos["CDB Q"].v-550)<0.01 && /Resgate de R\\$\\s550,00 em CDB Q/.test(avisos2.pop()||""), "resgate registrado e valor atual ajustado");
+
+  // a lista
+  const elAt = fakeEl(); filtroAtivos = "fii"; abertoAtivo = "KNRI11"; rAtivos(elAt);
+  ok(/data-act="op-compra" data-t="KNRI11"/.test(elAt.innerHTML) && !/data-t="PETR4"/.test(elAt.innerHTML) && /class="ativo-det"/.test(elAt.innerHTML) && /aria-pressed="true">.*FIIs/.test(elAt.innerHTML), "filtro por classe e detalhes do ativo aberto");
+  filtroAtivos = "todos"; abertoAtivo = null;
+  entrarDemo(); op = null; abrirOp("compra","AAAA3"); ok(op===null, "modo exemplo não abre a folha"); sairDemo();
+  mem[LS_CHAVE] = "";
+}
+
 // 16. sincronização entre dois aparelhos (cifrada), passando pela função real api/sync.js
 {
   const cod = novoCodigo();
