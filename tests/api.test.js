@@ -86,6 +86,12 @@ const dados = { data: "2026-10-28", classes: [{ classe: "Ações", carteira_pct:
   s = await chamarSync(sync, { method: "OPTIONS", origin: "https://localhost" });
   ok(s.status === 204 && s.headers["access-control-allow-origin"] === "https://localhost", "sync: app Android pode chamar");
 
+  // O carteira.html aberto direto do disco (file://) manda Origin "null"
+  s = await chamarSync(sync, { method: "OPTIONS", origin: "null" });
+  ok(s.headers["access-control-allow-origin"] === "null", "sync: arquivo local (origem null) pode chamar");
+  r = await chamar(carregar(), { method: "OPTIONS", origin: "null" });
+  ok(r.headers["access-control-allow-origin"] === "null", "resumo: arquivo local (origem null) pode chamar");
+
   console.log(falhas ? falhas + " falha(s)" : "todos passaram");
   if (falhas) process.exitCode = 1;
 })().catch(e => { console.error("ERRO:", e); process.exit(1); });

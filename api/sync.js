@@ -5,7 +5,9 @@
 const crypto = require("crypto");
 const { put, get, del, BlobPreconditionFailedError } = require("@vercel/blob");
 
-const ORIGENS = ["https://genfin-rose.vercel.app", "https://localhost", "http://localhost", "capacitor://localhost"];
+// "null" é o carteira.html aberto direto do disco (file://). Liberar não expõe nada: não há cookies, e a
+// sincronização exige o token que só sai do código; o resumo só aceita o formato da carteira.
+const ORIGENS = ["https://genfin-rose.vercel.app", "https://localhost", "http://localhost", "capacitor://localhost", "null"];
 const TAMANHO_MAX = 4 * 1024 * 1024;   // dados cifrados em base64
 const hash = t => crypto.createHash("sha256").update(String(t)).digest("hex");
 const caminho = id => `sync/${id}.json`;

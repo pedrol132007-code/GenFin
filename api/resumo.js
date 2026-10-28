@@ -3,7 +3,9 @@
 // Só aceita os dados que o app monta em dadosParaIA() (percentuais, códigos e leituras sem valores em reais)
 // e usa uma instrução fixa: não serve como IA genérica para quem descobrir o endereço.
 
-const ORIGENS = ["https://genfin-rose.vercel.app", "https://localhost", "http://localhost", "capacitor://localhost"];
+// "null" é o carteira.html aberto direto do disco (file://). Liberar não expõe nada: não há cookies, e a
+// sincronização exige o token que só sai do código; o resumo só aceita o formato da carteira.
+const ORIGENS = ["https://genfin-rose.vercel.app", "https://localhost", "http://localhost", "capacitor://localhost", "null"];
 const TAMANHO_MAX = 20000;
 const INSTRUCAO = "Você ajuda uma pessoa física no Brasil a entender a própria carteira de investimentos. Responda em português do Brasil, em no máximo 6 tópicos curtos, cada um começando com \"- \". Explique o que os números mostram (concentração, distância das metas, desempenho contra o CDI e o Ibovespa, proventos, pontos de imposto de renda) e o que vale a pessoa verificar. Não recomende comprar ou vender ativos específicos, não faça previsão de preços e não invente dados que não estejam na mensagem. Os dados vêm só em percentuais, sem valores em reais.";
 
