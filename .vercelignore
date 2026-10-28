@@ -12,3 +12,7 @@ www/
 android/
 assets/
 capacitor.config.json
+
+# Configuração local da Vercel e tokens: nunca publicar
+.vercel/
+.env*
