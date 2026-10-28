@@ -1305,7 +1305,8 @@ function rAnalises(el){
 function rAtivos(el){
   const c = calcular();
   const ativas = c.lista.filter(p=>p.qtd>0);
-  if(!ativas.length){ el.innerHTML = `<h2>Ativos e cotações</h2><p class="sub">Nenhuma posição aberta ainda. <button class="link" data-act="ir-aba" data-aba="lancamentos">Adicione um lançamento</button> para começar.</p>`; return; }
+  // Sem posições ainda, a chave já pode ser configurada (as cotações entram assim que houver lançamentos)
+  if(!ativas.length){ el.innerHTML = `<h2>Ativos e cotações</h2><p class="sub">Nenhuma posição aberta ainda. <button class="link" data-act="ir-aba" data-aba="lancamentos">Adicione um lançamento</button> para começar.</p>${blocoChaveBrapi(!lerLS(LS_CHAVE) && !demo)}`; return; }
   let linhas="";
   for(const k of ORDEM){
     const grupo = ativas.filter(p=>p.classe===k).sort((a,b)=>b.valor-a.valor);
@@ -1332,18 +1333,22 @@ function rAtivos(el){
     <button class="btn" data-act="atualizar-cot"${buscando?" disabled":""}>${buscando?"Buscando cotações…":"Atualizar cotações"}</button>
     <span class="nota" aria-live="polite">${esc(statusBusca())}</span>
   </div>
-  ${temB3||chave?`<details class="chave"${!chave&&!demo?" open":""}>
-    <summary>${chave?"Chave da brapi configurada":"Configurar a chave da brapi"}</summary>
-    <p class="nota">As cotações de ações, ETFs e FIIs vêm da <a href="https://brapi.dev" target="_blank" rel="noopener noreferrer">brapi.dev</a>, que pede uma chave gratuita: 15 mil consultas por mês, com dados atualizados a cada 30 minutos. Crie a sua no site e cole aqui. Cripto vem do Mercado Bitcoin e não precisa de chave. A chave fica só neste navegador e não entra no backup.</p>
-    <div class="linha-chave"><input id="chave-brapi" type="password" autocomplete="off" spellcheck="false" placeholder="${chave?"Cole uma nova chave para trocar":"Cole a chave aqui"}" aria-label="Chave da brapi">
-      <button class="btn" data-act="salvar-chave">Salvar chave</button>${chave?`<button class="btn perigo" data-act="remover-chave" data-armar="Confirmar">Remover</button>`:""}</div>
-  </details>`:""}
+  ${blocoChaveBrapi(!chave && temB3 && !demo)}
   <div class="rolagem"><table class="cartoes">
     <thead><tr><th>Ativo</th><th>Quantidade</th><th>Preço médio<span class="mini">custo, na renda fixa</span></th><th>Cotação atual</th><th>Valor</th><th>Resultado</th><th>Proventos</th><th>% carteira</th></tr></thead>
     <tbody>${linhas}</tbody>
     <tfoot><tr><td>Total</td><td></td><td>${brl(c.custo)}</td><td></td><td>${brl(c.total)}</td><td class="${cls(c.total-c.custo)}">${brlSinal(c.total-c.custo)}</td><td>${brl(c.provs)}</td><td>100%</td></tr></tfoot>
   </table></div>
   <p class="nota">Ativos com borda destacada estão sem cotação e entram no total pelo preço médio.</p>`;
+}
+function blocoChaveBrapi(aberto){
+  const chave = lerLS(LS_CHAVE);
+  return `<details class="chave"${aberto?" open":""}>
+    <summary>${chave?"Chave da brapi configurada":"Configurar a chave da brapi"}</summary>
+    <p class="nota">As cotações de ações, ETFs e FIIs vêm da <a href="https://brapi.dev" target="_blank" rel="noopener noreferrer">brapi.dev</a>, que pede uma chave gratuita: 15 mil consultas por mês, com dados atualizados a cada 30 minutos. Crie a sua no site e cole aqui. Cripto vem do Mercado Bitcoin e não precisa de chave. A chave fica só neste aparelho e não entra no backup.</p>
+    <div class="linha-chave"><input id="chave-brapi" type="password" autocomplete="off" spellcheck="false" placeholder="${chave?"Cole uma nova chave para trocar":"Cole a chave aqui"}" aria-label="Chave da brapi">
+      <button class="btn" data-act="salvar-chave">Salvar chave</button>${chave?`<button class="btn perigo" data-act="remover-chave" data-armar="Confirmar">Remover</button>`:""}</div>
+  </details>`;
 }
 function statusBusca(){
   if(buscando) return "";

@@ -437,6 +437,11 @@ ok(JSON.parse(mem[LS_IA]||"{}").texto==="- Tudo certo por aqui.", "resumo pelo s
 globalThis.__fetch = () => resp(429, {erro:"limite"}); avisos2 = [];
 await gerarResumoIA(); ok(/limite/.test(avisos2[0]||""), "limite do servidor avisa");
 
+// a chave da brapi pode ser configurada antes do primeiro lançamento
+{ const guardaS = S; S = vazio(); mem[LS_CHAVE] = ""; const elV = fakeEl(); rAtivos(elV);
+  ok(/Nenhuma posição aberta/.test(elV.innerHTML) && /Configurar a chave da brapi/.test(elV.innerHTML) && /<details class="chave" open>/.test(elV.innerHTML), "carteira vazia já mostra a configuração da chave da brapi");
+  S = guardaS; }
+
 // números no jeito brasileiro: ponto como milhar quando o formato é de milhar
 ok([["78.000",78000],["1.234.567",1234567],["62.000,00",62000],["38.50",38.5],["0.005",0.005],["38,50",38.5],["R$ 45.000",45000]].every(([s,v])=>parseNum(s)===v), "ponto de milhar sem vírgula é milhar; decimal com ponto continua decimal");
 
