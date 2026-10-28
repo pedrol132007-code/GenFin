@@ -45,13 +45,13 @@ Preço médio, alocação, proventos, rebalanceamento e imposto de renda para qu
 | | |
 |---|---|
 | 📊 **Resumo** | Patrimônio, valorização em aberto, lucro realizado, proventos e resultado sobre o total aportado. Alocação atual comparada com a meta, gráfico de evolução e comparação com o CDI e o Ibovespa. |
-| 🔎 **Análises** | Leituras automáticas feitas no aparelho: concentração, distância das metas, cotações antigas, limites de isenção e DARF do mês, desempenho contra o CDI, proventos e lembrete de backup. Resumo opcional escrito por IA (Groq, plano gratuito). |
+| 🔎 **Análises** | Leituras automáticas feitas no aparelho: concentração, distância das metas, cotações antigas, limites de isenção e DARF do mês, desempenho contra o CDI, proventos e lembrete de backup. Resumo escrito por IA (Groq, gratuito), sem precisar de chave no aparelho. |
 | 💹 **Ativos e cotações** | Posição por classe com quantidade, preço médio, valor de mercado, resultado e peso na carteira. Cotações automáticas de ações, ETFs, FIIs e cripto; renda fixa e correções, à mão. |
 | 🧾 **Lançamentos** | Compras e vendas com taxas da nota de corretagem, ou importadas do extrato da B3. Aplicações e resgates de renda fixa. Editar e excluir, sempre impedindo vendas maiores que o saldo, inclusive em datas retroativas. |
 | 💰 **Proventos** | Dividendos, JCP e rendimentos de FIIs, digitados ou importados da B3, com gráfico dos últimos 12 meses e rendimento sobre o custo por ativo. |
 | ⚖️ **Rebalancear** | Metas por classe e sugestão de como dividir um novo aporte para se aproximar delas, só com compras. |
 | 🦁 **Imposto de renda** | Apuração mensal com isenções, compensação de prejuízo e DARF; bens e direitos em 31/12; proventos do ano separados por tipo. |
-| 📦 **Inventário** | Bens que não são investimentos (imóveis, veículos, eletrônicos, objetos de valor, dinheiro guardado), com valor estimado, valor pago e financiamento. Mostra o patrimônio total e leva os bens marcados para Bens e direitos do IR. |
+| 📦 **Inventário** | Bens que não são investimentos (imóveis, veículos, eletrônicos, videogames, lazer e esporte, móveis, coleções, dinheiro guardado), cada categoria com seu ícone, com valor estimado, valor pago e financiamento. Mostra o patrimônio total e leva os bens marcados para Bens e direitos do IR. |
 | 📰 **Notícias** | Atalhos para o Google Notícias e o Status Invest de cada ativo. |
 
 Cinco classes de ativo: **ações**, **ETFs**, **FIIs**, **renda fixa** e **cripto**.
@@ -145,7 +145,7 @@ flowchart LR
 
 - **Sempre no navegador**, na chave `carteira-v1` do `localStorage`. Fora do claude.ai, a carteira não sai do seu computador. Para as cotações, só os **códigos** dos ativos (como `PETR4` ou `BTC`) vão para a brapi e o Mercado Bitcoin; quantidades e valores nunca são enviados.
 - **As chaves da brapi e do Groq** ficam só no navegador, separadas da carteira. Elas não entram no backup nem vão para a conta.
-- **Resumo com IA (opcional):** só vai para o [Groq](https://console.groq.com) o que aparece em "O que vai para o Groq", na aba Análises: percentuais, códigos dos ativos e as leituras escritas sem valores em reais. Quantidades, preços e o patrimônio não saem do aparelho. O app pede à IA que explique os números e não recomende compra ou venda.
+- **Resumo com IA:** só vai para a IA o que aparece em "O que vai para a IA", na aba Análises: percentuais, códigos dos ativos e as leituras escritas sem valores em reais. Quantidades, preços e o patrimônio não saem do aparelho. Sem chave própria, os dados passam pela função `api/resumo.js` do GenFin na Vercel, que guarda a chave do Groq na variável de ambiente `GROQ_API_KEY`, aceita só esse formato de dados (e recusa valores em reais), usa uma instrução fixa e não guarda nada. Quem preferir pode colar a própria chave do Groq no app, que então fala direto com ele. A instrução pede que a IA explique os números e não recomende compra ou venda.
 - **No claude.ai**, também na conta do usuário, em quatro documentos (`carteira`, `lancamentos`, `proventos` e `historico`). Cada salvamento leva data e hora. Ao abrir, o lado mais recente vence, para não perder alterações feitas sem conexão.
 - **Backup:** o botão no topo exporta tudo em `.json`, exporta os lançamentos em `.csv` e restaura um backup. Os arquivos exportados estão no `.gitignore`, para não irem parar no repositório por engano.
 
@@ -186,11 +186,13 @@ Operações comuns de pessoa física, sem day trade:
 ├── sw.js                  # service worker: abre sem internet
 ├── icons/                 # ícones PNG do app instalado
 ├── vercel.json            # rota / → carteira.html e cabeçalhos
+├── api/resumo.js          # função da Vercel: resumo com IA pelo Groq
 ├── capacitor.config.json  # app Android: nome, id e barras do sistema
 ├── assets/                # ícones-fonte do app Android (camadas do ícone adaptativo)
 ├── .github/workflows/     # compila e publica o APK
 ├── tests/
-│   └── carteira.test.js   # testes da lógica, com um DOM falso
+│   ├── carteira.test.js   # testes da lógica, com um DOM falso
+│   └── api.test.js        # testes da função de IA, com o Groq simulado
 ├── scripts/
 │   ├── capturas.sh        # gera as imagens de docs/img
 │   ├── icones.sh          # gera os PNGs de icons/ e assets/

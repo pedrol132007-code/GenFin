@@ -341,7 +341,7 @@ ok(guardado.modelo==="openai/gpt-oss-120b" && /PETR4/.test(guardado.texto), "gua
 const html = textoIA(guardado.texto);
 ok(/<ul><li>Concentração: PETR4 pesa muito\\.<\\/li><li>Renda fixa abaixo da meta\\.<\\/li><\\/ul><p>Texto final &lt;script&gt;x&lt;\\/script&gt;<\\/p>/.test(html), "texto da IA vira lista e é escapado: "+html);
 const elA2 = fakeEl(); rAnalises(elA2);
-ok(/Atenção/.test(elA2.innerHTML) && /Gerar de novo/.test(elA2.innerHTML) && /O que vai para o Groq/.test(elA2.innerHTML), "aba Análises mostra leituras, IA e o que é enviado");
+ok(/Atenção/.test(elA2.innerHTML) && /Gerar de novo/.test(elA2.innerHTML) && /O que vai para a IA/.test(elA2.innerHTML), "aba Análises mostra leituras, IA e o que é enviado");
 ok(!JSON.stringify(S).includes("gsk-boa"), "a chave do Groq não vai para o backup");
 mem[LS_GROQ] = "";
 
@@ -424,6 +424,18 @@ window.Capacitor.Plugins.Share.share = async ()=>{ throw new Error("Share cancel
 await baixar("x.json", "{}");
 ok(/cancelado/.test($("#backup-msg").textContent), "cancelar o compartilhamento não mostra erro");
 delete window.Capacitor;
+
+// resumo com IA sem chave própria: vai pela função do GenFin na Vercel
+mem[LS_GROQ] = ""; delete mem[LS_IA]; iaSemServidor = false; avisos2 = []; let pedidoServ = null;
+globalThis.__fetch = (url, op={}) => { pedidoServ = {url, corpo: JSON.parse(op.body||"null")}; return resp(503, {erro:"sem_chave"}); };
+await gerarResumoIA();
+ok(pedidoServ && pedidoServ.url==="https://genfin-rose.vercel.app/api/resumo" && Array.isArray(pedidoServ.corpo.leituras) && !/R\\$/.test(JSON.stringify(pedidoServ.corpo)), "sem chave, chama a função do GenFin com os dados sem reais: "+(pedidoServ&&pedidoServ.url));
+ok(iaSemServidor && /ainda não foi configurada/.test(avisos2[0]||"") && !mem[LS_IA] && gerandoIA===false, "servidor sem chave: avisa e oferece a chave própria");
+globalThis.__fetch = () => resp(200, {texto:"- Tudo certo por aqui.", modelo:"openai/gpt-oss-120b"});
+await gerarResumoIA();
+ok(JSON.parse(mem[LS_IA]||"{}").texto==="- Tudo certo por aqui.", "resumo pelo servidor é guardado");
+globalThis.__fetch = () => resp(429, {erro:"limite"}); avisos2 = [];
+await gerarResumoIA(); ok(/limite/.test(avisos2[0]||""), "limite do servidor avisa");
 
 // números no jeito brasileiro: ponto como milhar quando o formato é de milhar
 ok([["78.000",78000],["1.234.567",1234567],["62.000,00",62000],["38.50",38.5],["0.005",0.005],["38,50",38.5],["R$ 45.000",45000]].every(([s,v])=>parseNum(s)===v), "ponto de milhar sem vírgula é milhar; decimal com ponto continua decimal");

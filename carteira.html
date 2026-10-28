@@ -141,8 +141,18 @@ tr.sel{background:var(--soft)}
 .imp-lista li{margin:6px 0}
 #dlg-importar select{border:1px solid var(--line);border-radius:6px;padding:4px 8px;background:var(--bg);color:var(--ink)}
 
+/* Inventário: categorias com ícone */
+.ic-bem{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;flex:none}
+tr.grupo .ic-bem{vertical-align:-5px;margin-right:8px;color:var(--muted)}
+.chips-cat{grid-column:1/-1;border:0;padding:0;margin:0;display:flex;flex-wrap:wrap;gap:8px;min-width:0}
+.chips-cat legend{font-size:.85rem;color:var(--muted);padding:0;margin-bottom:6px}
+label.chip{position:relative;flex-direction:row;align-items:center;gap:7px;border:1px solid var(--line);border-radius:999px;
+  padding:7px 14px 7px 10px;background:var(--bg);color:var(--ink);font-size:.9rem;cursor:pointer;-webkit-tap-highlight-color:transparent}
+label.chip input{position:absolute;opacity:0;width:1px;height:1px;pointer-events:none}
+label.chip:has(input:checked){background:var(--ink);color:var(--bg);border-color:var(--ink)}
+label.chip:has(input:focus-visible){outline:2px solid var(--focus);outline-offset:2px}
 .marca-ir{flex-direction:row;align-items:center;gap:8px;margin-top:12px;font-size:.9rem;color:var(--ink)}
-.marca-ir input{width:18px;height:18px;margin:0}
+.marca-ir input{width:20px;height:20px;margin:0;padding:0;flex:none;accent-color:var(--ink)}
 
 /* Análises */
 .leituras{display:grid;gap:10px;max-width:760px}
@@ -1210,13 +1220,28 @@ async function modeloGroq(chave){
     { const m = ids.find(id=>p.test(id)); if(m) return m; }
   return ids.find(id=>!/whisper|guard|tts|embed|playai|compound|prompt/i.test(id)) || null;
 }
+// Sem chave própria, o resumo vem da função do GenFin na Vercel (que guarda a chave do Groq);
+// no app Android e no arquivo local, a página não está na Vercel, então usa o endereço publicado
+const SERVIDOR = "https://genfin-rose.vercel.app";
+const baseServidor = () => (!nativo() && /\.vercel\.app$/.test(location.hostname)) ? location.origin : SERVIDOR;
+let iaSemServidor = false;   // a função respondeu que não tem chave configurada: mostra a opção de colar a própria
+async function resumoPeloServidor(){
+  let r; try{ r = await fetch(baseServidor()+"/api/resumo", {method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify(dadosParaIA()), ...comPrazo()}); }
+  catch(e){ throw erroCot("rede"); }
+  let j = null; try{ j = await r.json(); }catch(e){}
+  if(r.status===503 && j && j.erro==="sem_chave"){ iaSemServidor = true; throw erroCot("semServidor"); }
+  if(r.status===429) throw erroCot("limite");
+  if(!r.ok || !j || !j.texto) throw erroCot("servico");
+  return {texto: String(j.texto).trim(), modelo: j.modelo || "Groq"};
+}
 async function gerarResumoIA(){
   if(gerandoIA) return;
-  const chave = lerLS(LS_GROQ); if(!chave){ toast("Cole a chave do Groq antes de gerar o resumo."); return; }
   if(demo){ toast("No modo exemplo os dados são fictícios; saia do exemplo para gerar o resumo."); return; }
+  const chave = lerLS(LS_GROQ);
   gerandoIA = true; if(abaAtual==="analises") render("analises");
   let res;
   try{
+    if(!chave){ res = Object.assign(await resumoPeloServidor(), {em: Date.now()}); gravarLS(LS_IA, JSON.stringify(res)); return; }
     const modelo = await modeloGroq(chave);
     if(!modelo) throw erroCot("servico");
     let r; try{
@@ -1231,7 +1256,8 @@ async function gerarResumoIA(){
     res = {texto: String(texto).trim(), modelo, em: Date.now()};
     gravarLS(LS_IA, JSON.stringify(res));
   }catch(e){
-    toast({chave:"O Groq recusou a chave. Confira a chave e cole de novo.", limite:"O Groq atingiu o limite do plano gratuito. Tente daqui a pouco.", rede:"Não foi possível acessar o Groq. Confira a internet."}[e.tipo] || "O Groq não respondeu como esperado. Tente de novo.");
+    toast({chave:"O Groq recusou a chave. Confira a chave e cole de novo.", limite:"O Groq atingiu o limite do plano gratuito. Tente daqui a pouco.", rede:"Não foi possível acessar a IA. Confira a internet.",
+      semServidor:"A IA do GenFin ainda não foi configurada. Você pode colar a sua própria chave do Groq abaixo."}[e.tipo] || "A IA não respondeu como esperado. Tente de novo.");
   }finally{ gerandoIA = false; if(abaAtual==="analises") render("analises"); }
 }
 // Texto da IA: escapado e com os tópicos "- " virando lista
@@ -1258,17 +1284,18 @@ function rAnalises(el){
 
   <h3>Resumo com IA</h3>
   <div class="card ia">
-    ${chave ? `<div class="cotbar"><button class="btn pri" data-act="gerar-ia"${gerandoIA?" disabled":""}>${gerandoIA?"Gerando resumo…":(ult?"Gerar de novo":"Gerar resumo")}</button>
+    ${!ult ? `<p class="nota" style="margin-top:0">Um texto curto escrito por IA a partir das leituras acima, pelo <a href="https://groq.com" target="_blank" rel="noopener noreferrer">Groq</a>, gratuito.</p>` : ""}
+    <div class="cotbar"><button class="btn pri" data-act="gerar-ia"${gerandoIA?" disabled":""}>${gerandoIA?"Gerando resumo…":(ult?"Gerar de novo":"Gerar resumo")}</button>
       <span class="nota">${ult ? `Gerado ${new Date(ult.em).toLocaleDateString("pt-BR")} às ${new Date(ult.em).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})}, modelo ${esc(ult.modelo)}` : "Leva alguns segundos."}</span></div>
-      ${ult ? `<div class="texto-ia">${textoIA(ult.texto)}</div><p class="nota">Texto gerado por IA a partir dos dados abaixo; pode conter erros. Confira antes de decidir qualquer coisa.</p>` : ""}`
-    : `<p class="nota" style="margin-top:0">Opcional: um texto curto escrito por IA a partir das leituras acima, pelo <a href="https://console.groq.com/keys" target="_blank" rel="noopener noreferrer">Groq</a>, que tem plano gratuito. Crie uma chave lá e cole aqui. Ela fica só neste navegador.</p>`}
-    <details class="chave"${chave?"":" open"}>
-      <summary>${chave?"Chave do Groq configurada":"Configurar a chave do Groq"}</summary>
+    ${ult ? `<div class="texto-ia">${textoIA(ult.texto)}</div><p class="nota">Texto gerado por IA a partir dos dados abaixo; pode conter erros. Confira antes de decidir qualquer coisa.</p>` : ""}
+    <details class="chave"${iaSemServidor && !chave ? " open" : ""}>
+      <summary>${chave?"Usando a sua chave do Groq":"Usar a minha própria chave do Groq (opcional)"}</summary>
+      <p class="nota">Sem chave própria, o resumo passa pelo servidor do GenFin, que já tem uma. Com a sua, criada em <a href="https://console.groq.com/keys" target="_blank" rel="noopener noreferrer">console.groq.com</a>, o app fala direto com o Groq. Ela fica só neste aparelho.</p>
       <div class="linha-chave"><input id="chave-groq" type="password" autocomplete="off" spellcheck="false" placeholder="${chave?"Cole uma nova chave para trocar":"Cole a chave aqui"}" aria-label="Chave do Groq">
         <button class="btn" data-act="salvar-groq">Salvar chave</button>${chave?`<button class="btn perigo" data-act="remover-groq" data-armar="Confirmar">Remover</button>`:""}</div>
     </details>
-    <details class="enviado"><summary>O que vai para o Groq</summary>
-      <p class="nota">Só percentuais, códigos dos ativos e as leituras na versão sem valores em reais. Quantidades, preços e o patrimônio não saem do aparelho.</p>
+    <details class="enviado"><summary>O que vai para a IA</summary>
+      <p class="nota">Só percentuais, códigos dos ativos e as leituras na versão sem valores em reais. Quantidades, preços, bens e o patrimônio não saem do aparelho. Sem chave própria, os dados passam pelo servidor do GenFin na Vercel, que repassa ao Groq e não guarda nada.</p>
       <pre>${esc(JSON.stringify(dadosParaIA(), null, 1))}</pre>
     </details>
   </div>`;
@@ -1703,17 +1730,31 @@ function rIR(el){
 /* ---------- Inventário ---------- */
 // Bens que fazem parte do patrimônio e não são investimentos. O valor é a estimativa de hoje;
 // o valor pago é o que entra na declaração do IR (bens e direitos vão pelo custo de aquisição).
+// ic: traços de um ícone 24x24 (mesmo estilo da barra de navegação)
 const CATEGORIAS_BEM = {
-  imovel:     { nome:"Imóveis",                      ir:"01 – Bens imóveis (código conforme o tipo: apartamento, casa, terreno…)" },
-  veiculo:    { nome:"Veículos",                     ir:"02 – Bens móveis, código 01 (veículo automotor terrestre)" },
-  eletronico: { nome:"Eletrônicos",                  ir:"02 – Bens móveis (outros)" },
-  casa:       { nome:"Móveis e eletrodomésticos",    ir:"02 – Bens móveis (outros)" },
-  valor:      { nome:"Joias, arte e coleções",       ir:"02 – Bens móveis (joia, quadro, objeto de arte ou de coleção)" },
-  dinheiro:   { nome:"Dinheiro e contas",            ir:"06 – Depósitos à vista e numerário" },
-  outro:      { nome:"Outros",                       ir:"Conforme o tipo do bem" }
+  imovel:     { nome:"Imóveis", curto:"Imóveis", ir:"01 – Bens imóveis (código conforme o tipo: apartamento, casa, terreno…)",
+                ic:'<path d="M3.5 11L12 4l8.5 7"/><path d="M5.5 9.5V20h13V9.5"/><path d="M10 20v-5h4v5"/>' },
+  veiculo:    { nome:"Veículos", curto:"Veículos", ir:"02 – Bens móveis, código 01 (veículo automotor terrestre)",
+                ic:'<path d="M4.5 16v-3.5l1.7-4a2 2 0 0 1 1.8-1.2h8a2 2 0 0 1 1.8 1.2l1.7 4V16"/><path d="M4.5 12.5h15"/><circle cx="7.8" cy="16.2" r="1.7"/><circle cx="16.2" cy="16.2" r="1.7"/>' },
+  eletronico: { nome:"Eletrônicos", curto:"Eletrônicos", ir:"02 – Bens móveis (outros)",
+                ic:'<rect x="4.5" y="5" width="15" height="10" rx="1.5"/><path d="M2.5 19h19"/>' },
+  games:      { nome:"Videogames e jogos", curto:"Games", ir:"02 – Bens móveis (outros)",
+                ic:'<path d="M7.5 8h9a4 4 0 0 1 3.9 4.9l-.7 3.2a2 2 0 0 1-3.4 1L14.5 15h-5l-1.8 2.1a2 2 0 0 1-3.4-1l-.7-3.2A4 4 0 0 1 7.5 8z"/><path d="M8.2 10.5v3M6.7 12h3"/><circle cx="15.3" cy="11.3" r=".5"/><circle cx="17" cy="13" r=".5"/>' },
+  lazer:      { nome:"Lazer e esporte", curto:"Lazer", ir:"02 – Bens móveis (outros)",
+                ic:'<circle cx="6" cy="15.5" r="3.5"/><circle cx="18" cy="15.5" r="3.5"/><path d="M6 15.5l3.5-6.5h5.5l3 6.5M9.5 9l3 6.5M13.5 6.5h2.5"/>' },
+  casa:       { nome:"Móveis e eletrodomésticos", curto:"Casa", ir:"02 – Bens móveis (outros)",
+                ic:'<path d="M5 11V9a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v2"/><path d="M3.5 17v-3.5a1.5 1.5 0 0 1 3 0V15h11v-1.5a1.5 1.5 0 0 1 3 0V17z"/><path d="M5 17v2M19 17v2"/>' },
+  valor:      { nome:"Joias, arte e coleções", curto:"Coleções", ir:"02 – Bens móveis (joia, quadro, objeto de arte ou de coleção)",
+                ic:'<path d="M7 4.5h10l3.5 4.5L12 19.5 3.5 9z"/><path d="M3.5 9h17M9.5 4.5L8.3 9l3.7 10.5L15.7 9l-1.2-4.5"/>' },
+  dinheiro:   { nome:"Dinheiro e contas", curto:"Dinheiro", ir:"06 – Depósitos à vista e numerário",
+                ic:'<rect x="3" y="6.5" width="18" height="11" rx="2"/><circle cx="12" cy="12" r="2.5"/><path d="M6.5 10v4M17.5 10v4"/>' },
+  outro:      { nome:"Outros", curto:"Outros", ir:"Conforme o tipo do bem",
+                ic:'<path d="M3.5 7.5L12 3.5l8.5 4v9L12 20.5l-8.5-4z"/><path d="M3.5 7.5L12 11.5l8.5-4M12 11.5v9"/>' }
 };
+const iconeBem = k => `<svg class="ic-bem" viewBox="0 0 24 24" aria-hidden="true">${(CATEGORIAS_BEM[k]||CATEGORIAS_BEM.outro).ic}</svg>`;
 const ORDEM_BENS = Object.keys(CATEGORIAS_BEM);
 let editandoBem = null;
+const LS_ULT_CAT = "genfin-ultima-categoria";   // o próximo bem já vem na categoria do último
 function totaisBens(){
   const bens = S.bens||[], valor = bens.reduce((s,b)=>s+(b.valor||0),0), dividas = bens.reduce((s,b)=>s+(b.divida||0),0);
   return {valor, dividas, liquido: valor-dividas};
@@ -1737,7 +1778,7 @@ function salvarBem(f){
   const atual = editandoBem && S.bens.find(b=>b.id===editandoBem);
   if(atual) Object.assign(atual, d, {valorEm: atual.valor!==d.valor ? hojeISO() : atual.valorEm});
   else S.bens.push(Object.assign({id:uid(), criado:Date.now(), valorEm:hojeISO()}, d));
-  const nome = d.nome; editandoBem = null;
+  const nome = d.nome; editandoBem = null; gravarLS(LS_ULT_CAT, d.categoria);
   salvar("bens"); render("inventario");
   const m = $("#bem-msg"); m.className = "ok"; m.textContent = `${nome} ${atual?"atualizado":"adicionado"}.`;
 }
@@ -1756,12 +1797,14 @@ function excluirBem(id){
 function rInventario(el){
   const bens = S.bens||[], t = totaisBens(), inv = calcular().total;
   const ed = editandoBem && bens.find(b=>b.id===editandoBem); if(!ed) editandoBem = null;
-  const opts = ORDEM_BENS.map(k=>`<option value="${k}"${ed&&ed.categoria===k?" selected":""}>${CATEGORIAS_BEM[k].nome}</option>`).join("");
+  // Categoria: botões com ícone (mais fáceis de tocar que uma lista), um grupo de rádio
+  const catSel = ed ? ed.categoria : (lerLS(LS_ULT_CAT) || "veiculo");
+  const opts = ORDEM_BENS.map(k=>`<label class="chip"><input type="radio" name="categoria" value="${k}"${catSel===k?" checked":""}>${iconeBem(k)}<span>${CATEGORIAS_BEM[k].curto}</span></label>`).join("");
   const val = (n, v) => ed ? esc(numInput(v)) : "";
   let linhas = "";
   for(const k of ORDEM_BENS){
     const grupo = bens.filter(b=>b.categoria===k).sort((a,b)=>b.valor-a.valor); if(!grupo.length) continue;
-    linhas += `<tr class="grupo"><td>${CATEGORIAS_BEM[k].nome}</td><td>${brl(grupo.reduce((s,b)=>s+b.valor,0))}</td><td></td><td></td><td></td></tr>`;
+    linhas += `<tr class="grupo"><td>${iconeBem(k)}${CATEGORIAS_BEM[k].nome}</td><td>${brl(grupo.reduce((s,b)=>s+b.valor,0))}</td><td></td><td></td><td></td></tr>`;
     for(const b of grupo){
       const varPct = b.custo>0 ? b.valor/b.custo-1 : null;
       linhas += `<tr${b.id===editandoBem?' class="sel"':""}>
@@ -1784,7 +1827,7 @@ function rInventario(el){
     ${ed?`<p class="editando-rot">Editando <strong>${esc(ed.nome)}</strong></p>`:""}
     <div class="campos">
       <label>Nome<input name="nome" autocomplete="off" placeholder="Carro, apartamento, notebook…" value="${ed?esc(ed.nome):""}"></label>
-      <label>Categoria<select name="categoria">${opts}</select></label>
+      <fieldset class="chips-cat"><legend>Categoria</legend>${opts}</fieldset>
       <label>Vale hoje (R$)<input name="valor" inputmode="decimal" placeholder="45.000,00" value="${val("valor", ed&&ed.valor)}"></label>
       <label>Valor pago (R$)<input name="custo" inputmode="decimal" placeholder="opcional" value="${ed&&ed.custo!=null?esc(numInput(ed.custo)):""}"></label>
       <label>Data da compra<input type="date" name="compra" value="${ed?esc(ed.compra||""):""}"></label>
@@ -1844,6 +1887,8 @@ function dadosExemplo(){
   s.bens = [
     {id:uid(), criado:1, nome:"Carro exemplo", categoria:"veiculo", valor:62000, valorEm:hojeISO(), custo:78000, compra:`${a-2}-03-10`, divida:21000, obs:"placa ABC1D23", declarar:true},
     {id:uid(), criado:2, nome:"Notebook exemplo", categoria:"eletronico", valor:4200, valorEm:hojeISO(), custo:7800, compra:`${a-1}-11-25`, divida:0, obs:"", declarar:true},
+    {id:uid(), criado:4, nome:"Console exemplo", categoria:"games", valor:3200, valorEm:hojeISO(), custo:4500, compra:`${a-1}-07-02`, divida:0, obs:"2 controles", declarar:false},
+    {id:uid(), criado:5, nome:"Bicicleta exemplo", categoria:"lazer", valor:2800, valorEm:hojeISO(), custo:3900, compra:`${a-2}-09-15`, divida:0, obs:"", declarar:false},
     {id:uid(), criado:3, nome:"Reserva em casa", categoria:"dinheiro", valor:1500, valorEm:hojeISO(), custo:null, compra:"", divida:0, obs:"cofre", declarar:false}
   ];
   const hj=new Date();
