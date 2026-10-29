@@ -480,6 +480,60 @@ excluirBem(S.bens[1].id); ok(S.bens.length===1, "exclui o bem");
 const elRes = fakeEl(); abaAtual="ir"; rResumo(elRes);
 ok(/Investimentos hoje/.test(elRes.innerHTML) && /patrimônio total é/.test(elRes.innerHTML), "Resumo mostra o patrimônio total quando há bens");
 
+// 21. Renda fixa que rende sozinha: % do CDI, prefixado e IPCA +
+{
+  S = vazio(); S.atualizado = 1; buscandoIndices = true;   // sem buscas de verdade aqui
+  const perto = (a,b,m) => ok(Math.abs(a-b)<1e-6, m+" ("+a+" vs "+b+")");
+  indices = {cdi:{desde:"2026-01-01", ate:"2026-01-08", serie:{"2026-01-02":0.05,"2026-01-05":0.05,"2026-01-06":0.05,"2026-01-07":0.05}}, ibov:{ate:"",serie:{}}, ipca:{desde:"2026-01-01", ate:"2026-03-01", serie:{"2026-01":0.5,"2026-02":0.4}}};
+  perto(fatorRF("cdi", 110, "2026-01-02", "2026-01-08"), Math.pow(1+0.05*1.1/100, 4), "CDI: rende cada dia útil desde a aplicação");
+  perto(fatorRF("cdi", 100, "2026-01-05", "2026-01-07"), Math.pow(1.0005, 2), "CDI: não conta o dia final");
+  ok(diasUteis("2026-01-02", "2026-01-08")===4 && diasUteis("2026-01-02", "2026-01-13")===4+3, "dias úteis pela série do CDI e, depois dela, dias de semana");
+  perto(fatorRF("pre", 12, "2026-01-02", "2026-01-08"), Math.pow(1.12, 4/252), "prefixado: taxa ao ano por dia útil (252)");
+  perto(fatorIPCA("2026-01-16", "2026-03-01"), Math.pow(1.005, 16/31)*1.004, "IPCA: proporcional aos dias do mês");
+  perto(fatorIPCA("2026-03-01", "2026-04-01"), 1.004, "IPCA: mês sem índice repete o último");
+  perto(fatorRF("ipca", 6, "2026-01-16", "2026-03-01"), Math.pow(1.005, 16/31)*1.004*Math.pow(1.06, diasUteis("2026-01-16","2026-03-01")/252), "IPCA +: inflação vezes a taxa real");
+  ok(fatorRF("cdi", 100, "2025-12-01", "2026-01-08")===null, "CDI sem a série do período: sem valor calculado");
+
+  add({classe:"rf",tipo:"compra",data:"2026-01-02",ticker:"CDB A",valor:"1000"});
+  S.precos["CDB A"] = {v:1500, em:"2026-06-01"};
+  ok(/do CDI/.test(salvarRende("CDB A", "cdi", "0")||""), "taxa inválida é recusada");
+  ok(salvarRende("CDB A", "cdi", "110")===null && !S.precos["CDB A"] && S.txs[0].idx==="cdi" && S.txs[0].taxa===110, "indexador vale para as aplicações do título e o valor digitado sai");
+  let p = calcular().lista.find(x=>x.ticker==="CDB A");
+  perto(p.valor, 1000*Math.pow(1+0.05*1.1/100, 4), "valor do título calculado pelo CDI");
+  ok(p.rende && p.rende.idx==="cdi" && !p.estimado && p.cot===null, "posição marca que rende sozinha");
+  add({classe:"rf",tipo:"compra",data:"2026-01-05",ticker:"CDB A",valor:"500"});
+  ok(S.txs[1].idx==="cdi" && S.txs[1].taxa===110, "nova aplicação segue o indexador do título");
+  const v7 = calcular("2026-01-07").lista.find(x=>x.ticker==="CDB A").valor;
+  add({classe:"rf",tipo:"venda",data:"2026-01-07",ticker:"CDB A",valor:numInput(v7/2)});
+  perto(S.txs[2].frac, 0.5, "resgate é a fração do valor na data dele");
+  p = calcular().lista.find(x=>x.ticker==="CDB A");
+  perto(p.valor, (1000*Math.pow(1.00055,4) + 500*Math.pow(1.00055,3))/2, "depois do resgate rende só o que ficou");
+  const elA = fakeEl(); abertoAtivo = "CDB A"; rAtivos(elA); abertoAtivo = null;
+  ok(/<option value="cdi" selected>/.test(elA.innerHTML) && !/class="cot/.test(elA.innerHTML) && /110% do CDI · aplicado/.test(elA.innerHTML), "Ativos mostram o indexador no lugar do valor à mão");
+  ok(!analisar().some(a=>/renda fixa/i.test(a.titulo)), "título que rende sozinho não pede atualização de valor");
+  const antes = p.valor;
+  ok(salvarRende("CDB A", "", "")===null && Math.abs(S.precos["CDB A"].v-Math.round(antes*100)/100)<1e-9 && !calcular().lista.find(x=>x.ticker==="CDB A").rende, "voltar para à mão mantém o último valor calculado");
+
+  add({classe:"rf",tipo:"compra",data:"2026-01-02",ticker:"LCA P",valor:"2000",idx:"pre",taxa:"12,5"});
+  ok(S.txs.at(-1).idx==="pre" && S.txs.at(-1).taxa===12.5, "lançamento de aplicação já com o indexador");
+  add({classe:"rf",tipo:"compra",data:"2026-01-02",ticker:"LCA Q",valor:"2000",idx:"pre",taxa:"0"});
+  ok(/taxa ao ano/.test(msg()) && !S.txs.some(t=>t.ticker==="LCA Q"), "taxa zerada é recusada no lançamento");
+  const elL = fakeEl(); rLancamentos(elL);
+  ok(/Aplicação · prefixado 12,5% ao ano/.test(elL.innerHTML), "lançamentos mostram o indexador da aplicação");
+
+  indices = {cdi:{desde:"", ate:"", serie:{}}, ibov:{ate:"",serie:{}}, ipca:{desde:"", ate:"", serie:{}}};
+  ok(calcular().lista.find(x=>x.ticker==="LCA P").valor > 2000, "prefixado calcula mesmo sem a série do CDI (dias de semana)");
+  S.txs.find(t=>t.ticker==="LCA P").idx = "ipca";
+  p = calcular().lista.find(x=>x.ticker==="LCA P");
+  ok(p.estimado && p.valor===2000, "IPCA sem a série: aparece o valor aplicado, marcado como estimado");
+  let urls = [];
+  globalThis.__fetch = url => { urls.push(url); return url.includes("sgs.433") ? resp(200, [{data:"01/01/2026", valor:"0.5"}, {data:"01/02/2026", valor:"0.4"}]) : resp(200, []); };
+  buscandoIndices = false; await atualizarIndices();
+  ok(indices.ipca.serie["2026-02"]===0.4 && urls.some(u=>/sgs\\.433.*dataInicial=01\\/01\\/2026/.test(u)), "busca o IPCA desde o mês da primeira aplicação IPCA +");
+  ok(!calcular().lista.find(x=>x.ticker==="LCA P").estimado, "com o IPCA guardado, o título passa a ser calculado");
+  indices = lerIndices();
+}
+
 // 20. Desdobramento e grupamento
 {
   S = vazio(); S.atualizado = 1; avisos2 = [];

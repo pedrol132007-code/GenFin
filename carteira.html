@@ -234,6 +234,10 @@ tr.sel{background:var(--soft)}
 .det-cot input{background:var(--surface)}
 .det-cot small{font-size:.78rem}
 .det-acoes{grid-column:1/-1;display:flex;gap:8px;flex-wrap:wrap}
+.det-rende{grid-column:1/-1;display:flex;flex-wrap:wrap;align-items:flex-end;gap:8px 12px}
+.det-rende label{flex:1 1 170px;max-width:260px}
+.det-rende select, .det-rende input{background:var(--surface)}
+.det-rende small{flex-basis:100%;font-size:.78rem;color:var(--muted)}
 
 /* Compra e venda rápida */
 #dlg-op{max-width:440px}
@@ -855,8 +859,9 @@ function calcular(ate){
       continue;
     }
     if(t.classe==="rf"){
-      if(t.tipo==="compra"){ p.custo += t.valor; p.qtd = 1; aportado += t.valor; }
-      else { const baixa = p.custo*Math.min(1, t.frac||1); p.realizado += t.valor - baixa; p.custo -= baixa; if(p.custo<0.005){ p.custo=0; p.qtd=0; } }
+      // Cada aplicação é um lote com o seu indexador; o resgate baixa a mesma fração de todos
+      if(t.tipo==="compra"){ p.custo += t.valor; p.qtd = 1; aportado += t.valor; (p.lotes || (p.lotes = [])).push({data:t.data, v:t.valor, idx:t.idx||"", taxa:t.taxa}); }
+      else { const fr = Math.min(1, t.frac||1), baixa = p.custo*fr; p.realizado += t.valor - baixa; p.custo -= baixa; (p.lotes||[]).forEach(l=>{ l.v *= 1-fr; }); if(p.custo<0.005){ p.custo=0; p.qtd=0; p.lotes=[]; } }
       continue;
     }
     const bruto = t.qtd*t.preco, taxas = t.taxas||0;
@@ -877,9 +882,19 @@ function calcular(ate){
     const pr = S.precos[p.ticker];
     p.pm = p.classe!=="rf" && p.qtd>0 ? p.custo/p.qtd : 0;
     p.semCot = !pr;
-    if(p.classe==="rf") p.valor = p.qtd>0 ? (pr ? pr.v : p.custo) : 0;
+    if(p.classe==="rf"){
+      // Com indexador em todos os lotes, o valor sai sozinho (na curva, antes do IR); senão, o valor digitado
+      const lotes = p.qtd>0 ? (p.lotes||[]) : [];
+      if(lotes.length && lotes.every(l=>l.idx)){
+        const fim = ate && ate<hojeISO() ? ate : hojeISO(); let v = 0, falta = false;
+        for(const l of lotes){ const f = fatorRF(l.idx, l.taxa, l.data, fim); if(f==null) falta = true; v += l.v*(f ?? 1); }
+        const u = lotes[lotes.length-1];
+        p.rende = {idx:u.idx, taxa:u.taxa}; p.estimado = falta; p.valor = v; p.semCot = false;
+      } else p.valor = p.qtd>0 ? (pr ? pr.v : p.custo) : 0;
+      delete p.lotes;
+    }
     else p.valor = p.qtd*(pr ? pr.v : p.pm);
-    p.cot = pr ? pr.v : null;
+    p.cot = pr && !p.rende ? pr.v : null;
     p.resultado = p.valor - p.custo;
     total += p.valor; custo += p.custo; realizado += p.realizado; provs += p.provs;
     return p;
@@ -888,6 +903,82 @@ function calcular(ate){
   lista.forEach(p=>{ porClasse[p.classe] += p.valor; });
   return { lista, vendas, total, custo, realizado, provs, aportado, porClasse };
 }
+/* Renda fixa que rende sozinha: % do CDI, prefixado ou IPCA + taxa, sobre as séries do Banco Central guardadas em "indices" */
+const RENDE = { cdi:{nome:"% do CDI", taxa:"Percentual do CDI", ex:"110"}, pre:{nome:"Prefixado", taxa:"Taxa ao ano (%)", ex:"12,5"}, ipca:{nome:"IPCA +", taxa:"Taxa acima do IPCA, ao ano (%)", ex:"6,2"} };
+const numBR = v => Number(v).toLocaleString("pt-BR",{maximumFractionDigits:2});
+const descRende = r => r.idx==="cdi" ? `${numBR(r.taxa)}% do CDI` : r.idx==="pre" ? `prefixado ${numBR(r.taxa)}% ao ano` : `IPCA + ${numBR(r.taxa)}%`;
+const opcoesRende = sel => `<option value="">Valor atualizado à mão</option>` + Object.entries(RENDE).map(([k,r])=>`<option value="${k}"${sel===k?" selected":""}>${r.nome}</option>`).join("");
+function erroTaxa(idx, taxa){
+  if(!RENDE[idx]) return "Escolha como o título rende.";
+  if(idx==="cdi" && !(taxa>0 && taxa<=300)) return "Informe quanto do CDI o título paga, como 100 ou 110.";
+  if(idx==="pre" && !(taxa>0 && taxa<=100)) return "Informe a taxa ao ano, como 12,5.";
+  if(idx==="ipca" && !(taxa>-10 && taxa<=50)) return "Informe a taxa acima do IPCA, como 6,2.";
+  return null;
+}
+// Datas da série do CDI em ordem e, para cada percentual, o fator acumulado até cada data (refeito quando a série muda)
+let cacheCDI = {chave:"", ks:[], porTaxa:{}};
+function chavesCDI(){
+  const s = indices.cdi.serie, chave = indices.cdi.desde+"|"+indices.cdi.ate+"|"+Object.keys(s).length;
+  if(cacheCDI.chave!==chave) cacheCDI = {chave, ks:Object.keys(s).sort(), porTaxa:{}};
+  return cacheCDI;
+}
+function antesDe(ks, d){ let lo=0, hi=ks.length; while(lo<hi){ const m=(lo+hi)>>1; if(ks[m]<d) lo=m+1; else hi=m; } return lo; }
+const cdiCobre = ini => !!indices.cdi.desde && indices.cdi.desde<=ini && chavesCDI().ks.length>0;
+// O dinheiro rende a taxa de cada dia útil desde o dia da aplicação, sem contar o dia final
+function fatorCDI(taxa, ini, fim){
+  if(!cdiCobre(ini)) return null;
+  const c = chavesCDI(); let acc = c.porTaxa[taxa];
+  if(!acc){ acc = [1]; const s = indices.cdi.serie; c.ks.forEach((k,i)=>acc.push(acc[i]*(1+s[k]*taxa/1e4))); c.porTaxa[taxa] = acc; }
+  return acc[antesDe(c.ks, fim)] / acc[antesDe(c.ks, ini)];
+}
+function diasSemana(ini, fim){ let n = 0; for(const d = new Date(ini+"T12:00"), f = new Date(fim+"T12:00"); d<f; d.setDate(d.getDate()+1)){ const w = d.getDay(); if(w && w<6) n++; } return n; }
+// Dias úteis: os dias da série do CDI (que já pulam os feriados) e, depois do último publicado, os dias de semana
+function diasUteis(ini, fim){
+  if(!cdiCobre(ini)) return diasSemana(ini, fim);
+  const ks = chavesCDI().ks, depois = somarDias(ks[ks.length-1], 1);
+  return antesDe(ks, fim) - antesDe(ks, ini) + (fim>depois ? diasSemana(depois>ini ? depois : ini, fim) : 0);
+}
+// IPCA mensal, proporcional aos dias de cada mês; mês ainda sem índice publicado repete o último
+function fatorIPCA(ini, fim){
+  const s = indices.ipca.serie, ks = Object.keys(s).sort(); if(!ks.length) return null;
+  const ultimo = s[ks[ks.length-1]]; let f = 1;
+  for(let d = ini; d < fim; ){
+    const [y, m] = d.split("-").map(Number), prox = isoLocal(new Date(y, m, 1, 12)), fimT = prox<fim ? prox : fim;
+    const dias = Math.round((Date.parse(fimT+"T12:00") - Date.parse(d+"T12:00"))/864e5);
+    f *= Math.pow(1 + (s[d.slice(0,7)] ?? ultimo)/100, dias/new Date(y, m, 0).getDate());
+    d = fimT;
+  }
+  return f;
+}
+// Quanto 1 real aplicado em ini vale em fim; null se ainda falta a série do Banco Central
+function fatorRF(idx, taxa, ini, fim){
+  if(!(fim>ini)) return 1;
+  if(idx==="cdi") return fatorCDI(taxa, ini, fim);
+  const juros = Math.pow(1+taxa/100, diasUteis(ini, fim)/252);
+  if(idx==="pre") return juros;
+  if(idx==="ipca"){ const i = fatorIPCA(ini, fim); return i==null ? null : i*juros; }
+  return null;
+}
+// Define como um título rende, em todas as aplicações dele. Devolve a mensagem de erro ou null.
+function salvarRende(t, idx, taxaTxt){
+  if(demo) return "No modo exemplo nada é alterado.";
+  const taxa = parseNum(taxaTxt), erro = idx ? erroTaxa(idx, taxa) : null; if(erro) return erro;
+  const lotes = S.txs.filter(x=>x.ticker===t && x.classe==="rf" && x.tipo==="compra"); if(!lotes.length) return "Título não encontrado.";
+  const antes = calcular().lista.find(p=>p.ticker===t);
+  lotes.forEach(x=>{ if(idx){ x.idx = idx; x.taxa = taxa; } else { delete x.idx; delete x.taxa; } });
+  if(idx) delete S.precos[t];
+  else if(antes && antes.rende) S.precos[t] = {v:Math.round(antes.valor*100)/100, em:hojeISO()};   // à mão, segue do valor que já mostrava
+  registrarHist(); salvar("lancamentos","carteira","historico");
+  if(idx) atualizarIndices();
+  return null;
+}
+function ajustarRende(sel){
+  const box = sel && sel.closest ? sel.closest("[data-rende]") : null; if(!box) return;
+  const r = RENDE[sel.value], rot = box.querySelector(".rende-taxa"); if(!rot) return;
+  rot.hidden = !r; if(!r) return;
+  rot.querySelector("span").textContent = r.taxa; rot.querySelector("input").placeholder = r.ex;
+}
+
 function registrarHist(){
   if(demo) return;
   const c = calcular();
@@ -1191,7 +1282,10 @@ function precisaBuscar(){ return Date.now() - Number(lerLS(LS_BUSCA)||0) > INTER
 // CDI: série 12 do Banco Central (% ao dia, pública). Ibovespa: brapi (^BVSP), com a mesma chave das cotações.
 // As séries ficam guardadas neste navegador e só os dias novos são buscados.
 const LS_INDICES = "genfin-indices";
-function lerIndices(){ try{ const o = JSON.parse(localStorage.getItem(LS_INDICES)||"null"); if(o && o.cdi && o.ibov) return o; }catch(e){} return {cdi:{desde:"", ate:"", serie:{}}, ibov:{ate:"", serie:{}}}; }
+function lerIndices(){
+  try{ const o = JSON.parse(localStorage.getItem(LS_INDICES)||"null"); if(o && o.cdi && o.ibov){ if(!o.ipca) o.ipca = {desde:"", ate:"", serie:{}}; return o; } }catch(e){}
+  return {cdi:{desde:"", ate:"", serie:{}}, ibov:{ate:"", serie:{}}, ipca:{desde:"", ate:"", serie:{}}};
+}
 function gravarIndices(){ try{ localStorage.setItem(LS_INDICES, JSON.stringify(indices)); }catch(e){} }
 let indices = lerIndices(), buscandoIndices = false;
 
@@ -1250,6 +1344,15 @@ async function buscarCDI(ini, fim){
   }
   return serie;
 }
+// IPCA mensal (série 433 do Banco Central), para os títulos IPCA +
+async function buscarIPCA(ini, fim){
+  const br = iso => iso.split("-").reverse().join("/"), serie = {};
+  let r; try{ r = await fetch(`https://api.bcb.gov.br/dados/serie/bcdata.sgs.433/dados?formato=json&dataInicial=${br(ini.slice(0,8)+"01")}&dataFinal=${br(fim)}`, comPrazo()); }
+  catch(e){ throw erroCot("rede"); }
+  if(r.ok){ const j = await r.json(); (Array.isArray(j)?j:[]).forEach(x=>{ const [, m, y] = String(x.data).split("/"); const v = Number(x.valor); if(y && Number.isFinite(v)) serie[`${y}-${m}`] = v; }); }
+  else if(r.status!==404) throw erroCot("servico");
+  return serie;
+}
 async function buscarIbov(chave){
   // O plano gratuito limita o histórico; tenta do maior para o menor intervalo
   for(const range of ["max","5y","1y","3mo"]){
@@ -1271,7 +1374,9 @@ async function atualizarIndices(){
   const hoje = hojeISO(), inicio = fl[0].data;
   const precisaCDI = !indices.cdi.desde || inicio < indices.cdi.desde || indices.cdi.ate < hoje;
   const chave = lerLS(LS_CHAVE), precisaIbov = !!chave && indices.ibov.ate < hoje;
-  if(!precisaCDI && !precisaIbov) return;
+  const iniIPCA = S.txs.filter(t=>t.classe==="rf" && t.idx==="ipca").map(t=>t.data).sort()[0];
+  const precisaIPCA = !!iniIPCA && (!indices.ipca.desde || iniIPCA < indices.ipca.desde || indices.ipca.ate < hoje);
+  if(!precisaCDI && !precisaIbov && !precisaIPCA) return;
   buscandoIndices = true;
   try{
     if(precisaCDI){
@@ -1282,8 +1387,13 @@ async function atualizarIndices(){
       indices.cdi.ate = hoje;
     }
     if(precisaIbov){ Object.assign(indices.ibov.serie, await buscarIbov(chave)); indices.ibov.ate = hoje; }
+    if(precisaIPCA){
+      const ini = indices.ipca.desde && indices.ipca.desde < iniIPCA ? indices.ipca.desde : iniIPCA;
+      Object.assign(indices.ipca.serie, await buscarIPCA(ini, hoje)); indices.ipca.desde = ini; indices.ipca.ate = hoje;
+    }
     gravarIndices();
     if(abaAtual==="resumo") render("resumo");
+    else if(abaAtual==="ativos"){ const y = window.scrollY; render("ativos"); window.scrollTo(0,y); }
   }catch(e){ /* sem rede ou serviço fora: a comparação fica com o que já está guardado */ }
   finally{ buscandoIndices = false; }
 }
@@ -1476,7 +1586,7 @@ function analisar(){
   // Cotações antigas: renda variável com mais de 3 dias, renda fixa com mais de 45
   const rvVelhas = abertas.filter(p=>p.classe!=="rf" && (!S.precos[p.ticker] || diasDesde(S.precos[p.ticker].em)>3)).map(p=>p.ticker);
   if(rvVelhas.length) add("atencao", `${rvVelhas.length===1?"1 ativo está":rvVelhas.length+" ativos estão"} com cotação antiga ou sem cotação`, `${rvVelhas.join(", ")}. Sem cotação, o ativo entra pelo preço médio e o patrimônio fica impreciso.`, null, {aba:"ativos", rotulo:"Atualizar cotações"});
-  const rfVelhas = abertas.filter(p=>p.classe==="rf" && (!S.precos[p.ticker] || diasDesde(S.precos[p.ticker].em)>45)).map(p=>p.ticker);
+  const rfVelhas = abertas.filter(p=>p.classe==="rf" && !p.rende && (!S.precos[p.ticker] || diasDesde(S.precos[p.ticker].em)>45)).map(p=>p.ticker);
   if(rfVelhas.length) add("info", "Atualize o valor da renda fixa", `${rfVelhas.join(", ")}: sem atualização há mais de 45 dias, o título aparece pelo último valor informado ou pelo valor aplicado.`, null, {aba:"ativos", rotulo:"Atualizar valores"});
 
   // Imposto de renda do mês: perto dos limites de isenção e DARF a vencer
@@ -1733,7 +1843,8 @@ function rAnalises(el){
 let filtroAtivos = "todos", abertoAtivo = null;
 function linhaAtivo(p, total){
   const rf = p.classe==="rf", aberto = abertoAtivo===p.ticker, pr = S.precos[p.ticker], t = esc(p.ticker);
-  const sub = rf ? "aplicado "+brl(p.custo) : qtdFmt(p.qtd)+" × "+(p.cot!=null ? brl(p.cot) : "sem cotação");
+  const sub = rf ? (p.rende ? descRende(p.rende)+" · " : "")+"aplicado "+brl(p.custo) : qtdFmt(p.qtd)+" × "+(p.cot!=null ? brl(p.cot) : "sem cotação");
+  const r = p.rende || {idx:"", taxa:null};
   const rotMenos = rf ? "Resgatar de " : "Vender ", rotMais = rf ? "Aplicar em " : "Comprar ";
   return `<div class="ativo${aberto?" aberto":""}" style="--cor:${corDe(p.classe)}">
     <button class="ativo-linha" data-act="abrir-ativo" data-t="${t}" aria-expanded="${aberto}">
@@ -1749,9 +1860,15 @@ function linhaAtivo(p, total){
       <div><span>Resultado</span><strong class="${cls(p.resultado)}">${brlSinal(p.resultado)}</strong></div>
       <div><span>Peso na carteira</span><strong>${pct(total ? p.valor/total : 0)}</strong></div>
       <div><span>Proventos recebidos</span><strong>${p.provs ? brl(p.provs) : "—"}</strong></div>
-      <label class="det-cot">${rf ? "Valor atual do título (R$)" : "Cotação (R$)"}
+      ${rf ? `<div class="det-rende" data-rende>
+        <label>Como rende<select class="rende-idx" aria-label="Como ${t} rende">${opcoesRende(r.idx)}</select></label>
+        <label class="rende-taxa"${r.idx?"":" hidden"}><span>${r.idx ? RENDE[r.idx].taxa : "Taxa"}</span><input class="rende-num" inputmode="decimal" value="${r.idx ? esc(numInput(r.taxa)) : ""}" placeholder="${r.idx ? RENDE[r.idx].ex : ""}"></label>
+        <button class="btn peq" data-act="rende-salvar" data-t="${t}">Salvar</button>
+        <small>${p.rende ? (p.estimado ? "Esperando a série do Banco Central (precisa de internet); por enquanto conta o valor aplicado." : "O valor é calculado sozinho todo dia: na curva, antes do IR. Pode diferir um pouco do extrato do banco.") : "Escolha o indexador para o valor se atualizar sozinho, ou mantenha à mão e copie o valor do extrato."}</small>
+      </div>` : ""}
+      ${rf && p.rende ? "" : `<label class="det-cot">${rf ? "Valor atual do título (R$)" : "Cotação (R$)"}
         <input class="cot${p.semCot?" vazio":""}" inputmode="decimal" data-t="${t}" value="${esc(numInput(p.cot))}" placeholder="${rf?"valor atual":"preço"}" aria-label="${rf?"Valor atual de ":"Cotação de "}${t}">
-        <small>${pr && pr.em ? "atualizada em "+dataBR(pr.em)+(rf ? "" : "; edite para corrigir") : (rf ? "sem valor atual: entra pelo valor aplicado" : "sem cotação: entra pelo preço médio")}</small></label>
+        <small>${pr && pr.em ? "atualizada em "+dataBR(pr.em)+(rf ? "" : "; edite para corrigir") : (rf ? "sem valor atual: entra pelo valor aplicado" : "sem cotação: entra pelo preço médio")}</small></label>`}
       ${!rf ? `<div class="det-acoes"><button class="btn peq" data-act="op-evento" data-t="${t}">Desdobramento ou grupamento</button></div>` : ""}
     </div>` : ""}
   </div>`;
@@ -1853,7 +1970,7 @@ function campoOp(id){ const i = $("#"+id); return i ? i.value : ""; }
 function dadosOp(){
   const classe = op.classe, rf = classe==="rf";
   const d = {data: campoOp("op-data") || hojeISO(), tipo: op.modo==="venda" ? "venda" : "compra", classe, ticker: normTicker(op.ticker || campoOp("op-ticker"), classe)};
-  if(rf) d.valor = parseNum(campoOp("op-valor"));
+  if(rf){ d.valor = parseNum(campoOp("op-valor")); if(d.tipo==="compra" && campoOp("op-idx")){ d.idx = campoOp("op-idx"); d.taxa = parseNum(campoOp("op-taxa")); } }
   else Object.assign(d, {qtd: parseNum(campoOp("op-qtd")), preco: parseNum(campoOp("op-preco")), taxas: campoOp("op-taxas").trim() ? parseNum(campoOp("op-taxas")) : 0});
   return d;
 }
@@ -1864,13 +1981,15 @@ function renderOp(){
   const verbo = venda ? (rf ? "Resgatar" : "Vender") : (rf ? "Aplicar" : "Comprar");
   $("#op-conteudo").innerHTML = `
     <div class="op-cab"><i class="pinta" style="background:${corDe(op.classe)}"></i><h2>${novo ? "Novo ativo" : verbo+" "+nome}</h2></div>
-    ${p ? `<p class="op-sub">${rf ? "Aplicado "+brl(p.custo)+" · vale "+brl(p.valor) : "Você tem "+qtdFmt(p.qtd)+" · preço médio "+brl(p.pm)}</p>` : ""}
+    ${p ? `<p class="op-sub">${rf ? "Aplicado "+brl(p.custo)+" · vale "+brl(p.valor)+(p.rende ? " · "+descRende(p.rende) : "") : "Você tem "+qtdFmt(p.qtd)+" · preço médio "+brl(p.pm)}</p>` : ""}
     ${p ? `<div class="segmento" role="group" aria-label="Operação">
         <button data-act="op-modo" data-m="compra" aria-pressed="${!venda}">${rf?"Aplicar":"Comprar"}</button>
         <button data-act="op-modo" data-m="venda" aria-pressed="${venda}">${rf?"Resgatar":"Vender"}</button></div>` : ""}
     ${novo ? `<fieldset class="chips-cat op-classes"><legend>Classe</legend>${ORDEM.map(k=>`<label class="chip"><input type="radio" name="op-classe" value="${k}"${op.classe===k?" checked":""}><i class="pinta" style="background:${corDe(k)}"></i><span>${CLASSES[k].nome}</span></label>`).join("")}</fieldset>
       <label>${rf ? "Nome do título" : "Código do ativo"}<input id="op-ticker" list="dl-ativos" autocomplete="off" autocapitalize="characters" placeholder="${rf?"CDB Banco X 2028":op.classe==="cripto"?"BTC":op.classe==="fii"?"HGLG11":op.classe==="etf"?"BOVA11":"PETR4"}" value="${esc(op.tickerDigitado||"")}"></label>` : ""}
-    ${rf ? `<label>${venda ? "Valor resgatado (R$)" : "Valor aplicado (R$)"}<input id="op-valor" inputmode="decimal" placeholder="1.000,00"></label>`
+    ${rf ? `<label>${venda ? "Valor resgatado (R$)" : "Valor aplicado (R$)"}<input id="op-valor" inputmode="decimal" placeholder="1.000,00"></label>
+      ${!p && !venda ? `<div class="op-linha2" data-rende><label>Como rende<select id="op-idx" class="rende-idx">${opcoesRende("")}</select></label>
+        <label class="rende-taxa" hidden><span>Taxa</span><input id="op-taxa" class="rende-num" inputmode="decimal"></label></div>` : ""}`
     : `<label>Quantidade
         <div class="stepper"><button type="button" data-act="op-menos" aria-label="Diminuir">−</button><input id="op-qtd" inputmode="decimal" placeholder="0"><button type="button" data-act="op-mais" aria-label="Aumentar">+</button></div></label>
       ${venda && p ? `<button class="link op-tudo" data-act="op-tudo">Vender tudo (${qtdFmt(p.qtd)})</button>` : ""}
@@ -1894,7 +2013,7 @@ function atualizarOp(){
   let previa = "", rotulo = "", ok = false;
   const nome = d.ticker || "o ativo";
   if(rf){
-    ok = d.valor>0 && !!d.ticker;
+    ok = d.valor>0 && !!d.ticker && !(d.idx && erroTaxa(d.idx, d.taxa));
     if(ok && venda && p) previa = `Resgata ${pct(Math.min(1, d.valor/(p.valor||d.valor)))} do título. ${d.valor>=p.valor-0.01 ? "O título sai da carteira." : "Fica valendo "+brl(p.valor-d.valor)+"."}`;
     else if(ok) previa = p ? `O título passa a valer ${brl(p.valor+d.valor)}.` : `Primeira aplicação em ${esc(nome)}.`;
     rotulo = ok ? `${venda?"Resgatar":"Aplicar"} ${brl(d.valor)}` : (venda?"Resgatar":"Aplicar");
@@ -2009,7 +2128,7 @@ function rLancamentos(el){
   if(!ed) editando = null;
   el.innerHTML = `<h2>Lançamentos</h2>
   <p class="sub">Registre cada compra e venda, incluindo as taxas da nota de corretagem. O preço médio e o imposto saem daqui. Ou <button class="link" data-act="abrir-importar">importe o extrato da B3</button>. Desdobramentos e grupamentos são registrados em Ativos, nos detalhes do ativo.</p>
-  <form id="f-tx" class="card${ed?" editando":""}" novalidate>
+  <form id="f-tx" class="card${ed?" editando":""}" novalidate data-rende>
     ${ed?`<p class="editando-rot">Editando ${ed.classe==="rf"?(ed.tipo==="compra"?"a aplicação":"o resgate"):(ed.tipo==="compra"?"a compra":"a venda")} de <strong>${esc(ed.ticker)}</strong> de ${dataBR(ed.data)}${ed.classe==="rf"?". Na renda fixa, dá para mudar a data e o valor.":""}</p>`:""}
     <div class="campos">
       <label>Classe<select name="classe">${opts}</select></label>
@@ -2020,6 +2139,8 @@ function rLancamentos(el){
       <label data-so="rv">Preço por unidade (R$)<input name="preco" inputmode="decimal" placeholder="38,50"></label>
       <label data-so="rv">Taxas (R$)<input name="taxas" inputmode="decimal" placeholder="0,00"></label>
       <label data-so="rf" class="oculto"><span data-rot="valor">Valor aplicado (R$)</span><input name="valor" inputmode="decimal" placeholder="5.000,00"></label>
+      <label data-so="rfc" class="oculto">Como rende<select name="idx" class="rende-idx">${opcoesRende("")}</select></label>
+      <label data-so="rfc" class="oculto rende-taxa" hidden><span>Taxa</span><input name="taxa" class="rende-num" inputmode="decimal"></label>
     </div>
     <div class="rodape">${ed?`<button class="btn pri" type="submit">Salvar alterações</button><button class="btn" type="button" data-act="cancelar-edicao">Cancelar</button>`
       :`<button class="btn pri" type="submit">Adicionar lançamento</button>`}<span id="tx-msg" aria-live="polite"></span></div>
@@ -2033,7 +2154,7 @@ function rLancamentos(el){
       <td>—</td><td>—</td><td>—</td><td>—</td>
       <td><span class="acoes-linha"><button class="btn peq perigo" data-act="del-tx" data-id="${esc(t.id)}" data-armar="Confirmar">Excluir</button></span></td></tr>`;
       const rf=t.classe==="rf"; const tot = rf?t.valor:t.qtd*t.preco+(t.tipo==="compra"?1:-1)*(t.taxas||0);
-      const op = rf ? (t.tipo==="compra"?"Aplicação":"Resgate") : (t.tipo==="compra"?"Compra":"Venda");
+      const op = rf ? (t.tipo==="compra"?"Aplicação"+(t.idx ? " · "+descRende(t) : ""):"Resgate") : (t.tipo==="compra"?"Compra":"Venda");
       return `<tr${t.id===editando?' class="sel"':""}><td>${dataBR(t.data)}</td><td class="esq"><i class="pinta" style="background:${corDe(t.classe)};margin-right:8px"></i><span class="tk">${esc(t.ticker)}</span></td><td class="esq">${op}</td>
       <td>${rf?"—":qtdFmt(t.qtd)}</td><td>${rf?"—":brl(t.preco)}</td><td>${rf?"—":brl(t.taxas||0)}</td><td>${brl(tot)}</td>
       <td><span class="acoes-linha"><button class="btn peq" data-act="edit-tx" data-id="${esc(t.id)}">Editar</button><button class="btn peq perigo" data-act="del-tx" data-id="${esc(t.id)}" data-armar="Confirmar">Excluir</button></span></td></tr>`;}).join("")}</tbody></table></div>`
@@ -2043,18 +2164,23 @@ function rLancamentos(el){
     const rf = f.elements.namedItem("classe").value==="rf";
     f.querySelectorAll('[data-so="rv"]').forEach(x=>x.classList.toggle("oculto",rf));
     f.querySelectorAll('[data-so="rf"]').forEach(x=>x.classList.toggle("oculto",!rf));
+    f.querySelectorAll('[data-so="rfc"]').forEach(x=>x.classList.toggle("oculto",!(rf && f.elements.namedItem("tipo").value==="compra")));
+    ajustarRende(f.elements.namedItem("idx"));
     f.elements.namedItem("tipo").options[0].text = rf?"Aplicação":"Compra"; f.elements.namedItem("tipo").options[1].text = rf?"Resgate":"Venda";
     $('[data-rot="ativo"]',f).textContent = rf?"Nome do título":"Código do ativo";
     f.elements.namedItem("ticker").placeholder = rf?"CDB Banco X 2028":(f.elements.namedItem("classe").value==="cripto"?"BTC":f.elements.namedItem("classe").value==="fii"?"HGLG11":f.elements.namedItem("classe").value==="etf"?"BOVA11":"PETR4");
     $('[data-rot="valor"]',f).textContent = f.elements.namedItem("tipo").value==="compra"?"Valor aplicado (R$)":"Valor líquido resgatado (R$)";
   };
   f.elements.namedItem("classe").addEventListener("change",ajustar); f.elements.namedItem("tipo").addEventListener("change",ajustar);
-  f.elements.namedItem("ticker").addEventListener("change",()=>{ const t=f.elements.namedItem("ticker").value.trim(); const a=S.ativos[t]||S.ativos[t.toUpperCase()]; if(a){ f.elements.namedItem("classe").value=a.classe; ajustar(); } });
+  f.elements.namedItem("ticker").addEventListener("change",()=>{ const t=f.elements.namedItem("ticker").value.trim(); const a=S.ativos[t]||S.ativos[t.toUpperCase()]; if(a){ f.elements.namedItem("classe").value=a.classe; ajustar(); }
+    // Título que já rende sozinho: a nova aplicação vem com o mesmo indexador
+    const lote = !editando && [...S.txs].reverse().find(x=>x.ticker===t && x.tipo==="compra" && x.idx);
+    if(lote){ f.elements.namedItem("idx").value = lote.idx; f.elements.namedItem("taxa").value = numInput(lote.taxa); ajustarRende(f.elements.namedItem("idx")); } });
   f.addEventListener("submit", e=>{ e.preventDefault(); if(editando) salvarEdicao(f); else addTx(f); });
   if(ed){
     const preencher = (n,v) => { f.elements.namedItem(n).value = v; };
     preencher("classe", ed.classe); preencher("tipo", ed.tipo); preencher("data", ed.data); preencher("ticker", ed.ticker);
-    if(ed.classe==="rf") preencher("valor", numInput(ed.valor));
+    if(ed.classe==="rf"){ preencher("valor", numInput(ed.valor)); preencher("idx", ed.idx||""); preencher("taxa", ed.idx ? numInput(ed.taxa) : ""); }
     else { preencher("qtd", numInput(ed.qtd)); preencher("preco", numInput(ed.preco)); preencher("taxas", numInput(ed.taxas||0)); }
     // Renda fixa só muda data e valor; nos outros tipos, não dá para virar renda fixa
     if(ed.classe==="rf") ["classe","tipo","ticker"].forEach(n=>{ f.elements.namedItem(n).disabled = true; });
@@ -2070,7 +2196,7 @@ function validarTx(d, idIgnorar){
   const outro = S.txs.find(x=>x.id!==idIgnorar && x.ticker===d.ticker);
   const classeAtual = outro ? outro.classe : (!idIgnorar && S.ativos[d.ticker] ? S.ativos[d.ticker].classe : null);
   if(classeAtual && classeAtual!==d.classe) return `${d.ticker} já está cadastrado como ${CLASSES[classeAtual].nome}.`;
-  if(d.classe==="rf") return d.valor>0 ? null : "Informe um valor maior que zero.";
+  if(d.classe==="rf") return !(d.valor>0) ? "Informe um valor maior que zero." : d.idx ? erroTaxa(d.idx, d.taxa) : null;
   if(!(d.qtd>0)) return "Informe uma quantidade maior que zero.";
   if(!(d.preco>0)) return "Informe o preço por unidade.";
   if(!(d.taxas>=0)) return "Taxas inválidas.";
@@ -2082,7 +2208,7 @@ function lerFormTx(f, msg, idIgnorar){
   const campo = n => f.elements.namedItem(n).value;
   const classe=campo("classe"), tipo=campo("tipo"), data=campo("data"), ticker=normTicker(campo("ticker"), classe);
   const d = {data, tipo, classe, ticker};
-  if(classe==="rf") d.valor = parseNum(campo("valor"));
+  if(classe==="rf"){ d.valor = parseNum(campo("valor")); if(tipo==="compra" && campo("idx")){ d.idx = campo("idx"); d.taxa = parseNum(campo("taxa")); } }
   else Object.assign(d, {qtd:parseNum(campo("qtd")), preco:parseNum(campo("preco")), taxas:campo("taxas").trim()?parseNum(campo("taxas")):0});
   const erro = validarTx(d, idIgnorar);
   if(erro){ msg.textContent = erro; return null; }
@@ -2098,10 +2224,12 @@ function registrarTx(d){
   if(classe==="rf"){
     if(tipo==="venda"){
       if(!pos || pos.qtd<=0) return {erro:"Não há saldo aplicado nesse título."};
-      const atual = pos.valor;
+      // Título que rende sozinho: o resgate é a fração do valor que ele tinha na data do resgate
+      const atual = pos.rende ? ((calcular(d.data).lista.find(p=>p.ticker===ticker)||{}).valor||0) : pos.valor;
       tx.frac = atual>0 ? Math.min(1, d.valor/atual) : 1;
-      const restante = atual - d.valor;
-      novoPreco = restante>0.01 ? {v:restante, em:hojeISO()} : null;
+      if(!pos.rende){ const restante = atual - d.valor; novoPreco = restante>0.01 ? {v:restante, em:hojeISO()} : null; }
+    } else if(pos && pos.rende){
+      if(!d.idx){ const ant = [...S.txs].reverse().find(x=>x.ticker===ticker && x.tipo==="compra" && x.idx); if(ant){ tx.idx = ant.idx; tx.taxa = ant.taxa; } }
     } else {
       const pr = S.precos[ticker];
       if(pr) novoPreco = {v:pr.v+d.valor, em:pr.em};
@@ -2152,6 +2280,7 @@ function salvarEdicao(f){
   const d = lerFormTx(f, msg, velho.id); if(!d) return;
   if(rf && (d.tipo!==velho.tipo || d.ticker!==velho.ticker)){ msg.textContent="Na renda fixa dá para mudar a data e o valor. Para trocar a operação ou o título, exclua e lance de novo."; return; }
   const novo = Object.assign({id:velho.id, criado:velho.criado}, d);
+  if(rf && d.tipo==="compra" && !d.idx && velho.idx){ novo.idx = velho.idx; novo.taxa = velho.taxa; }   // o indexador muda em Ativos
   // Renda fixa: o resgate baixa a mesma proporção, escalada pelo novo valor; o valor atual do título muda pela diferença
   let ajuste = 0;
   if(rf){
@@ -2724,6 +2853,13 @@ document.addEventListener("click", e=>{
   else if(a==="op-compra" || a==="op-venda") abrirOp(a==="op-venda" ? "venda" : "compra", b.dataset.t);
   else if(a==="op-novo") abrirOp("novo", "");
   else if(a==="op-evento"){ abrirOp("evento", b.dataset.t); }
+  else if(a==="rende-salvar"){
+    const box = b.closest("[data-rende]"), t = b.dataset.t;
+    const erro = salvarRende(t, box.querySelector(".rende-idx").value, box.querySelector(".rende-num").value);
+    if(erro){ toast(erro); return; }
+    const y = window.scrollY; render("ativos"); window.scrollTo(0,y);
+    const p = posDe(t); toast(p && p.rende ? `${t}: ${descRende(p.rende)}, calculado sozinho` : `${t} volta a ser atualizado à mão`);
+  }
   else if(a==="op-ev"){ op.ev = b.dataset.e; renderEvento(); }
   else if(a==="op-modo"){ op.modo = b.dataset.m; renderOp(); }
   else if(a==="op-menos" || a==="op-mais") passoOp(a==="op-mais" ? 1 : -1);
@@ -2752,6 +2888,7 @@ document.addEventListener("change", e=>{
   if(e.target.matches("input.valbem")){ if(demo){ toast("No modo exemplo nada é salvo."); return; } atualizarValorBem(e.target); return; }
   if(e.target.matches("input.cot")){ if(demo){ toast("No modo exemplo nada é salvo."); return; } salvarCotacao(e.target); }
   if(e.target.id==="arq-import" && e.target.files[0]){ importar(e.target.files[0]); e.target.value=""; }
+  if(e.target.matches("select.rende-idx")){ ajustarRende(e.target); if(op) atualizarOp(); }
   if(op && e.target.name==="op-classe"){ op.classe = e.target.value; op.tickerDigitado = campoOp("op-ticker"); op.preco = null; op.precoTs = null; op.precoEm = null; renderOp(); }
   if(op && e.target.id==="op-ticker"){
     // Código já na carteira: usa a classe dele; depois busca a cotação de agora
