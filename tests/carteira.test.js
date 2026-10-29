@@ -480,6 +480,49 @@ excluirBem(S.bens[1].id); ok(S.bens.length===1, "exclui o bem");
 const elRes = fakeEl(); abaAtual="ir"; rResumo(elRes);
 ok(/Investimentos hoje/.test(elRes.innerHTML) && /patrimônio total é/.test(elRes.innerHTML), "Resumo mostra o patrimônio total quando há bens");
 
+// 20. Desdobramento e grupamento
+{
+  S = vazio(); S.atualizado = 1; avisos2 = [];
+  const campos = v => Object.entries(v).forEach(([k,x])=>{ $("#"+k).value = x; });
+  add({classe:"acao",tipo:"compra",data:"2026-01-05",ticker:"ITSA4",qtd:"100",preco:"10"});
+  add({classe:"acao",tipo:"compra",data:"2026-03-05",ticker:"ITSA4",qtd:"15",preco:"6"});
+  S.precos.ITSA4 = {v:12, em:"2026-01-20"};   // cotação de antes do desdobramento
+  abrirOp("evento", "ITSA4");
+  ok(op && op.modo==="evento" && !op.buscando, "folha do evento abre sem buscar cotação");
+  campos({"op-de":"1", "op-para":"2", "op-data":"2026-02-01"}); atualizarOp();
+  const prev = () => $("#op-previa").innerHTML;
+  ok(!$("#op-ok").disabled && /100 ações passam a ser 200/.test(prev()) && /de R\\$\\s10,00 para R\\$\\s5,00/.test(prev()) && !/fração/.test(prev()), "prévia do desdobramento: quantidade e preço médio na data");
+  confirmarOp();
+  let p = calcular().lista.find(x=>x.ticker==="ITSA4");
+  ok(p.qtd===215 && Math.abs(p.custo-1090)<1e-6 && S.precos.ITSA4.v===6, "desdobramento dobra a quantidade, mantém o custo e corrige a cotação antiga");
+  ok(/Desdobramento de ITSA4 registrado: agora são 215/.test(avisos2.pop()||""), "aviso do desdobramento");
+  add({classe:"acao",tipo:"venda",data:"2026-04-01",ticker:"ITSA4",qtd:"210",preco:"7"});
+  ok(calcular().lista.find(x=>x.ticker==="ITSA4").qtd===5, "venda depois do desdobramento usa a quantidade nova");
+  const ev = S.txs.find(t=>t.tipo==="desdobro"); delTx(ev.id);
+  ok(S.txs.includes(ev), "não exclui o desdobramento se a venda depois ficaria sem saldo");
+  ok(fluxosCaixa().every(x=>Number.isFinite(x.v)) && fluxosCaixa().length===3, "desdobramento não entra no fluxo de dinheiro (comparação com CDI)");
+
+  S = vazio(); S.atualizado = 1;
+  add({classe:"fii",tipo:"compra",data:"2026-01-05",ticker:"MXRF11",qtd:"105",preco:"10"});
+  abrirOp("evento", "MXRF11"); op.ev = "grupamento";
+  campos({"op-de":"1", "op-para":"2", "op-data":"2026-02-01"}); atualizarOp();
+  ok($("#op-ok").disabled, "grupamento com a proporção ao contrário fica bloqueado");
+  campos({"op-de":"10", "op-para":"1"}); atualizarOp();
+  ok(/105 cotas passam a ser 10/.test(prev()) && /fração de 0,5/.test(prev()) && /de R\\$\\s10,00 para R\\$\\s100,00/.test(prev()), "grupamento: fração vai a leilão e o preço médio sobe");
+  confirmarOp();
+  p = calcular().lista.find(x=>x.ticker==="MXRF11");
+  ok(p.qtd===10 && Math.abs(p.custo-1000)<1e-6 && vendaSemSaldo(S.txs)===null, "grupamento: quantidade inteira e sai o custo da fração");
+  campos({"op-de":"1", "op-para":"2", "op-data":"2025-12-01"}); abrirOp("evento", "MXRF11"); campos({"op-de":"1", "op-para":"2", "op-data":"2025-12-01"}); atualizarOp();
+  ok($("#op-ok").disabled && /não tinha MXRF11/.test(prev()), "evento antes da primeira compra fica bloqueado");
+  op = null;
+  const elL = fakeEl(); rLancamentos(elL);
+  const linhaG = elL.innerHTML.split("<tr>").find(l=>l.includes("Grupamento 10:1")) || "";
+  ok(linhaG && /data-act="del-tx"/.test(linhaG) && !/edit-tx/.test(linhaG), "lançamentos mostram o grupamento, só com Excluir");
+  ok(/grupamento;10:1/.test(csvLanc()), "CSV traz o grupamento com a proporção");
+  const elA = fakeEl(); abertoAtivo = "MXRF11"; rAtivos(elA); abertoAtivo = null;
+  ok(/data-act="op-evento" data-t="MXRF11"/.test(elA.innerHTML), "detalhes do ativo têm o botão de desdobramento");
+}
+
 // 19. Notícias: manchetes dos ativos, cache, contador e tela
 {
   S = vazio(); S.atualizado = 1; delete mem[LS_NOTICIAS]; delete mem[LS_NOT_VISTO]; buscandoNoticias = false; filtroNoticias = "todos";

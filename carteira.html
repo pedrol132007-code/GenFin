@@ -233,6 +233,7 @@ tr.sel{background:var(--soft)}
 .det-cot{grid-column:1/-1;max-width:320px}
 .det-cot input{background:var(--surface)}
 .det-cot small{font-size:.78rem}
+.det-acoes{grid-column:1/-1;display:flex;gap:8px;flex-wrap:wrap}
 
 /* Compra e venda rápida */
 #dlg-op{max-width:440px}
@@ -821,11 +822,17 @@ async function apagarSyncNuvem(){
 function ordenarTxs(lista){
   return [...lista].sort((a,b)=> a.data<b.data?-1 : a.data>b.data?1 : (a.criado||0)-(b.criado||0));
 }
+// Desdobramento ou grupamento (tipo "desdobro"): cada "de" unidades viram "para", e o custo total não muda.
+// No grupamento, a fração que sobra é vendida em leilão pela empresa: a quantidade fica inteira (cripto não tem isso).
+function qtdDesdobrada(q, t){ const n = q*t.para/t.de; return t.classe==="cripto" ? n : Math.floor(n+1e-9); }
+const nomeEvento = t => t.para>t.de ? "Desdobramento" : "Grupamento";
+const proporcao = t => `${qtdFmt(t.de)}:${qtdFmt(t.para)}`;
 /* Primeira venda ou resgate sem saldo suficiente na sequência completa, ou null */
 function vendaSemSaldo(lista){
   const saldo = {};
   for(const t of ordenarTxs(lista)){
     const s = saldo[t.ticker] || 0;
+    if(t.tipo==="desdobro"){ saldo[t.ticker] = qtdDesdobrada(s, t); continue; }
     if(t.classe==="rf"){
       if(t.tipo==="compra") saldo[t.ticker] = s + t.valor;
       else if(s<0.005) return {tx:t, tinha:0};
@@ -842,6 +849,11 @@ function calcular(ate){
   for(const t of ordenarTxs(S.txs)){
     if(ate && t.data>ate) break;
     const p = pos[t.ticker] || (pos[t.ticker] = {ticker:t.ticker, classe:t.classe, qtd:0, custo:0, realizado:0, provs:0});
+    if(t.tipo==="desdobro"){
+      // O custo só cai pela fração que foi a leilão no grupamento
+      if(p.qtd>0){ const n = qtdDesdobrada(p.qtd, t); p.custo *= n/(p.qtd*t.para/t.de); p.qtd = n; if(p.qtd<1e-9){ p.qtd=0; p.custo=0; } }
+      continue;
+    }
     if(t.classe==="rf"){
       if(t.tipo==="compra"){ p.custo += t.valor; p.qtd = 1; aportado += t.valor; }
       else { const baixa = p.custo*Math.min(1, t.frac||1); p.realizado += t.valor - baixa; p.custo -= baixa; if(p.custo<0.005){ p.custo=0; p.qtd=0; } }
@@ -1187,6 +1199,7 @@ let indices = lerIndices(), buscandoIndices = false;
 function fluxosCaixa(){
   const f = [];
   for(const t of S.txs){
+    if(t.tipo==="desdobro") continue;   // não entra nem sai dinheiro
     const rf = t.classe==="rf", bruto = rf ? t.valor : t.qtd*t.preco, taxas = rf ? 0 : (t.taxas||0);
     f.push({data:t.data, v: t.tipo==="compra" ? bruto+taxas : -(bruto-taxas)});
   }
@@ -1419,7 +1432,7 @@ function renderImportacao(){
   if(imp.semAtivo.length) itens.push(`<li>Proventos de ${esc(imp.semAtivo.join(", "))} ficam de fora: importe antes o extrato de Negociação com as compras.</li>`);
   if(imp.ign.liquidacoes) itens.push(`<li>${imp.ign.liquidacoes} ${imp.ign.liquidacoes===1?"liquidação ignorada":"liquidações ignoradas"}: compras e vendas vêm do extrato de Negociação, com a data e o preço do negócio.</li>`);
   if(imp.ign.opcoes) itens.push(`<li>${imp.ign.opcoes===1?"1 operação de opções ou futuros ignorada":imp.ign.opcoes+" operações de opções ou futuros ignoradas"}: o app não trata derivativos.</li>`);
-  if(imp.ign.eventos.length) itens.push(`<li>Eventos que mudam a quantidade e precisam de ajuste à mão: ${esc(imp.ign.eventos.slice(0,6).join("; "))}${imp.ign.eventos.length>6?` e mais ${imp.ign.eventos.length-6}`:""}.</li>`);
+  if(imp.ign.eventos.length) itens.push(`<li>Eventos que mudam a quantidade e precisam de ajuste à mão (desdobramento e grupamento: em Ativos, toque no ativo): ${esc(imp.ign.eventos.slice(0,6).join("; "))}${imp.ign.eventos.length>6?` e mais ${imp.ign.eventos.length-6}`:""}.</li>`);
   const nada = !imp.negs.length && !imp.provs.length;
   out.innerHTML = `<h3>${imp.tipo==="negociacao"?"Extrato de Negociação":"Extrato de Movimentação"}</h3>
     <ul class="imp-lista">${itens.join("") || "<li>Nenhuma linha aproveitável no arquivo.</li>"}</ul>
@@ -1739,6 +1752,7 @@ function linhaAtivo(p, total){
       <label class="det-cot">${rf ? "Valor atual do título (R$)" : "Cotação (R$)"}
         <input class="cot${p.semCot?" vazio":""}" inputmode="decimal" data-t="${t}" value="${esc(numInput(p.cot))}" placeholder="${rf?"valor atual":"preço"}" aria-label="${rf?"Valor atual de ":"Cotação de "}${t}">
         <small>${pr && pr.em ? "atualizada em "+dataBR(pr.em)+(rf ? "" : "; edite para corrigir") : (rf ? "sem valor atual: entra pelo valor aplicado" : "sem cotação: entra pelo preço médio")}</small></label>
+      ${!rf ? `<div class="det-acoes"><button class="btn peq" data-act="op-evento" data-t="${t}">Desdobramento ou grupamento</button></div>` : ""}
     </div>` : ""}
   </div>`;
 }
@@ -1822,7 +1836,7 @@ function abrirOp(modo, ticker){
   const fresca = pr && pr.ts && Date.now()-pr.ts < INTERVALO_AUTO;
   op = {modo, ticker: ticker||"", classe, preco: pr ? pr.v : (p ? p.pm : null), precoTs: fresca ? pr.ts : null, precoEm: pr ? pr.em : null, precoEditado:false, buscando:false};
   $("#dlg-op").showModal(); renderOp();
-  if(ticker && classe!=="rf" && !fresca) buscarPrecoOp();
+  if(ticker && classe!=="rf" && !fresca && modo!=="evento") buscarPrecoOp();
 }
 const tickerOp = () => op.ticker || normTicker(campoOp("op-ticker"), op.classe);
 async function buscarPrecoOp(){
@@ -1844,6 +1858,7 @@ function dadosOp(){
   return d;
 }
 function renderOp(){
+  if(op.modo==="evento") return renderEvento();
   const p = posDe(op.ticker), rf = op.classe==="rf", novo = op.modo==="novo", venda = op.modo==="venda";
   const nome = op.ticker ? esc(op.ticker) : "novo ativo";
   const verbo = venda ? (rf ? "Resgatar" : "Vender") : (rf ? "Aplicar" : "Comprar");
@@ -1870,6 +1885,7 @@ function renderOp(){
 // Recalcula a prévia e o botão a cada tecla, sem redesenhar a folha (para não tirar o foco do campo)
 function atualizarOp(){
   if(!op || !$("#op-previa")) return;
+  if(op.modo==="evento") return atualizarEvento();
   const d = dadosOp(), p = posDe(d.ticker), rf = d.classe==="rf", venda = d.tipo==="venda";
   const info = $("#op-preco-info");
   if(info) info.textContent = op.buscando ? "buscando a cotação de agora…"
@@ -1914,6 +1930,7 @@ function passoOp(sinal){
   i.value = numInput(+v.toFixed(8)); atualizarOp();
 }
 function confirmarOp(){
+  if(op.modo==="evento") return confirmarEvento();
   const d = dadosOp(), msg = $("#op-msg");
   const erro = validarTx(d); if(erro){ msg.textContent = erro; return; }
   const r = registrarTx(d); if(r.erro){ msg.textContent = r.erro; return; }
@@ -1926,6 +1943,64 @@ function confirmarOp(){
     : `${d.tipo==="venda"?"Venda":"Compra"} de ${qtdFmt(d.qtd)} ${d.ticker} registrada`);
 }
 
+/* ---------- Desdobramento e grupamento (na mesma folha, aberta pelos detalhes do ativo) ---------- */
+// Mostra a quantidade antes e depois na data do evento e o novo preço médio; o custo total fica igual.
+function renderEvento(){
+  const p = posDe(op.ticker), t = esc(op.ticker), grup = op.ev==="grupamento", un = op.classe==="fii" ? ["cota","cotas"] : op.classe==="cripto" ? ["unidade","unidades"] : ["ação","ações"];
+  $("#op-conteudo").innerHTML = `
+    <div class="op-cab"><i class="pinta" style="background:${corDe(op.classe)}"></i><h2>Desdobramento ou grupamento de ${t}</h2></div>
+    ${p ? `<p class="op-sub">Você tem ${qtdFmt(p.qtd)} · preço médio ${brl(p.pm)}</p>` : ""}
+    <div class="segmento" role="group" aria-label="Evento">
+      <button data-act="op-ev" data-e="desdobro" aria-pressed="${!grup}">Desdobramento</button>
+      <button data-act="op-ev" data-e="grupamento" aria-pressed="${grup}">Grupamento</button></div>
+    <div class="op-linha2"><label>Cada<input id="op-de" inputmode="decimal" value="${grup?10:1}" aria-label="Quantidade antes"><small>${grup?un[1]:un[0]} que você tinha</small></label>
+      <label>${grup?"viram":"vira"}<input id="op-para" inputmode="decimal" value="${grup?1:2}" aria-label="Quantidade depois"><small>${grup?un[0]:un[1]} depois do evento</small></label></div>
+    <label>A partir de<input type="date" id="op-data" value="${hojeISO()}"><small>a data em que a quantidade mudou na corretora</small></label>
+    <div class="op-previa" id="op-previa" aria-live="polite"></div>
+    <p class="erro" id="op-msg"></p>
+    <div class="op-acoes"><button class="btn" data-act="op-fechar">Cancelar</button><button class="btn pri" data-act="op-confirmar" id="op-ok">Registrar</button></div>`;
+  atualizarEvento();
+  const foco = $(grup ? "#op-de" : "#op-para"); if(foco) foco.select ? foco.select() : foco.focus();
+}
+function dadosEvento(){
+  return {data: campoOp("op-data") || hojeISO(), tipo:"desdobro", classe: op.classe, ticker: op.ticker, de: parseNum(campoOp("op-de")), para: parseNum(campoOp("op-para"))};
+}
+function validarEvento(d){
+  if(!(d.de>0) || !(d.para>0)) return "Informe as duas quantidades.";
+  if(op.ev==="grupamento" ? !(d.de>d.para) : !(d.para>d.de)) return op.ev==="grupamento" ? "No grupamento, várias viram uma: o primeiro número é o maior." : "No desdobramento, uma vira várias: o segundo número é o maior.";
+  if(!d.data) return "Informe a data.";
+  return null;
+}
+function atualizarEvento(){
+  const d = dadosEvento(), erro = validarEvento(d), un = op.classe==="fii" ? "cotas" : op.classe==="cripto" ? "unidades" : "ações";
+  const antes = calcular(d.data).lista.find(p=>p.ticker===d.ticker), q = antes ? antes.qtd : 0;
+  let previa = "", ok = !erro && q>0;
+  if(!erro && !q) previa = `<span class="neg">Você não tinha ${esc(d.ticker)} em ${dataBR(d.data)}.</span>`;
+  else if(!erro){
+    const exato = q*d.para/d.de, n = qtdDesdobrada(q, d), pmAntes = antes.custo/q, custo = antes.custo*n/exato;
+    previa = `<strong>${qtdFmt(q)} ${un} passam a ser ${qtdFmt(n)}</strong>` + (n>0 ? `<br>Preço médio vai de ${brl(pmAntes)} para ${brl(custo/n)}` : "")
+      + (exato-n>1e-9 ? `<br>Sobra uma fração de ${qtdFmt(+(exato-n).toFixed(6))}: a empresa vende em leilão e deposita o dinheiro. Quando cair, lance em Proventos como "Outro".` : "")
+      + `<br><span class="mini" style="display:inline">O custo total não muda e não há imposto.</span>`;
+  }
+  $("#op-previa").innerHTML = previa; $("#op-previa").hidden = !previa;
+  const b = $("#op-ok"); b.textContent = !erro ? `Registrar ${op.ev==="grupamento"?"grupamento":"desdobramento"} ${proporcao(d)}` : "Registrar"; b.disabled = !ok;
+}
+function confirmarEvento(){
+  const d = dadosEvento(), msg = $("#op-msg"), erro = validarEvento(d);
+  if(erro){ msg.textContent = erro; return; }
+  const tx = Object.assign({id:uid(), criado:Date.now()}, d);
+  const prob = vendaSemSaldo([...S.txs, tx]);
+  if(prob && !vendaSemSaldo(S.txs)){ msg.textContent = `Com esse evento, ${descreverVenda(prob.tx)} ficaria sem saldo. Confira a proporção ou a data.`; return; }
+  // Cotação guardada de antes do evento ainda está na proporção antiga
+  const pr = S.precos[d.ticker]; if(pr && pr.em && pr.em < d.data) pr.v = pr.v*d.de/d.para;
+  S.txs.push(tx);
+  registrarHist(); salvar("lancamentos","carteira","historico");
+  $("#dlg-op").close(); op = null;
+  const y = window.scrollY; render("ativos"); window.scrollTo(0,y);
+  const p = posDe(d.ticker);
+  toast(`${nomeEvento(d)} de ${d.ticker} registrado${p ? ": agora são "+qtdFmt(p.qtd) : ""}`);
+}
+
 /* ---------- Lançamentos ---------- */
 function rLancamentos(el){
   const lista = ordenarTxs(S.txs).reverse();
@@ -1933,7 +2008,7 @@ function rLancamentos(el){
   const ed = editando && S.txs.find(x=>x.id===editando);
   if(!ed) editando = null;
   el.innerHTML = `<h2>Lançamentos</h2>
-  <p class="sub">Registre cada compra e venda, incluindo as taxas da nota de corretagem. O preço médio e o imposto saem daqui. Ou <button class="link" data-act="abrir-importar">importe o extrato da B3</button>.</p>
+  <p class="sub">Registre cada compra e venda, incluindo as taxas da nota de corretagem. O preço médio e o imposto saem daqui. Ou <button class="link" data-act="abrir-importar">importe o extrato da B3</button>. Desdobramentos e grupamentos são registrados em Ativos, nos detalhes do ativo.</p>
   <form id="f-tx" class="card${ed?" editando":""}" novalidate>
     ${ed?`<p class="editando-rot">Editando ${ed.classe==="rf"?(ed.tipo==="compra"?"a aplicação":"o resgate"):(ed.tipo==="compra"?"a compra":"a venda")} de <strong>${esc(ed.ticker)}</strong> de ${dataBR(ed.data)}${ed.classe==="rf"?". Na renda fixa, dá para mudar a data e o valor.":""}</p>`:""}
     <div class="campos">
@@ -1954,6 +2029,9 @@ function rLancamentos(el){
   ${lista.length?`<div class="rolagem altura"><table class="cartoes">
     <thead><tr><th>Data</th><th class="esq">Ativo</th><th class="esq">Operação</th><th>Quantidade</th><th>Preço</th><th>Taxas</th><th>Total</th><th></th></tr></thead>
     <tbody>${lista.map(t=>{
+      if(t.tipo==="desdobro") return `<tr><td>${dataBR(t.data)}</td><td class="esq"><i class="pinta" style="background:${corDe(t.classe)};margin-right:8px"></i><span class="tk">${esc(t.ticker)}</span></td><td class="esq">${nomeEvento(t)} ${proporcao(t)}</td>
+      <td>—</td><td>—</td><td>—</td><td>—</td>
+      <td><span class="acoes-linha"><button class="btn peq perigo" data-act="del-tx" data-id="${esc(t.id)}" data-armar="Confirmar">Excluir</button></span></td></tr>`;
       const rf=t.classe==="rf"; const tot = rf?t.valor:t.qtd*t.preco+(t.tipo==="compra"?1:-1)*(t.taxas||0);
       const op = rf ? (t.tipo==="compra"?"Aplicação":"Resgate") : (t.tipo==="compra"?"Compra":"Venda");
       return `<tr${t.id===editando?' class="sel"':""}><td>${dataBR(t.data)}</td><td class="esq"><i class="pinta" style="background:${corDe(t.classe)};margin-right:8px"></i><span class="tk">${esc(t.ticker)}</span></td><td class="esq">${op}</td>
@@ -2057,7 +2135,8 @@ function addTx(f){
 /* Edição: o lançamento mantém id e ordem de criação; a validação de saldo é a mesma do lançamento novo */
 let editando = null;
 function editarTx(id){
-  if(!S.txs.some(x=>x.id===id)) return;
+  const t = S.txs.find(x=>x.id===id); if(!t) return;
+  if(t.tipo==="desdobro"){ toast("Para corrigir um desdobramento ou grupamento, exclua e registre de novo em Ativos."); return; }
   editando = id; render("lancamentos");
   const f = $("#f-tx"); if(f.scrollIntoView) f.scrollIntoView({block:"start"});
   f.elements.namedItem("data").focus();
@@ -2582,7 +2661,8 @@ function baixarNoNavegador(nome, conteudo){
 function csvLanc(){
   // Padrão brasileiro: ponto e vírgula entre colunas e vírgula decimal, como o Excel em português espera
   const L=[["data","classe","ativo","operacao","quantidade","preco","taxas","valor"]];
-  ordenarTxs(S.txs).forEach(t=>L.push([t.data,t.classe,t.ticker,t.tipo,t.qtd??"",t.preco??"",t.taxas??"",t.valor??""]));
+  ordenarTxs(S.txs).forEach(t=>L.push(t.tipo==="desdobro" ? [t.data,t.classe,t.ticker,nomeEvento(t).toLowerCase(),proporcao(t),"","",""]
+    : [t.data,t.classe,t.ticker,t.tipo,t.qtd??"",t.preco??"",t.taxas??"",t.valor??""]));
   return L.map(r=>r.map(v=>{ const s = typeof v==="number" ? String(v).replace(".",",") : String(v); return /[;"\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s; }).join(";")).join("\n");
 }
 function importar(arquivo){
@@ -2643,6 +2723,8 @@ document.addEventListener("click", e=>{
   else if(a==="filtro-ativos"){ filtroAtivos = b.dataset.k; abertoAtivo = null; render("ativos"); }
   else if(a==="op-compra" || a==="op-venda") abrirOp(a==="op-venda" ? "venda" : "compra", b.dataset.t);
   else if(a==="op-novo") abrirOp("novo", "");
+  else if(a==="op-evento"){ abrirOp("evento", b.dataset.t); }
+  else if(a==="op-ev"){ op.ev = b.dataset.e; renderEvento(); }
   else if(a==="op-modo"){ op.modo = b.dataset.m; renderOp(); }
   else if(a==="op-menos" || a==="op-mais") passoOp(a==="op-mais" ? 1 : -1);
   else if(a==="op-tudo"){ const p = posDe(op.ticker); if(p){ $("#op-qtd").value = numInput(p.qtd); atualizarOp(); } }
