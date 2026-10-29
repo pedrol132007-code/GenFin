@@ -480,6 +480,25 @@ excluirBem(S.bens[1].id); ok(S.bens.length===1, "exclui o bem");
 const elRes = fakeEl(); abaAtual="ir"; rResumo(elRes);
 ok(/Investimentos hoje/.test(elRes.innerHTML) && /patrimônio total é/.test(elRes.innerHTML), "Resumo mostra o patrimônio total quando há bens");
 
+// 22. Modo privacidade: valores em reais escondidos na tela
+{
+  S = vazio(); S.atualizado = 1; privado = false; delete mem[LS_PRIVADO]; avisos2 = [];
+  add({classe:"acao",tipo:"compra",data:"2026-01-05",ticker:"PETR4",qtd:"100",preco:"30"});
+  add({classe:"rf",tipo:"compra",data:"2026-01-05",ticker:"CDB Z",valor:"1000"});
+  S.bens = [{id:"b1", nome:"Carro", categoria:"veiculo", valor:50000}];
+  alternarPrivado();
+  ok(privado && mem[LS_PRIVADO]==="1" && /escondidos/.test(avisos2.pop()||""), "botão do olho liga o modo e guarda a escolha");
+  ok(brl(1234.5)==="R$ ••••" && brlSinal(10)==="+R$ ••••" && abrev(150000)==="R$ ••", "valores em reais viram pontinhos");
+  // Limites da lei (isenção de R$ 20 mil, DARF abaixo de R$ 10…) continuam escritos; valores da carteira não
+  const temValor = h => /R\\$\\s*\\d/.test(h.replace(/R\\$ (\\d+ mil|10 )/g, ""));
+  const elR = fakeEl(), elA = fakeEl(), elI = fakeEl(); abaAtual = "ir"; rResumo(elR); rAtivos(elA); rIR(elI);
+  ok(!temValor(elR.innerHTML) && !temValor(elA.innerHTML) && !temValor(elI.innerHTML), "Resumo, Ativos e IR sem nenhum valor em reais");
+  ok(/%/.test(elR.innerHTML) && /100 × /.test(elA.innerHTML), "percentuais e quantidades continuam à mostra");
+  ok(/;30;/.test(csvLanc()) && JSON.stringify(dadosParaIA()).indexOf("•")<0, "CSV, backup e dados da IA não mudam");
+  alternarPrivado();
+  ok(!privado && !mem[LS_PRIVADO] && /R\\$\\s30,00/.test(brl(30)), "desligar mostra os valores de novo");
+}
+
 // 21. Renda fixa que rende sozinha: % do CDI, prefixado e IPCA +
 {
   S = vazio(); S.atualizado = 1; buscandoIndices = true;   // sem buscas de verdade aqui

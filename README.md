@@ -46,12 +46,13 @@ Preço médio, alocação, proventos, rebalanceamento e imposto de renda para qu
 |---|---|
 | 📊 **Resumo** | Patrimônio, valorização em aberto, lucro realizado, proventos e resultado sobre o total aportado. Alocação atual comparada com a meta, gráfico de evolução e comparação com o CDI e o Ibovespa. |
 | 🔎 **Análises** | Leituras automáticas feitas no aparelho: concentração, distância das metas, cotações antigas, limites de isenção e DARF do mês, desempenho contra o CDI, proventos e lembrete de backup. Resumo escrito por IA (Groq, gratuito), sem precisar de chave no aparelho. |
-| 💹 **Ativos** | Lista compacta por classe (com filtro), valor e resultado de cada ativo; tocar abre preço médio, peso, proventos e a cotação para corrigir. Botões **+** e **−** em cada ativo para comprar ou vender na hora, com o preço de agora, a prévia do novo preço médio e, na venda, o resultado e o limite de isenção do mês. |
-| 🧾 **Lançamentos** | Compras e vendas com taxas da nota de corretagem, ou importadas do extrato da B3. Aplicações e resgates de renda fixa. Editar e excluir, sempre impedindo vendas maiores que o saldo, inclusive em datas retroativas. |
+| 💹 **Ativos** | Lista compacta por classe (com filtro), valor e resultado de cada ativo; tocar abre preço médio, peso, proventos e a cotação para corrigir. Botões **+** e **−** em cada ativo para comprar ou vender na hora, com o preço de agora, a prévia do novo preço médio e, na venda, o resultado e o limite de isenção do mês. Desdobramentos e grupamentos registrados no próprio ativo, com a nova quantidade e o novo preço médio. |
+| 🧾 **Lançamentos** | Compras e vendas com taxas da nota de corretagem, ou importadas do extrato da B3. Aplicações e resgates de renda fixa, com o indexador (% do CDI, prefixado ou IPCA +) para o valor se atualizar sozinho. Editar e excluir, sempre impedindo vendas maiores que o saldo, inclusive em datas retroativas. |
 | 💰 **Proventos** | Dividendos, JCP e rendimentos de FIIs, digitados ou importados da B3, com gráfico dos últimos 12 meses e rendimento sobre o custo por ativo. |
 | ⚖️ **Rebalancear** | Metas por classe e sugestão de como dividir um novo aporte para se aproximar delas, só com compras. |
 | 🦁 **Imposto de renda** | Apuração mensal com isenções, compensação de prejuízo e DARF; bens e direitos em 31/12; proventos do ano separados por tipo. |
 | 📦 **Inventário** | Bens que não são investimentos (imóveis, veículos, eletrônicos, videogames, lazer e esporte, móveis, coleções, dinheiro guardado), cada categoria com seu ícone, com valor estimado, valor pago e financiamento. Mostra o patrimônio total e leva os bens marcados para Bens e direitos do IR. |
+| 👁️ **Modo privacidade** | O olho no topo esconde todos os valores em reais (percentuais e quantidades continuam), para abrir o app em público. A escolha fica no aparelho. |
 | 📰 **Notícias** | Manchetes do Google Notícias dos seus ativos, num ícone no topo com o número de novidades, nas três mais recentes do Resumo e numa aba com filtro por ativo. Tocar abre a notícia no Google. |
 
 Cinco classes de ativo: **ações**, **ETFs**, **FIIs**, **renda fixa** e **cripto**.
@@ -135,7 +136,8 @@ O resumo mostra quanto a carteira teria hoje se **os mesmos aportes, vendas e pr
 |---|---|---|---|
 | Ações, ETFs e FIIs | [brapi.dev](https://brapi.dev) | Gratuita, 15 mil consultas por mês | Dados a cada 30 minutos |
 | Cripto | [Mercado Bitcoin](https://www.mercadobitcoin.com.br) | Não precisa | Último negócio em reais |
-| Renda fixa | Você digita o valor atual do título | — | — |
+| Renda fixa com indexador | Séries do CDI e do IPCA do [Banco Central](https://dadosabertos.bcb.gov.br) | Não precisa | Valor na curva, antes do IR, todo dia |
+| Renda fixa sem indexador | Você digita o valor atual do título | — | — |
 
 - O app busca sozinho ao abrir, no máximo a cada 30 minutos, e há um botão **Atualizar cotações**.
 - No plano gratuito, a brapi responde um ativo por consulta; o app faz quatro de cada vez.

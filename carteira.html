@@ -139,6 +139,11 @@ tr.sel{background:var(--soft)}
 .ic-topo{position:relative;flex:none;width:40px;height:40px;border-radius:10px;border:1px solid var(--line);background:var(--surface);
   color:var(--ink);display:grid;place-items:center;cursor:pointer;-webkit-tap-highlight-color:transparent}
 .ic-topo:hover{border-color:var(--muted)}
+.ic-topo .risco{display:none}
+.ic-topo[aria-pressed="true"]{color:var(--focus)}
+.ic-topo[aria-pressed="true"] .risco{display:inline}
+/* No modo privacidade, o valor dos bens na lista também fica escondido (a edição continua funcionando) */
+body.privado input.valbem:not(:focus){-webkit-text-security:disc;color:var(--muted)}
 .ic-topo svg{width:21px;height:21px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
 .contador{position:absolute;top:-6px;right:-6px;min-width:19px;height:19px;padding:0 5px;border-radius:10px;background:var(--neg);color:#fff;
   font-size:.7rem;font-weight:700;line-height:19px;text-align:center;box-shadow:0 0 0 2px var(--bg)}
@@ -255,7 +260,8 @@ tr.sel{background:var(--soft)}
 .stepper button{border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:8px;font-size:1.3rem;cursor:pointer}
 .stepper input{text-align:center;font-size:1.25rem;font-weight:650}
 .op-tudo{margin-top:6px;font-size:.88rem}
-.op-linha2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.op-linha2{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:10px}
+.op-linha2 input, .op-linha2 select{width:100%;min-width:0}
 .op-previa{background:var(--soft);border-radius:10px;padding:10px 12px;margin:14px 0 0;font-size:.9rem;line-height:1.55}
 .op-acoes{display:flex;gap:8px;margin-top:12px}
 .op-acoes .pri{flex:1;justify-content:center}
@@ -348,7 +354,8 @@ textarea{width:100%;min-height:140px;font:12px/1.4 ui-monospace,Menlo,monospace;
 .doca{display:none}
 @media (max-width:720px){
   nav.abas, .bar .acoes{display:none}
-  .bar{padding:12px 0 12px;gap:10px}
+  .bar{padding:12px 0 12px;gap:8px;flex-wrap:nowrap}
+  .estado{flex:1 1 0;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-left:2px}
   main{padding-bottom:calc(104px + var(--safe-area-inset-bottom,env(safe-area-inset-bottom,0px)))}
   #toast{bottom:calc(86px + var(--safe-area-inset-bottom,env(safe-area-inset-bottom,0px)))}
   .doca{display:flex;position:fixed;left:0;right:0;bottom:0;z-index:6;background:var(--doca);border-top:1px solid var(--doca-linha);
@@ -414,6 +421,7 @@ textarea{width:100%;min-height:140px;font:12px/1.4 ui-monospace,Menlo,monospace;
     <div class="bar">
       <h1 class="marca"><svg class="logo" xmlns="http://www.w3.org/2000/svg" viewBox="-109.74 -78.5 394.54 86.49" role="img" aria-label="GenFin"><title>GenFin</title><g transform="translate(-109.74 -78.5) scale(0.86)"><clipPath id="gm-app"><rect width="100" height="100" rx="23"/></clipPath><g clip-path="url(#gm-app)"><rect x="0" y="0" width="22.5" height="100" fill="#2B5C8F"/><rect x="25.5" y="0" width="15" height="100" fill="#6A4C9C"/><rect x="43.5" y="0" width="17" height="100" fill="#B98323"/><rect x="63.5" y="0" width="19" height="100" fill="#3B7D5C"/><rect x="85.5" y="0" width="14.5" height="100" fill="#D0662A"/></g><path d="M30.10 1.40L30.10 1.40Q21.50 1.40 15.35-2.90Q9.20-7.20 5.95-14.85Q2.70-22.50 2.70-32.50L2.70-32.50Q2.70-39.90 4.55-46.25Q6.40-52.60 10.30-57.35Q14.20-62.10 20.20-64.75Q26.20-67.40 34.50-67.40L34.50-67.40Q41.50-67.40 46.55-65.50Q51.60-63.60 54.80-60.20Q58-56.80 59.30-52.35Q60.60-47.90 60.10-42.80L60.10-42.80L45-41Q45.20-45.50 43.90-48.35Q42.60-51.20 40.05-52.60Q37.50-54 33.90-54L33.90-54Q29.60-54 26.40-51.70Q23.20-49.40 21.45-44.80Q19.70-40.20 19.70-33.30L19.70-33.30Q19.70-28.20 20.70-24.15Q21.70-20.10 23.70-17.35Q25.70-14.60 28.65-13.15Q31.60-11.70 35.40-11.70L35.40-11.70Q39.20-11.70 41.90-13.05Q44.60-14.40 46.05-16.75Q47.50-19.10 47.50-22.20L47.50-22.20L37.10-22.20L37.10-33.60L61.90-33.60L61.90-21.20L61.90 0L50.80 0L50.80-17.80L49.90-17.80Q49.40-11.60 46.95-7.30Q44.50-3 40.25-0.80Q36 1.40 30.10 1.40Z" fill="#FFFFFF" transform="scale(0.87) translate(25.03 90.33)"/></g><path d="M30.10 1.40L30.10 1.40Q21.50 1.40 15.35-2.90Q9.20-7.20 5.95-14.85Q2.70-22.50 2.70-32.50L2.70-32.50Q2.70-39.90 4.55-46.25Q6.40-52.60 10.30-57.35Q14.20-62.10 20.20-64.75Q26.20-67.40 34.50-67.40L34.50-67.40Q41.50-67.40 46.55-65.50Q51.60-63.60 54.80-60.20Q58-56.80 59.30-52.35Q60.60-47.90 60.10-42.80L60.10-42.80L45-41Q45.20-45.50 43.90-48.35Q42.60-51.20 40.05-52.60Q37.50-54 33.90-54L33.90-54Q29.60-54 26.40-51.70Q23.20-49.40 21.45-44.80Q19.70-40.20 19.70-33.30L19.70-33.30Q19.70-28.20 20.70-24.15Q21.70-20.10 23.70-17.35Q25.70-14.60 28.65-13.15Q31.60-11.70 35.40-11.70L35.40-11.70Q39.20-11.70 41.90-13.05Q44.60-14.40 46.05-16.75Q47.50-19.10 47.50-22.20L47.50-22.20L37.10-22.20L37.10-33.60L61.90-33.60L61.90-21.20L61.90 0L50.80 0L50.80-17.80L49.90-17.80Q49.40-11.60 46.95-7.30Q44.50-3 40.25-0.80Q36 1.40 30.10 1.40ZM90.10 1.40L90.10 1.40Q82.60 1.40 77.55-0.75Q72.50-2.90 69.40-6.65Q66.30-10.40 64.95-15.20Q63.60-20 63.60-25.30L63.60-25.30Q63.60-31 65.05-36.20Q66.50-41.40 69.55-45.45Q72.60-49.50 77.45-51.85Q82.30-54.20 89.10-54.20L89.10-54.20Q95.90-54.20 100.75-51.85Q105.60-49.50 108.50-45.30Q111.40-41.10 112.25-35.60Q113.10-30.10 112-23.70L112-23.70L73.70-23.10L73.70-31.90L99.60-32.40L97.50-27.30Q98.10-31.90 97.35-35.05Q96.60-38.20 94.60-39.85Q92.60-41.50 89.10-41.50L89.10-41.50Q85.40-41.50 83.20-39.60Q81-37.70 80.10-34.25Q79.20-30.80 79.20-26.10L79.20-26.10Q79.20-18 81.90-14.30Q84.60-10.60 90.20-10.60L90.20-10.60Q92.60-10.60 94.20-11.20Q95.80-11.80 96.80-12.95Q97.80-14.10 98.20-15.75Q98.60-17.40 98.50-19.50L98.50-19.50L113.30-18.70Q113.60-15.40 112.65-11.90Q111.70-8.40 109.10-5.40Q106.50-2.40 101.85-0.50Q97.20 1.40 90.10 1.40ZM131.40 0L115.20 0L115.20-29.90L115.20-52.80L128.90-52.80L128.90-31.30L129.70-31.30Q130.30-39.10 132.30-44.15Q134.30-49.20 138-51.70Q141.70-54.20 147.40-54.20L147.40-54.20Q156-54.20 160.35-48.50Q164.70-42.80 164.70-31.50L164.70-31.50L164.70 0L148.50 0L148.50-29.40Q148.50-34.80 146.85-37.50Q145.20-40.20 141.60-40.20L141.60-40.20Q138.60-40.20 136.30-38.10Q134-36 132.70-31.30Q131.40-26.60 131.40-18.70L131.40-18.70L131.40 0ZM184.50 0L168.30 0L168.30-66L184.50-66L184.50 0ZM210-23.50L176.40-23.50L176.40-36.70L210-36.70L210-23.50ZM213.40-52.50L176.40-52.50L176.40-66L213.40-66L213.40-52.50ZM231.60 0L215.40 0L215.40-52.80L231.60-52.80L231.60 0ZM223.40-56.60L223.40-56.60Q218.80-56.60 216.35-58.55Q213.90-60.50 213.90-64.20L213.90-64.20Q213.90-68 216.35-69.95Q218.80-71.90 223.40-71.90L223.40-71.90Q228.10-71.90 230.55-69.90Q233-67.90 233-64.20L233-64.20Q233-60.60 230.55-58.60Q228.10-56.60 223.40-56.60ZM251.50 0L235.30 0L235.30-29.90L235.30-52.80L249.00-52.80L249.00-31.30L249.80-31.30Q250.40-39.10 252.40-44.15Q254.40-49.20 258.10-51.70Q261.80-54.20 267.50-54.20L267.50-54.20Q276.10-54.20 280.45-48.50Q284.80-42.80 284.80-31.50L284.80-31.50L284.80 0L268.60 0L268.60-29.40Q268.60-34.80 266.95-37.50Q265.30-40.20 261.70-40.20L261.70-40.20Q258.70-40.20 256.40-38.10Q254.10-36 252.80-31.30Q251.50-26.60 251.50-18.70L251.50-18.70L251.50 0Z" fill="var(--ink)"/></svg></h1>
       <span class="estado" id="estado">Carregando…</span>
+      <button class="ic-topo" id="bt-privado" data-act="privacidade" aria-pressed="false" aria-label="Esconder valores" title="Esconder valores"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/><circle cx="12" cy="12" r="3"/><path class="risco" d="M4 4l16 16"/></svg></button>
       <button class="ic-topo" data-act="ir-aba" data-aba="noticias" aria-label="Notícias dos seus ativos" title="Notícias"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5" width="13" height="14" rx="1.5"/><path d="M16.5 9h3v8.5a1.5 1.5 0 0 1-3 0M7 9h6M7 12.5h6M7 16h4"/></svg><span class="contador" id="cont-noticias" hidden></span></button>
       <div class="acoes">
         <button class="btn peq" data-act="backup">Backup</button>
@@ -527,7 +535,11 @@ const LS_KEY = "carteira-v1";
 const ABAS = ["resumo","analises","ativos","lancamentos","proventos","rebalancear","ir","inventario","noticias"];
 
 const BRL = new Intl.NumberFormat("pt-BR",{style:"currency",currency:"BRL"});
-const brl = v => BRL.format(Number.isFinite(v)?v:0);
+// Modo privacidade: valores em reais viram "R$ ••••" na tela (percentuais e quantidades continuam). Fica só neste aparelho.
+const LS_PRIVADO = "genfin-privado";
+let privado = (()=>{ try{ return localStorage.getItem(LS_PRIVADO)==="1"; }catch(e){ return false; } })();
+const OCULTO = "R$ ••••";
+const brl = v => privado ? OCULTO : BRL.format(Number.isFinite(v)?v:0);
 const brlSinal = v => (v>0?"+":"") + brl(v);
 const pct = (v,d=1) => Number.isFinite(v) ? (v*100).toLocaleString("pt-BR",{minimumFractionDigits:d,maximumFractionDigits:d})+"%" : "—";
 const pctSinal = v => Number.isFinite(v) ? (v>0?"+":"")+pct(v) : "—";
@@ -1053,6 +1065,16 @@ function irPara(aba){
   window.scrollTo(0,0);
 }
 function renderTudo(){ atualizarDatalist(); render(abaAtual); $("#aviso-demo").classList.toggle("oculto", !demo); }
+function atualizarPrivado(){
+  const b = $("#bt-privado"); b.setAttribute("aria-pressed", String(privado));
+  b.setAttribute("aria-label", privado ? "Mostrar valores" : "Esconder valores"); b.title = privado ? "Mostrar valores" : "Esconder valores";
+  if(document.body && document.body.classList) document.body.classList.toggle("privado", privado);
+}
+function alternarPrivado(){
+  privado = !privado; gravarLS(LS_PRIVADO, privado ? "1" : "");
+  atualizarPrivado(); renderTudo();
+  toast(privado ? "Valores escondidos. Toque no olho para mostrar." : "Valores à mostra");
+}
 // Tabelas que viram cartões no celular: cada célula ganha o rótulo da sua coluna (o texto do cabeçalho,
 // sem a legenda pequena), o conteúdo vai num <span class="v"> e a coluna "Ativo" vira o título do cartão
 function rotularTabela(t){
@@ -1106,6 +1128,7 @@ function graficoLinhas(series, opts={}){
   return `<div class="grafico"><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(opts.rotulo||"Gráfico")}">${g}</svg></div>`;
 }
 function abrev(v){
+  if(privado) return "R$ ••";
   const a=Math.abs(v);
   if(a>=1e6) return "R$ "+(v/1e6).toLocaleString("pt-BR",{maximumFractionDigits:1})+" mi";
   if(a>=1e3) return "R$ "+(v/1e3).toLocaleString("pt-BR",{maximumFractionDigits:1})+" mil";
@@ -2853,6 +2876,7 @@ document.addEventListener("click", e=>{
   else if(a==="op-compra" || a==="op-venda") abrirOp(a==="op-venda" ? "venda" : "compra", b.dataset.t);
   else if(a==="op-novo") abrirOp("novo", "");
   else if(a==="op-evento"){ abrirOp("evento", b.dataset.t); }
+  else if(a==="privacidade") alternarPrivado();
   else if(a==="rende-salvar"){
     const box = b.closest("[data-rende]"), t = b.dataset.t;
     const erro = salvarRende(t, box.querySelector(".rende-idx").value, box.querySelector(".rende-num").value);
@@ -2920,6 +2944,7 @@ document.addEventListener("keydown", e=>{
 window.addEventListener("hashchange", ()=>{ const h=location.hash.slice(1); if(ABAS.includes(h)) irPara(h); });
 
 /* ---------- Início ---------- */
+atualizarPrivado();
 carregarLocal();
 atualizarDatalist();
 irPara(ABAS.includes(location.hash.slice(1)) ? location.hash.slice(1) : "resumo");
