@@ -480,6 +480,47 @@ excluirBem(S.bens[1].id); ok(S.bens.length===1, "exclui o bem");
 const elRes = fakeEl(); abaAtual="ir"; rResumo(elRes);
 ok(/Investimentos hoje/.test(elRes.innerHTML) && /patrimônio total é/.test(elRes.innerHTML), "Resumo mostra o patrimônio total quando há bens");
 
+// 23. Proventos anunciados na B3: a receber, já caiu e registrar com um toque
+{
+  S = vazio(); S.atualizado = 1; avisos2 = []; delete mem[LS_ANUNCIADOS]; delete mem[LS_PROV_IGNORADOS];
+  const d = n => somarDias(hojeISO(), n);
+  add({classe:"acao",tipo:"compra",data:d(-90),ticker:"ITSA4",qtd:"100",preco:"10"});
+  add({classe:"fii",tipo:"compra",data:d(-90),ticker:"MXRF11",qtd:"200",preco:"10"});
+  add({classe:"acao",tipo:"compra",data:d(-5),ticker:"PETR4",qtd:"50",preco:"30"});   // comprou depois da data com
+  add({classe:"cripto",tipo:"compra",data:d(-5),ticker:"BTC",qtd:"0,01",preco:"300000"});
+  const anunc = {ITSA4:[{tipo:"jcp",valor:0.5,dataCom:d(-20),pagamento:d(-2)}, {tipo:"dividendo",valor:1,dataCom:d(-20),pagamento:d(10)}],
+    MXRF11:[{tipo:"rendimento",valor:0.1,dataCom:d(3),pagamento:d(15)}], PETR4:[{tipo:"jcp",valor:2,dataCom:d(-10),pagamento:d(5)}]};
+  let urls = [];
+  globalThis.__fetch = url => { urls.push(url); const t = url.split("t=")[1].split("&")[0]; return resp(200, {itens: anunc[t]||[]}); };
+  await carregarAnunciados();
+  ok(urls.length===3 && urls.every(u=>u.includes("/api/proventos?t=")) && urls.some(u=>u.includes("t=MXRF11&c=fii")) && !urls.some(u=>u.includes("BTC")), "busca os anunciados de cada ação e FII, só pelo código");
+  urls = []; await carregarAnunciados();
+  ok(urls.length===0, "dentro de 6 horas não busca de novo");
+  const prev = proventosPrevistos(), acha = (t, tipo) => prev.find(i=>i.ticker===t && i.tipo===tipo);
+  const jcp = acha("ITSA4","jcp"), div = acha("ITSA4","dividendo"), mx = acha("MXRF11","rendimento");
+  ok(jcp.status==="caiu" && Math.abs(jcp.liquido-42.5)<1e-9 && div.status==="receber" && div.liquido===100, "JCP já pago fica para registrar, com 15% de IR; dividendo a receber");
+  ok(mx.futuro && mx.qtd===200 && Math.abs(mx.liquido-20)<1e-9 && mx.status==="receber", "data com futura usa a quantidade de hoje");
+  ok(!prev.some(i=>i.ticker==="PETR4"), "quem comprou depois da data com não recebe");
+  const elP = fakeEl(); abaAtual = "proventos"; rProventos(elP);
+  ok(elP.innerHTML.includes("A receber") && elP.innerHTML.includes("prov-registrar") && elP.innerHTML.includes("data com "+dataBR(d(-20))), "aba Proventos mostra o que vai entrar e o que já caiu");
+  const elR = fakeEl(); abaAtual = "resumo"; rResumo(elR);
+  ok(elR.innerHTML.includes("a receber nos próximos 30 dias") && elR.innerHTML.includes("falta registrar"), "Resumo mostra o que vai entrar e o que falta registrar");
+  registrarAnunciado(jcp.id);
+  ok(S.provs.length===1 && S.provs[0].valor===42.5 && S.provs[0].tipo==="jcp" && S.provs[0].data===d(-2) && (avisos2.pop()||"").includes("ITSA4 registrado"), "registrar lança o provento com o valor estimado e a data do pagamento");
+  ok(!proventosPrevistos().some(i=>i.status==="caiu"), "depois de registrado, sai do que caiu");
+  S.provs = [{id:"x", data:d(-1), ticker:"ITSA4", tipo:"jcp", valor:42.4}];
+  ok(proventosPrevistos().find(i=>i.id===jcp.id).status==="registrado", "provento importado do extrato, um dia depois e com centavos de diferença, conta como registrado");
+  S.provs = [{id:"y", data:d(-1), ticker:"ITSA4", tipo:"dividendo", valor:42.5}];
+  ok(proventosPrevistos().find(i=>i.id===jcp.id).status==="caiu", "dividendo lançado não conta como o JCP");
+  S.provs = [];
+  ignorarAnunciado(jcp.id);
+  ok(proventosPrevistos().find(i=>i.id===jcp.id).status==="antigo", "Não recebi tira da lista");
+  const ia = dadosParaIA().proventos_a_receber;
+  ok(analisar().some(a=>a.titulo.startsWith("Proventos a receber")) && ia.length===2 && ia.every(i=>i.pct_do_custo>0) && JSON.stringify(ia).indexOf("R$")<0, "análise e IA veem o que vai entrar, em % do custo");
+  ok(sugestoesIA().includes("Quais proventos vou receber nos próximos meses?"), "sugere perguntar à IA sobre os proventos a receber");
+  delete mem[LS_ANUNCIADOS]; delete mem[LS_PROV_IGNORADOS];
+}
+
 // 22. Modo privacidade: valores em reais escondidos na tela
 {
   S = vazio(); S.atualizado = 1; privado = false; delete mem[LS_PRIVADO]; avisos2 = [];

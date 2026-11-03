@@ -35,6 +35,7 @@ function limpar(d) {
     contra_ibovespa_pct: numero(d.contra_ibovespa_pct),
     desde: texto(d.desde, 10),
     evolucao: Array.isArray(d.evolucao) ? d.evolucao.slice(-12).map(e => ({ mes: texto(e.mes, 7), resultado_pct: numero(e.resultado_pct) })) : [],
+    proventos_a_receber: Array.isArray(d.proventos_a_receber) ? d.proventos_a_receber.slice(0, 10).map(e => ({ ativo: texto(e.ativo, 40), tipo: texto(e.tipo, 20), data_com: texto(e.data_com, 10), paga_em: e.paga_em ? texto(e.paga_em, 10) : null, pct_do_custo: numero(e.pct_do_custo) })) : [],
     proventos_por_mes: Array.isArray(d.proventos_por_mes) ? d.proventos_por_mes.slice(-12).map(e => ({ mes: texto(e.mes, 7), pct_do_custo: numero(e.pct_do_custo) })) : [],
     ir: { vendas_acoes_pct_do_limite: numero(ir.vendas_acoes_pct_do_limite), vendas_cripto_pct_do_limite: numero(ir.vendas_cripto_pct_do_limite),
       darf_a_pagar: sim(ir.darf_a_pagar), prejuizo_a_compensar: sim(ir.prejuizo_a_compensar) },

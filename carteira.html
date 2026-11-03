@@ -194,6 +194,12 @@ body.privado input.valbem:not(:focus){-webkit-text-security:disc;color:var(--mut
 /* Ativos: lista compacta */
 #v-ativos{max-width:860px}
 .ativos-topo{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px}
+.anunciados{margin-top:20px}
+.anunciados .ativos-topo{margin-bottom:10px}
+.anunciados .caiu{border-left:3px solid var(--focus);padding-left:12px;margin-bottom:14px}
+.anunciados .caiu p{margin:0 0 8px}
+.acoes-prov{display:inline-flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+.prov-resumo{margin-top:14px}
 .ativos-topo h2{margin:0}
 .filtros{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;margin:0 0 16px;padding:2px 0}
 .filtros::-webkit-scrollbar{display:none}
@@ -1193,6 +1199,7 @@ function rResumo(el){
       <div><span>Resultado sobre o total aportado</span><strong class="${cls(ganhoTotal)}">${pctSinal(rent)}</strong></div>
     </div>
     ${semCot?`<p class="nota" style="margin-top:14px">${semCot} ${semCot>1?"ativos estão":"ativo está"} sem cotação e ${semCot>1?"aparecem":"aparece"} pelo preço médio. <button class="link" data-act="ir-aba" data-aba="ativos">Atualizar cotações</button></p>`:""}
+    <div id="prov-resumo">${htmlProvResumo()}</div>
   </div>
 
   ${c.lista.some(p=>p.qtd>0 && p.classe!=="rf") ? `<div class="noticias-resumo">
@@ -1649,6 +1656,14 @@ function analisar(){
   const custoRV = abertas.filter(p=>p.classe!=="rf").reduce((s,p)=>s+p.custo,0);
   if(p12>0 && custoRV>0) add("info", `Proventos de ${pct(p12/custoRV)} sobre o custo em 12 meses`, `${brl(p12)} recebidos, ${brl(p12/12)} por mês em média.${p24>0?` Nos 12 meses anteriores foram ${brl(p24)} (${pctSinal(p12/p24-1)}).`:""}`, `proventos dos últimos 12 meses equivalem a ${pct(p12/custoRV)} do custo da renda variável${p24>0?`, ${pctSinal(p12/p24-1)} contra os 12 meses anteriores`:""}`, {aba:"proventos", rotulo:"Ver proventos"});
 
+  // Proventos anunciados na B3 que ainda vão cair
+  const aReceber = proventosPrevistos().filter(i=>i.status==="receber");
+  if(aReceber.length && custoRV>0){
+    const somaR = aReceber.reduce((s,i)=>s+i.liquido,0), prox = aReceber.find(i=>i.pagamento);
+    add("info", `Proventos a receber: ${brl(somaR)}`, `${aReceber.length} ${aReceber.length===1?"pagamento anunciado":"pagamentos anunciados"} na B3${prox?`, o próximo de ${prox.ticker} em ${dataBR(prox.pagamento)}`:""}.`,
+      `proventos anunciados a receber equivalem a ${pct(somaR/custoRV)} do custo da renda variável${prox?`, com o próximo pagamento em ${prox.pagamento}`:""}`, {aba:"proventos", rotulo:"Ver a receber"});
+  }
+
   // Inventário: valores estimados envelhecem, principalmente de veículos e eletrônicos
   const bensVelhos = (S.bens||[]).filter(b=>b.valorEm && diasDesde(b.valorEm)>365).map(b=>b.nome);
   if(bensVelhos.length) add("info", `Atualize o valor de ${bensVelhos.length===1?"1 bem":bensVelhos.length+" bens"} do inventário`, `${bensVelhos.join(", ")}: sem atualização há mais de um ano. Veículos e eletrônicos costumam perder valor com o tempo.`, null, {aba:"inventario", rotulo:"Ver inventário"});
@@ -1692,6 +1707,7 @@ function dadosParaIA(){
     contra_ibovespa_pct: comp && comp.ibov && comp.ibov.saldo ? r1((total-comp.ibov.saldo)/Math.abs(comp.ibov.saldo)) : null,
     desde: comp ? comp.desde : null,
     evolucao: Object.entries(porMes).sort().slice(-12).map(([mes, resultado_pct])=>({mes, resultado_pct})),
+    proventos_a_receber: custoRV>0 ? proventosPrevistos().filter(i=>i.status==="receber").slice(0,10).map(i=>({ativo:i.ticker, tipo:TIPOS_PROV[i.tipo]||"Outro", data_com:i.dataCom, paga_em:i.pagamento, pct_do_custo: Math.round(i.liquido/custoRV*10000)/100})) : [],
     proventos_por_mes: custoRV>0 ? meses.map(m=>({mes:m, pct_do_custo: Math.round(S.provs.filter(p=>p.data.startsWith(m)).reduce((s,p)=>s+p.valor,0)/custoRV*10000)/100})) : [],
     ir: { vendas_acoes_pct_do_limite: r1(vendido("acao")/20000), vendas_cripto_pct_do_limite: r1(vendido("cripto")/35000),
       darf_a_pagar: !!(apur[ant] && (apur[ant].pagar6015+apur[ant].pagar4600)>0), prejuizo_a_compensar: !!(ult && (ult.prejRV>0 || ult.prejFII>0)) },
@@ -1796,7 +1812,8 @@ function sugestoesIA(){
   if(achou(/da meta em/)) s.push("Como dividir o próximo aporte pelas metas?");
   if(achou(/do CDI/)) s.push("Como estou indo contra o CDI?");
   if(achou(/DARF|limite de isenção|Prejuízo/)) s.push("Tenho imposto para pagar este mês?");
-  if(achou(/Proventos de/)) s.push("Como estão os meus proventos?");
+  if(achou(/Proventos a receber/)) s.push("Quais proventos vou receber nos próximos meses?");
+  else if(achou(/Proventos de/)) s.push("Como estão os meus proventos?");
   s.push("Resuma a minha carteira em poucas palavras");
   return [...new Set(s)].slice(0,4);
 }
@@ -2370,8 +2387,9 @@ function rProventos(el){
   S.provs.forEach(p=>{ if(p.data>=lim) ult12Por[p.ticker]=(ult12Por[p.ticker]||0)+p.valor; });
   const elegiveis = Object.keys(S.ativos).filter(t=>S.ativos[t].classe!=="rf").sort();
   el.innerHTML = `<h2>Proventos</h2>
-  <p class="sub">Dividendos, JCP e rendimentos de FIIs. Lance o valor líquido que caiu na conta (no JCP o imposto já vem descontado), ou <button class="link" data-act="abrir-importar">importe o extrato de Movimentação da B3</button>.</p>
+  <p class="sub">Dividendos, JCP e rendimentos de FIIs. Os anunciados na B3 aparecem em "A receber" e, quando caem, viram um toque para registrar. Também dá para lançar o valor líquido à mão (no JCP o imposto já vem descontado) ou <button class="link" data-act="abrir-importar">importar o extrato de Movimentação da B3</button>.</p>
   <div class="kpis"><div><span>Últimos 12 meses</span><strong>${brl(t12)}</strong></div><div><span>Média mensal</span><strong>${brl(t12/12)}</strong></div><div><span>Em ${ano}</span><strong>${brl(tAno)}</strong></div><div><span>Desde o início</span><strong>${brl(S.provs.reduce((s,p)=>s+p.valor,0))}</strong></div></div>
+  ${htmlAnunciados()}
   <div class="grafico" style="margin-top:12px"><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Proventos por mês nos últimos 12 meses">${svg}</svg></div>
   <form id="f-prov" class="card" style="margin-top:24px" novalidate>
     <div class="campos">
@@ -2645,6 +2663,125 @@ function rInventario(el){
   $("#f-bem", el).addEventListener("submit", e=>{ e.preventDefault(); salvarBem(e.target); });
 }
 
+/* ---------- Proventos anunciados ---------- */
+// Dividendos, JCP e rendimentos já anunciados na B3, lidos pela função api/proventos.js (um ativo por pedido, cache de 6 h).
+// Só o código do ativo sai do aparelho; a quantidade na data com e o valor estimado são calculados aqui.
+const LS_ANUNCIADOS = "genfin-proventos-b3", LS_PROV_IGNORADOS = "genfin-proventos-ignorados";
+const INTERVALO_ANUNCIADOS = 6*3600*1000, JANELA_ANUNCIADOS = 150, DIAS_CAIU = 60;
+const BRL_UNIT = new Intl.NumberFormat("pt-BR",{style:"currency",currency:"BRL",minimumFractionDigits:2,maximumFractionDigits:4});
+let buscandoAnunciados = false;
+function lerAnunciados(){ try{ return JSON.parse(lerLS(LS_ANUNCIADOS)||"null") || {}; }catch(e){ return {}; } }
+function lerIgnorados(){ try{ const v = JSON.parse(lerLS(LS_PROV_IGNORADOS)||"null"); return Array.isArray(v) ? v : []; }catch(e){ return []; } }
+// Ações e FIIs que estão na carteira ou passaram por ela na janela (quem vendeu depois da data com ainda recebe)
+function ativosAnunciados(){
+  const desde = somarDias(hojeISO(), -JANELA_ANUNCIADOS), m = new Map();
+  const quer = (t, cl) => { if((cl==="acao"||cl==="fii") && /^[A-Z]{4}\d{1,2}$/.test(t)) m.set(t, cl); };
+  calcular().lista.forEach(p=>{ if(p.qtd>0) quer(p.ticker, p.classe); });
+  calcular(desde).lista.forEach(p=>{ if(p.qtd>0) quer(p.ticker, p.classe); });
+  S.txs.forEach(t=>{ if(t.data>=desde && t.tipo!=="desdobro") quer(t.ticker, t.classe); });
+  return [...m].map(([ticker, classe])=>({ticker, classe}));
+}
+async function carregarAnunciados({forcar=false}={}){
+  if(demo || buscandoAnunciados) return;
+  const cache = lerAnunciados(), agora = Date.now(), ativos = ativosAnunciados();
+  const fila = ativos.filter(a=>forcar || !cache[a.ticker] || agora-cache[a.ticker].em > INTERVALO_ANUNCIADOS);
+  if(!fila.length) return;
+  buscandoAnunciados = true; if(abaAtual==="proventos") render("proventos");
+  let mudou = false;
+  await Promise.all([1,2,3].map(async ()=>{
+    while(fila.length){
+      const a = fila.shift();
+      try{
+        const r = await fetch(baseServidor()+"/api/proventos?t="+encodeURIComponent(a.ticker)+"&c="+a.classe, comPrazo());
+        if(!r.ok) continue;
+        const j = await r.json(); cache[a.ticker] = {em: Date.now(), itens: Array.isArray(j.itens) ? j.itens.slice(0,24) : []}; mudou = true;
+      }catch(e){ /* sem rede: fica com o que já estava guardado */ }
+    }
+  }));
+  const atuais = new Set(ativos.map(a=>a.ticker));
+  Object.keys(cache).forEach(t=>{ if(!atuais.has(t)) delete cache[t]; });
+  gravarLS(LS_ANUNCIADOS, JSON.stringify(cache));
+  buscandoAnunciados = false;
+  if(abaAtual==="proventos") render("proventos");
+  else if(mudou){ const b = $("#prov-resumo"); if(b) b.innerHTML = htmlProvResumo(); }   // só o bloco, para não apagar a pergunta digitada
+}
+const idAnunciado = (t, a) => [t, a.tipo, a.dataCom, a.valor].join("|");
+// Cada anúncio com a quantidade na data com (ou a de hoje, se a data com ainda não chegou) e o valor líquido estimado
+function proventosPrevistos(){
+  if(demo) return [];
+  const cache = lerAnunciados(), hoje = hojeISO(), ign = new Set(lerIgnorados()), listas = {};
+  const qtdEm = (t, d) => { const l = listas[d] || (listas[d] = calcular(d).lista); const p = l.find(x=>x.ticker===t); return p ? p.qtd : 0; };
+  const itens = [];
+  for(const [t, e] of Object.entries(cache)){
+    for(const a of (e && e.itens) || []){
+      const futuro = a.dataCom > hoje, qtd = qtdEm(t, futuro ? hoje : a.dataCom);
+      if(!(qtd>0) || !(a.valor>0)) continue;
+      const bruto = qtd*a.valor;
+      itens.push({id:idAnunciado(t,a), ticker:t, classe:(S.ativos[t]||{}).classe||"acao", tipo:a.tipo, valor:a.valor, dataCom:a.dataCom, pagamento:a.pagamento||null,
+        qtd, bruto, liquido: a.tipo==="jcp" ? bruto*0.85 : bruto, futuro, ignorado: ign.has(idAnunciado(t,a))});
+    }
+  }
+  // Lei 15.270/2025: dividendos da mesma empresa acima de R$ 50 mil no mês têm 10% retido na fonte
+  const divMes = {}, kDiv = i => i.ticker.slice(0,4)+" "+i.pagamento.slice(0,7);
+  itens.forEach(i=>{ if(i.tipo==="dividendo" && i.pagamento) divMes[kDiv(i)] = (divMes[kDiv(i)]||0)+i.bruto; });
+  itens.forEach(i=>{ if(i.tipo==="dividendo" && i.pagamento && i.pagamento>="2026-01-01" && divMes[kDiv(i)]>50000) i.liquido = i.bruto*0.9; });
+  // Já registrado: provento lançado (ou importado) do mesmo ativo, JCP com JCP, até 7 dias de diferença; cada lançamento vale para um anúncio só
+  const usados = new Set();
+  itens.sort((a,b)=>(a.pagamento||"9999").localeCompare(b.pagamento||"9999") || a.ticker.localeCompare(b.ticker) || b.liquido-a.liquido);
+  for(const i of itens){
+    const ref = i.pagamento || i.dataCom;
+    const cands = S.provs.filter(p=>!usados.has(p.id) && p.ticker===i.ticker && (p.tipo==="jcp")===(i.tipo==="jcp") && Math.abs(Date.parse(p.data)-Date.parse(ref)) <= 7*864e5);
+    const p = cands.sort((x,y)=>Math.abs(x.valor-i.liquido)-Math.abs(y.valor-i.liquido))[0];
+    if(p){ usados.add(p.id); i.registrado = true; }
+    i.status = i.registrado ? "registrado" : (i.pagamento && i.pagamento<=hoje) ? (i.ignorado || i.pagamento<somarDias(hoje,-DIAS_CAIU) ? "antigo" : "caiu") : "receber";
+  }
+  return itens;
+}
+const quandoPaga = i => i.pagamento ? dataBR(i.pagamento) : "a definir";
+function htmlAnunciados(){
+  const prev = proventosPrevistos(), caiu = prev.filter(i=>i.status==="caiu"), receber = prev.filter(i=>i.status==="receber");
+  const total = receber.reduce((s,i)=>s+i.liquido,0), temCache = Object.keys(lerAnunciados()).length>0;
+  const topo = `<div class="ativos-topo"><h3 style="margin:0">A receber${receber.length?` <span class="mini" style="display:inline">${brl(total)}</span>`:""}</h3>
+    <button class="btn peq" data-act="prov-atualizar"${buscandoAnunciados?" disabled":""}>${buscandoAnunciados?"Buscando…":"Atualizar"}</button></div>`;
+  if(!caiu.length && !receber.length)
+    return `<div class="anunciados">${topo}<p class="nota">${buscandoAnunciados ? "Buscando na B3 os proventos anunciados dos seus ativos…"
+      : temCache ? "Nenhum provento anunciado para os seus ativos por enquanto. Quando uma empresa ou fundo anunciar, ele aparece aqui com o valor estimado."
+      : "Os proventos anunciados das suas ações e FIIs aparecem aqui quando houver internet."}</p></div>`;
+  const linha = (i, extra) => `<tr><td class="titulo"><i class="pinta" style="background:${corDe(i.classe)};margin-right:8px"></i><span class="tk">${esc(i.ticker)}</span></td>
+    <td class="esq">${TIPOS_PROV[i.tipo]||"Outro"}</td><td>${BRL_UNIT.format(i.valor)} × ${qtdFmt(i.qtd)}</td>
+    <td><strong>${brl(i.liquido)}</strong></td><td>${quandoPaga(i)}<span class="mini">data com ${dataBR(i.dataCom)}</span></td>${extra||""}</tr>`;
+  return `<div class="anunciados">${topo}
+  ${caiu.length?`<div class="caiu"><p><strong>${caiu.length===1?"Este já deve ter caído":"Estes já devem ter caído"} na conta.</strong> Confira no extrato e registre com o valor estimado, ou com o que caiu de fato pelo formulário abaixo.</p>
+    <div class="rolagem"><table class="cartoes"><thead><tr><th>Ativo</th><th class="esq">Tipo</th><th>Por ação/cota</th><th>Estimativa líquida</th><th>Pagamento</th><th></th></tr></thead><tbody>
+    ${caiu.map(i=>linha(i, `<td><span class="acoes-prov"><button class="btn peq pri" data-act="prov-registrar" data-id="${esc(i.id)}">Registrar</button><button class="btn peq" data-act="prov-ignorar" data-id="${esc(i.id)}">Não recebi</button></span></td>`)).join("")}
+    </tbody></table></div></div>`:""}
+  ${receber.length?`<div class="rolagem"><table class="cartoes"><thead><tr><th>Ativo</th><th class="esq">Tipo</th><th>Por ação/cota</th><th>Estimativa líquida</th><th>Pagamento</th></tr></thead><tbody>
+    ${receber.map(i=>linha(i)).join("")}</tbody></table></div>`:""}
+  <p class="nota">Anunciados na B3. A quantidade é a que você tinha na data com${receber.some(i=>i.futuro)?"; quando a data com ainda não chegou, é a de hoje, e só recebe quem tiver o ativo até essa data":""}. No JCP já sai o IR de 15%. É uma estimativa: o valor que vale é o que cair na conta.</p></div>`;
+}
+// Linha do Resumo: quanto deve entrar nos próximos 30 dias e o que já caiu e falta registrar
+function htmlProvResumo(){
+  const prev = proventosPrevistos(), hoje = hojeISO(), lim = somarDias(hoje, 30);
+  const prox = prev.filter(i=>i.status==="receber" && i.pagamento && i.pagamento<=lim), caiu = prev.filter(i=>i.status==="caiu");
+  if(!prox.length && !caiu.length) return "";
+  const nomes = [...new Map(prox.map(i=>[i.ticker, i.ticker+" em "+dataBR(i.pagamento).slice(0,5)])).values()].slice(0,3).join(", ");
+  return `<p class="nota prov-resumo">${prox.length?`Proventos anunciados: <strong>${brl(prox.reduce((s,i)=>s+i.liquido,0))}</strong> a receber nos próximos 30 dias (${esc(nomes)}${new Set(prox.map(i=>i.ticker)).size>3?" e outros":""}).`:""}
+    ${caiu.length?` ${caiu.length===1?"Um provento já caiu e falta registrar.":caiu.length+" proventos já caíram e faltam registrar."}`:""}
+    <button class="link" data-act="ir-aba" data-aba="proventos">Ver proventos</button></p>`;
+}
+function registrarAnunciado(id){
+  if(demo){ toast("No modo exemplo nada é salvo."); return; }
+  const i = proventosPrevistos().find(x=>x.id===id && x.status==="caiu"); if(!i) return;
+  const valor = Math.round(i.liquido*100)/100;
+  S.provs.push({id:uid(), data:i.pagamento, ticker:i.ticker, tipo:i.tipo, valor});
+  salvar("proventos"); render(abaAtual);
+  toast(`Provento de ${i.ticker} registrado: ${brl(valor)}`);
+}
+function ignorarAnunciado(id){
+  gravarLS(LS_PROV_IGNORADOS, JSON.stringify([...lerIgnorados(), id].slice(-200)));
+  render(abaAtual); toast("Ok, esse fica de fora");
+}
+
 /* ---------- Notícias ---------- */
 // Manchetes dos ativos da carteira, lidas do Google Notícias pela função api/noticias.js (uma busca por ativo, com
 // cache de 30 minutos); tocar abre a notícia no Google. Só o código do ativo sai do aparelho.
@@ -2868,6 +3005,9 @@ document.addEventListener("click", e=>{
   else if(a==="ia-perguntar") perguntarIA(b.dataset.q);
   else if(a==="filtro-noticias"){ filtroNoticias = b.dataset.k; render("noticias"); }
   else if(a==="noticias-atualizar") carregarNoticias({forcar:true});
+  else if(a==="prov-atualizar") carregarAnunciados({forcar:true});
+  else if(a==="prov-registrar") registrarAnunciado(b.dataset.id);
+  else if(a==="prov-ignorar") ignorarAnunciado(b.dataset.id);
   else if(a==="ia-fechar") $("#dlg-ia").close();
   else if(a==="ia-limpar"){ conversa = []; gravarConversa(); renderConversa(); }
   else if(a==="manchete-atualizar") atualizarManchete({forcar:true});
@@ -2951,12 +3091,12 @@ irPara(ABAS.includes(location.hash.slice(1)) ? location.hash.slice(1) : "resumo"
 $("#dlg-op").addEventListener("close", ()=>{ op = null; });
 estado(syncAtivo() ? "Sincronização ligada" : LOCAL);
 // Busca cotações depois de carregar os dados da conta, para atualizar a carteira mais recente
-conectar().then(()=>{ if(syncAtivo()) puxarSync(); if(precisaBuscar()) atualizarCotacoes({auto:true}); atualizarIndices(); carregarNoticias(); });
+conectar().then(()=>{ if(syncAtivo()) puxarSync(); if(precisaBuscar()) atualizarCotacoes({auto:true}); atualizarIndices(); carregarNoticias(); carregarAnunciados(); });
 // App instalável pelo navegador: o service worker só funciona servido por https (Vercel) ou localhost, e não é preciso no app Android
 if("serviceWorker" in navigator && !nativo() && (location.protocol==="https:" || location.hostname==="localhost"))
   navigator.serviceWorker.register("sw.js").catch(()=>{});
 // Ao voltar para o app aberto há tempo (comum no celular), atualiza as cotações se já passou o intervalo
-document.addEventListener("visibilitychange", ()=>{ if(document.visibilityState!=="visible") return; if(syncAtivo()) puxarSync(); if(precisaBuscar()) atualizarCotacoes({auto:true}); atualizarIndices(); carregarNoticias(); });
+document.addEventListener("visibilitychange", ()=>{ if(document.visibilityState!=="visible") return; if(syncAtivo()) puxarSync(); if(precisaBuscar()) atualizarCotacoes({auto:true}); atualizarIndices(); carregarNoticias(); carregarAnunciados(); });
 </script>
 </body>
 </html>

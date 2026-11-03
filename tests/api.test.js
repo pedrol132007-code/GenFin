@@ -96,6 +96,47 @@ const dados = { data: "2026-10-28", classes: [{ classe: "Ações", carteira_pct:
   r = await chamarGet("PETR4", "https://localhost");
   ok(r.headers["access-control-allow-origin"] === "https://localhost", "notícias: app Android pode chamar");
 
+  // api/proventos.js: proventos anunciados na B3 (site público simulado)
+  const proventos = require("../api/proventos.js");
+  const iso = d => new Date(Date.now() + d * 864e5).toISOString().slice(0, 10), br = d => iso(d).split("-").reverse().join("/");
+  const pv = (isin, label, rate, com, paga) => ({ assetIssued: isin, isinCode: isin, label, rate, lastDatePrior: br(com), paymentDate: paga == null ? "" : br(paga), relatedTo: "3º Trimestre", approvedOn: br(com - 5) });
+  const itsa = [{ codeCVM: "7617", cashDividends: [
+    pv("BRITSAACNPR7", "JRS CAP PROPRIO", "0,02424250000", -10, 20), pv("BRITSAACNOR0", "JRS CAP PROPRIO", "0,02424250000", -10, 20),
+    pv("BRITSAACNPR7", "DIVIDENDO", "1.234,50000000000", 5, null), pv("BRITSAACNPR7", "DIVIDENDO", "0,5", -400, -380),
+    pv("BRITSAACNPR7", "JRS CAP PROPRIO", "0,02424250000", -10, 20)] }];
+  const detalhe = { otherCodes: [{ code: "ITSA3", isin: "BRITSAACNOR0" }, { code: "ITSA4", isin: "BRITSAACNPR7" }] };
+  const mxrf = { cashDividends: [pv("BRMXRFCTF008", "RENDIMENTO", "0,09500000000", -4, 13), pv("BRMXRFR27M13", "RENDIMENTO", "0,05", -4, 13)] };
+  let urlsB3 = [];
+  global.fetch = async url => {
+    urlsB3.push(url);
+    const params = JSON.parse(Buffer.from(url.split("/").pop(), "base64").toString());
+    const corpo = /GetListedSupplementCompany/.test(url) ? (params.issuingCompany === "ITSA" ? itsa : [])
+      : /GetDetail/.test(url) ? detalhe : /GetListedSupplementFunds/.test(url) ? (params.identifierFund === "MXRF" ? mxrf : "") : null;
+    return { ok: true, status: 200, text: async () => corpo === "" ? "" : JSON.stringify(JSON.stringify(corpo)) };   // a B3 às vezes manda o JSON dentro de uma string
+  };
+  const chamarProv = (query, origin) => new Promise(resolve => { const res = { headers: {}, statusCode: 200, setHeader(k, v) { this.headers[k.toLowerCase()] = v; }, status(c) { this.statusCode = c; return this; }, json(o) { this.body = o; resolve(this); return this; }, end() { resolve(this); return this; } };
+    proventos({ method: "GET", headers: { origin: origin || "https://genfin-rose.vercel.app" }, query }, res); });
+  r = await chamarProv({ t: "itsa4", c: "acao" });
+  const its = r.body.itens || [];
+  ok(r.statusCode === 200 && /s-maxage=21600/.test(r.headers["cache-control"]) && urlsB3.some(u => /GetDetail/.test(u)), "proventos: ação busca a empresa e o detalhe na B3, com cache de 6 h");
+  ok(its.length === 2 && its.every(i => i.tipo !== "outro") && (d => d && d.valor === 1234.5 && d.pagamento === null && d.dataCom === iso(5))(its.find(i => i.tipo === "dividendo")),
+    "proventos: só o ISIN do ITSA4, sem repetidos nem antigos; data de pagamento vazia vira null e valor em formato BR é lido");
+  ok((j => j && j.valor === 0.0242425 && j.pagamento === iso(20) && j.dataCom === iso(-10))(its.find(i => i.tipo === "jcp")) && its[0].tipo === "jcp", "proventos: JCP com data com e pagamento em ISO, o de pagamento mais distante primeiro");
+  r = await chamarProv({ t: "ITSA11", c: "acao" });
+  ok(r.statusCode === 200 && r.body.itens.length === 0, "proventos: código que a empresa não tem volta vazio");
+  r = await chamarProv({ t: "MXRF11", c: "fii" });
+  ok(r.body.itens.length === 1 && r.body.itens[0].tipo === "rendimento" && r.body.itens[0].valor === 0.095, "proventos: FII pega só a cota (CTF), sem recibo de subscrição");
+  r = await chamarProv({ t: "ZZZZ11", c: "fii" });
+  ok(r.statusCode === 200 && r.body.itens.length === 0, "proventos: fundo desconhecido (resposta vazia) volta vazio");
+  urlsB3 = [];
+  r = await chamarProv({ t: "ITSA4; DROP", c: "acao" });
+  ok(r.statusCode === 400 && !urlsB3.length, "proventos: código fora do formato é recusado sem ir à B3");
+  r = await chamarProv({ t: "ITSA4", c: "cripto" });
+  ok(r.statusCode === 400, "proventos: só ações e FIIs");
+  global.fetch = async () => ({ ok: false, status: 503, text: async () => "" });
+  r = await chamarProv({ t: "ITSA4", c: "acao" }, "null");
+  ok(r.statusCode === 502 && r.body.erro === "servico" && r.headers["access-control-allow-origin"] === "null", "proventos: B3 fora do ar vira 502; arquivo local pode chamar");
+
   // api/sync.js com o Blob em memória
   const { instalar, chamar: chamarSync } = require("./blob-falso.js");
   const blob = instalar();

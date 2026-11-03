@@ -48,7 +48,7 @@ Preço médio, alocação, proventos, rebalanceamento e imposto de renda para qu
 | 🔎 **Análises** | Leituras automáticas feitas no aparelho: concentração, distância das metas, cotações antigas, limites de isenção e DARF do mês, desempenho contra o CDI, proventos e lembrete de backup. Resumo escrito por IA (Groq, gratuito), sem precisar de chave no aparelho. |
 | 💹 **Ativos** | Lista compacta por classe (com filtro), valor e resultado de cada ativo; tocar abre preço médio, peso, proventos e a cotação para corrigir. Botões **+** e **−** em cada ativo para comprar ou vender na hora, com o preço de agora, a prévia do novo preço médio e, na venda, o resultado e o limite de isenção do mês. Desdobramentos e grupamentos registrados no próprio ativo, com a nova quantidade e o novo preço médio. |
 | 🧾 **Lançamentos** | Compras e vendas com taxas da nota de corretagem, ou importadas do extrato da B3. Aplicações e resgates de renda fixa, com o indexador (% do CDI, prefixado ou IPCA +) para o valor se atualizar sozinho. Editar e excluir, sempre impedindo vendas maiores que o saldo, inclusive em datas retroativas. |
-| 💰 **Proventos** | Dividendos, JCP e rendimentos de FIIs, digitados ou importados da B3, com gráfico dos últimos 12 meses e rendimento sobre o custo por ativo. |
+| 💰 **Proventos** | Dividendos, JCP e rendimentos de FIIs, digitados ou importados da B3, com gráfico dos últimos 12 meses e rendimento sobre o custo por ativo. **A receber:** os proventos já anunciados na B3 para as suas ações e FIIs, com a quantidade na data com e o valor líquido estimado; quando o pagamento chega, um toque registra. |
 | ⚖️ **Rebalancear** | Metas por classe e sugestão de como dividir um novo aporte para se aproximar delas, só com compras. |
 | 🦁 **Imposto de renda** | Apuração mensal com isenções, compensação de prejuízo e DARF; bens e direitos em 31/12; proventos do ano separados por tipo. |
 | 📦 **Inventário** | Bens que não são investimentos (imóveis, veículos, eletrônicos, videogames, lazer e esporte, móveis, coleções, dinheiro guardado), cada categoria com seu ícone, com valor estimado, valor pago e financiamento. Mostra o patrimônio total e leva os bens marcados para Bens e direitos do IR. |
@@ -157,6 +157,7 @@ flowchart LR
 ```
 
 - **Sempre no aparelho**, na chave `carteira-v1` do `localStorage`. Com a sincronização ligada, uma cópia **cifrada** vai para a nuvem (veja Sincronizar celular e computador); sem ela, a carteira não sai do aparelho. Para as cotações, só os **códigos** dos ativos (como `PETR4` ou `BTC`) vão para a brapi e o Mercado Bitcoin; quantidades e valores nunca são enviados.
+- **Proventos anunciados:** só o código de cada ação e FII vai para a função `api/proventos.js`, que lê o site público da B3 (sem chave) e devolve o valor por ação, a data com e a data de pagamento, com cache de 6 horas. A quantidade e o valor estimado são calculados no aparelho.
 - **Notícias:** só o código de cada ativo de renda variável vai para a função `api/noticias.js`, que busca as manchetes no Google Notícias e devolve título, fonte, data e link. Nada é guardado lá.
 - **As chaves da brapi e do Groq** ficam só no navegador, separadas da carteira. Elas não entram no backup nem vão para a conta.
 - **Resumo com IA:** só vai para a IA o que aparece em "O que vai para a IA", na aba Análises: percentuais, códigos dos ativos e as leituras escritas sem valores em reais. Quantidades, preços e o patrimônio não saem do aparelho. Sem chave própria, os dados passam pela função `api/resumo.js` do GenFin na Vercel, que guarda a chave do Groq na variável de ambiente `GROQ_API_KEY`, aceita só esse formato de dados (e recusa valores em reais), usa uma instrução fixa e não guarda nada. Quem preferir pode colar a própria chave do Groq no app, que então fala direto com ele. A instrução pede que a IA explique os números e não recomende compra ou venda.
@@ -202,6 +203,7 @@ Operações comuns de pessoa física, sem day trade:
 ├── vercel.json            # rota / → carteira.html e cabeçalhos
 ├── api/resumo.js          # função da Vercel: resumo com IA pelo Groq
 ├── api/noticias.js        # função da Vercel: manchetes do Google Notícias por ativo
+├── api/proventos.js       # função da Vercel: proventos anunciados na B3 por ativo
 ├── api/sync.js            # função da Vercel: guarda a carteira cifrada (sincronização)
 ├── capacitor.config.json  # app Android: nome, id e barras do sistema
 ├── assets/                # ícones-fonte do app Android (camadas do ícone adaptativo)
@@ -265,7 +267,7 @@ Fonte: [Bricolage Grotesque](https://fonts.google.com/specimen/Bricolage+Grotesq
 - [x] Comparação com CDI e Ibovespa
 - [x] Análises por regras e resumo opcional com IA (Groq)
 - [x] Importar extratos de Negociação e Movimentação da B3
-- [ ] Proventos anunciados: dividendos e JCP já aprovados que vão cair, pela brapi (depende do que o plano gratuito libera)
+- [x] Proventos anunciados: dividendos, JCP e rendimentos já aprovados que vão cair, direto da B3
 - [x] Sincronizar celular e computador, cifrado e sem servidor pago
 - [ ] Importar a nota de corretagem em PDF, para trazer as taxas
 
