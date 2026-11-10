@@ -6,7 +6,7 @@ const mercado = require("./_mercado.js");
 const { escolherModelo, ORIGENS, raciocinio } = require("./resumo.js");
 
 const CLASSES = ["acao", "etf", "fii", "rf", "cripto"];
-const TAMANHO_MAX = 24000, MAX_TOKENS = 2500;
+const TAMANHO_MAX = 24000, MAX_TOKENS = { dia: 1500, pergunta: 2500 };
 const texto = (v, n = 120) => String(v ?? "").slice(0, n);
 const num = v => (typeof v === "number" && Number.isFinite(v) ? Math.round(v * 10) / 10 : null);
 const r2 = v => (v == null || !Number.isFinite(v) ? null : Math.round(v * 100) / 100);
@@ -102,14 +102,14 @@ async function base(ctx) {
   }
 }
 async function historico(ctx, t, classe) {
-  const [pr, prov] = await Promise.all([tentar(ctx, () => mercado.precos(t)), tentar(ctx, () => mercado.historicoProventos(t, classe))]);
+  const pr = await tentar(ctx, () => mercado.precos(t));
   const out = {};
   if (pr && pr.preco) {
     out.max52 = r2(pr.max52); out.min52 = r2(pr.min52);
     if (pr.max52 > pr.min52) out.pos_faixa_52s_pct = Math.round((pr.preco - pr.min52) / (pr.max52 - pr.min52) * 100);
     const ha12 = pr.mensal.length >= 13 ? pr.mensal[pr.mensal.length - 13].fech : null;
     if (ha12) out.var_12m_pct = num((pr.preco / ha12 - 1) * 100);
-    if (prov) { const anos = mercado.dyPorAno(prov, pr.mensal).slice(-5); if (anos.length) out.dy_medio_5a_pct = pctR(anos.reduce((s, a) => s + a.dy, 0) / anos.length); }
+    { const anos = mercado.dyPorAno(pr.dividendos, pr.mensal).slice(-5); if (anos.length) out.dy_medio_5a_pct = pctR(anos.reduce((s, a) => s + a.dy, 0) / anos.length); }
   }
   return out;
 }
@@ -199,6 +199,12 @@ function lerJSON(conteudo) {
   if (i >= 0 && f > i) { try { return JSON.parse(s.slice(i, f + 1)); } catch (e) { /* não era JSON */ } }
   return null;
 }
+// Quando nem o JSON fecha, tira só o campo "texto" (melhor que mostrar pedaços de JSON na conversa)
+function textoDeJSONQuebrado(conteudo) {
+  const m = /"texto"\s*:\s*"((?:[^"\\]|\\.)*)"/.exec(String(conteudo || ""));
+  if (m) { try { return JSON.parse('"' + m[1] + '"'); } catch (e) { return m[1]; } }
+  return String(conteudo || "").replace(/[{}]/g, "").trim();
+}
 // Só passa o que dá para confiar: ticker que veio dos dados, classe decidida aqui, percentuais somando 100 por classe
 function validarSaida(s, permitidos, carteira) {
   if (!s || typeof s !== "object") s = {};
@@ -234,6 +240,13 @@ async function chamarGroq(chave, corpo) {
     throw Object.assign(new Error("limite"), { status: 429, esperar: Number.isFinite(espera) ? Math.ceil(espera) : null });
   }
   if (r.status === 401) throw Object.assign(new Error("chave"), { status: 401 });
+  if (r.status === 400) {
+    // No modo JSON, uma resposta que não fecha o JSON volta como 400 com o texto gerado em failed_generation
+    let j = null; try { j = await r.json(); } catch (e) { /* corpo vazio */ }
+    const gerado = j && j.error && j.error.failed_generation;
+    if (gerado) return { choices: [{ message: { content: String(gerado) }, finish_reason: "json_invalido" }] };
+    throw Object.assign(new Error("servico"), { status: 502 });
+  }
   if (!r.ok) throw Object.assign(new Error("servico"), { status: 502 });
   return r.json();
 }
@@ -271,7 +284,7 @@ module.exports = async (req, res) => {
     for (const h of ped.historico) mensagens.push({ role: "user", content: h.p }, { role: "assistant", content: h.r });
     if (ped.modo === "pergunta") mensagens.push({ role: "user", content: ped.pergunta });
 
-    const comum = { model: modelo, temperature: 0.3, max_tokens: MAX_TOKENS, ...raciocinio(modelo) };
+    const comum = { model: modelo, temperature: 0.3, max_tokens: MAX_TOKENS[ped.modo], ...raciocinio(modelo) };
     const comFerramentas = ped.modo === "pergunta";
     let escolha = mensagemDe(await chamarGroq(chave, { ...comum, messages: mensagens,
       ...(comFerramentas ? { tools: FERRAMENTAS, tool_choice: "auto" } : { response_format: { type: "json_object" } }) }));
@@ -289,7 +302,7 @@ module.exports = async (req, res) => {
     if (!conteudo) return res.status(502).json({ erro: "servico", motivo: escolha.finish_reason || null });
 
     const lido = lerJSON(conteudo);
-    const saida = validarSaida(lido || { texto: String(conteudo).replace(/[{}]/g, "").trim() }, ctx.permitidos, ped.carteira);
+    const saida = validarSaida(lido || { texto: textoDeJSONQuebrado(conteudo) }, ctx.permitidos, ped.carteira);
     return res.status(200).json({ ...saida, dados: ctx.dados, fontes_falharam: [...ctx.falhas], em: new Date().toISOString(), modelo });
   } catch (e) {
     if (e.status === 429) return res.status(429).json({ erro: "limite", esperar_s: e.esperar });

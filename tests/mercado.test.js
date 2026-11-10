@@ -20,13 +20,18 @@ const lat = b => new TextDecoder("latin1").decode(b);
   ok(det.setor === "Intermediários Financeiros" && det.subsetor === "Bancos" && det.max52 === 27.21 && det.min52 === 16.19, "setor, subsetor e faixa de 52 semanas do BBAS3");
   const pr = m.lerPrecos(JSON.parse(fx("yahoo-petr4.json")));
   ok(pr.preco > 0 && pr.max52 >= pr.min52 && pr.mensal.length >= 50 && /^\d{4}-\d\d$/.test(pr.mensal[0].mes), "5 anos de preços mensais");
-  ok(m.lerPrecos({}).mensal.length === 0, "resposta sem gráfico não quebra");
+  ok(m.lerPrecos({}).mensal.length === 0 && m.lerPrecos({}).dividendos.length === 0, "resposta sem gráfico não quebra");
+  ok(pr.dividendos.length >= 10 && pr.dividendos.every(d => d.valor > 0 && /^\d{4}-\d\d-\d\d$/.test(d.dataCom)), "Yahoo traz os dividendos já ajustados por desdobramento");
   const focus = m.lerFocus(JSON.parse(fx("focus.json")));
   ok(focus.selic[2027] === 12.5 && focus.ipca[2026] === 5.2195, "Focus: mediana mais recente de Selic e IPCA por ano");
   const dy = m.dyPorAno([{ valor: 1, dataCom: "2024-03-10" }, { valor: 1, dataCom: "2024-09-10" }],
     Array.from({ length: 12 }, (_, i) => ({ mes: "2024-" + String(i + 1).padStart(2, "0"), fech: 20 })));
   ok(dy.length === 1 && dy[0].ano === 2024 && Math.abs(dy[0].dy - 0.1) < 1e-9, "DY do ano = proventos ÷ preço médio");
-  ok(m.dyPorAno([{ valor: 1, dataCom: "2024-03-10" }], [{ mes: "2024-01", fech: 20 }]).length === 0, "ano com menos de 6 meses de preço fica de fora");
+  ok(m.dyPorAno([{ valor: 1, dataCom: "2024-03-10" }], [{ mes: "2024-01", fech: 20 }]).length === 0, "ano sem os 12 meses de preço fica de fora");
+  const meses = a => Array.from({ length: 12 }, (_, i) => ({ mes: a + "-" + String(i + 1).padStart(2, "0"), fech: 20 }));
+  const dyZero = m.dyPorAno([{ valor: 2, dataCom: "2023-05-10" }], [...meses("2023"), ...meses("2024")], 2026);
+  ok(dyZero.length === 2 && dyZero[1].ano === 2024 && dyZero[1].dy === 0, "ano completo sem provento conta como DY zero");
+  ok(m.dyPorAno([{ valor: 2, dataCom: "2026-05-10" }], meses("2026"), 2026).length === 0, "o ano corrente (incompleto) fica de fora");
   ok(m.tickerBase("ITSA4F") === "ITSA4" && m.tickerBase("MXRF11") === "MXRF11", "fracionário vira o lote");
 
   // Triagem
@@ -63,7 +68,7 @@ const lat = b => new TextDecoder("latin1").decode(b);
   const pv = (isin, rate, com) => ({ assetIssued: isin, isinCode: isin, label: "DIVIDENDO", rate, lastDatePrior: br(com), paymentDate: br(com + 20), relatedTo: "" });
   global.fetch = async (url, op = {}) => {
     urls.push(url);
-    if (/fundamentus\.com\.br\/resultado/.test(url)) return falhar ? resp("erro", 503) : resp(lat(fx("fundamentus-acoes.html")), 200, true);
+    if (/fundamentus\.com\.br\/resultado/.test(url)) return falhar === "antirobo" ? resp("<html>Just a moment...</html>") : falhar ? resp("erro", 503) : resp(lat(fx("fundamentus-acoes.html")), 200, true);
     if (/fundamentus\.com\.br\/fii_resultado/.test(url)) return resp(lat(fx("fundamentus-fii.html")), 200, true);
     if (/fundamentus\.com\.br\/detalhes/.test(url)) return resp(lat(fx("fundamentus-detalhe.html")), 200, true);
     if (/finance\.yahoo/.test(url)) return resp(JSON.parse(fx("yahoo-petr4.json")));
@@ -81,12 +86,15 @@ const lat = b => new TextDecoder("latin1").decode(b);
   ok(erro === "fonte:fundamentus", "Fundamentus fora do ar rejeita com fonte:fundamentus");
   falhar = false;
   ok((await m.acoes()).length === 6 && urls.length === 2, "o erro não fica no cache: a chamada seguinte tenta de novo");
+  m._limparCache(); falhar = "antirobo"; urls = [];
+  erro = null; try { await m.acoes(); } catch (e) { erro = e.message; }
+  ok(erro === "fonte:fundamentus", "página sem a tabela (anti-robô ou layout novo) conta como falha da fonte");
+  falhar = false;
+  ok((await m.acoes()).length === 6 && urls.length === 2, "a página sem tabela não fica no cache");
   ok((await m.fiis()).some(f => f.ticker === "MXRF11"), "fiis() lê a tabela de FIIs");
   ok((await m.detalhe("BBAS3")).subsetor === "Bancos", "detalhe() traz o setor");
   ok((await m.precos("PETR4")).mensal.length >= 50 && urls.some(u => /PETR4\.SA/.test(u)), "precos() usa o código .SA no Yahoo");
   ok((await m.focus()).selic[2026] === 13.75, "focus() traz a Selic esperada");
-  const hist = await m.historicoProventos("ITSA4", "acao");
-  ok(hist.length === 2 && hist.some(p => p.dataCom === iso(-730) && p.valor === 0.5), "historicoProventos() inclui provento de 2 anos atrás");
   const man = await m.manchetes("ITSA4", 3);
   ok(man.length === 1 && man[0].titulo === "ITSA4 sobe", "manchetes() reaproveita o leitor de RSS");
 

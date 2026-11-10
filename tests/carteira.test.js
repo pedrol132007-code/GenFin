@@ -480,6 +480,57 @@ excluirBem(S.bens[1].id); ok(S.bens.length===1, "exclui o bem");
 const elRes = fakeEl(); abaAtual="ir"; rResumo(elRes);
 ok(/Investimentos hoje/.test(elRes.innerHTML) && /patrimônio total é/.test(elRes.innerHTML), "Resumo mostra o patrimônio total quando há bens");
 
+// 26. Agente: correções da revisão (fracionário, digitação preservada, fila com o resumo do dia, aporte digitado)
+{
+  S = vazio(); S.atualizado = 1; agente = []; delete mem[LS_AGENTE_DIA]; diaTentado = null; rascunhoAgente = ""; aporteAberto = false;
+  add({classe:"acao",tipo:"compra",data:"2026-01-05",ticker:"ITSA4F",qtd:"50",preco:"10"});
+  S.precos.ITSA4F = {v:12, em:hojeISO()};
+  const ir26 = impostoVenda("ITSA4");
+  ok(ir26 && ir26.lucro===100 && ir26.isento, "fracionário: o imposto acha a posição ITSA4F quando o agente fala em ITSA4");
+  const m26 = {aporte:1000, divisao:null, r:{texto:"", avisos:[], vendas:[{ticker:"ITSA4",acao:"reduzir",motivo:"x"}], compras:[{ticker:"ITSA4",classe:"acao",pct_do_aporte:100,novo:false}], dados:{ITSA4:{preco:12}}, em:new Date().toISOString()}};
+  const h26 = htmlSugestoes(m26);
+  ok(/data-act="op-venda" data-t="ITSA4F"/.test(h26) && /data-act="agente-comprar" data-t="ITSA4F"/.test(h26), "fracionário: Vender e Comprar usam o código que está na carteira");
+
+  // Redesenhar a aba não apaga o que a pessoa está digitando
+  $("#agente-q").value = "estou digitando"; $("#perfil-agente").value = "meu perfil em edição"; $(".perfil-agente").open = true;
+  abaAtual = "ir"; const el26 = fakeEl(); rAgente(el26);
+  ok(/value="estou digitando"/.test(el26.innerHTML) && /meu perfil em edição/.test(el26.innerHTML) && /class="perfil-agente" open/.test(el26.innerHTML), "redesenho mantém a pergunta, o perfil e a seção aberta");
+  $("#agente-q").value = ""; $("#perfil-agente").value = ""; $(".perfil-agente").open = false;
+
+  // Pergunta espera o resumo do dia terminar (para não estourar o limite do Groq)
+  let soltar26 = [], urls26 = [];
+  const corpo26 = {texto:"ok", avisos:[], compras:[], vendas:[], dados:{}, fontes_falharam:[], em:new Date().toISOString()};
+  globalThis.__fetch = (url, op={}) => new Promise(res => { urls26.push(JSON.parse(op.body||"{}").modo); soltar26.push(() => res(resp(200, corpo26))); });
+  const pDia = resumoDoDia(), pPerg = perguntarAgente("Como estão as ações?");
+  await new Promise(r => setTimeout(r, 0));
+  ok(urls26.length===1 && urls26[0]==="dia", "pergunta feita durante o resumo do dia espera ele terminar");
+  soltar26[0](); await pDia; await new Promise(r => setTimeout(r, 0));
+  ok(urls26.length===2 && urls26[1]==="pergunta", "depois do resumo, a pergunta segue");
+  soltar26[1](); await pPerg;
+  delete mem[LS_AGENTE_DIA]; diaTentado = null; agente = [];
+  globalThis.__fetch = () => resp(429, {erro:"limite", esperar_s:30});
+  await resumoDoDia(); const el26b = fakeEl(); rAgente(el26b);
+  ok(/limite/.test(el26b.innerHTML) && /data-act="agente-dia"/.test(el26b.innerHTML), "resumo do dia que falhou mostra o motivo e o botão de tentar de novo");
+
+  // Aporte: valor preservado no erro; valor digitado na conversa vira plano
+  await perguntarAgente(PERGUNTA_APORTE, {aporteValor:3210});
+  ok(aporteAberto===true && parseNum(rascunhoAporte)===3210 && rascunhoAgente==="", "erro no aporte: o formulário volta aberto com o valor");
+  rascunhoAporte = ""; aporteAberto = false; agente = [];
+  let corpos26 = [];
+  globalThis.__fetch = (url, op={}) => { corpos26.push(op.body); return resp(200, corpo26); };
+  await enviarPerguntaAgente("vou aportar 3 mil, sugestões?");
+  const env26 = JSON.parse(corpos26[0]||"{}");
+  ok(env26.pergunta===PERGUNTA_APORTE && env26.aporte_por_classe_pct && !/mil|3000|3\\.000/.test(corpos26[0]) && agente[0].p==="vou aportar 3 mil, sugestões?" && agente[0].aporte===3000, "aporte digitado: vira plano, e o valor não sai do aparelho");
+  await enviarPerguntaAgente("e agora?");
+  ok(!/3 mil/.test(corpos26[1]), "o histórico também não leva o valor digitado");
+  ok(valorAporteDoTexto("aportar R$ 2.500,50 em PETR4")===2500.5 && valorAporteDoTexto("aportar 10% em FIIs")===0, "lê o valor do aporte, sem confundir com código de ativo ou percentual");
+  corpos26 = []; await enviarPerguntaAgente("Como dividir o próximo aporte pelas metas?");
+  ok(!corpos26.length && aporteAberto===true, "aporte sem valor abre o campo do valor em vez de perguntar");
+  corpos26 = []; await enviarPerguntaAgente("Vale a pena investir em FIIs?");
+  ok(corpos26.length===1 && JSON.parse(corpos26[0]).pergunta==="Vale a pena investir em FIIs?", "pergunta comum segue normal");
+  agente = []; gravarAgente(); aporteAberto = false; rascunhoAporte = "";
+}
+
 // 25. Agente: plano de aporte em cotas, imposto da venda e folha de compra preenchida
 {
   S = vazio(); S.atualizado = 1; avisos2 = [];

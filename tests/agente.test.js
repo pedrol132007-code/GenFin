@@ -95,6 +95,16 @@ const pedido = extra => ({ modo: "pergunta", carteira, perfil: "Longo prazo, pat
   r = await chamar(ag, { body: pedido({ pergunta: "como estão as ações?" }) });
   ok(r.statusCode === 200 && /ITSA4 parece barata/.test(r.body.texto) && r.body.compras.length === 0, "resposta que não é JSON vira texto, sem sugestões");
 
+  // JSON quebrado no modo JSON do Groq: 400 com failed_generation vira texto
+  groq = [resp({ error: { code: "json_validate_failed", failed_generation: '{"texto": "Bom dia, carteira estável.", "avisos": [{"texto": "ITSA4 abaixo do preço médio", "ticker": "ITSA4"' } }, 400)];
+  r = await chamar(ag, { body: { modo: "dia", carteira, perfil: "x" } });
+  ok(r.statusCode === 200 && r.body.texto === "Bom dia, carteira estável." && !/[{}"]/.test(r.body.texto), "JSON inválido do modo JSON: aproveita o texto gerado, sem pedaços de JSON");
+  groq = [msg('{"texto": "Resposta pela metade", "compras": [')];
+  r = await chamar(ag, { body: pedido({ pergunta: "como estão as ações?" }) });
+  ok(r.statusCode === 200 && r.body.texto === "Resposta pela metade", "JSON cortado: mostra só o texto");
+  r = await chamar(ag, { body: { modo: "dia", carteira, perfil: "x" } });
+  ok(pedidosGroq[pedidosGroq.length - 1].max_tokens <= 1500, "resumo do dia pede menos tokens que a conversa");
+
   // 429 do Groq
   groq = [resp({ error: "rate" }, 429, { "retry-after": "20" })];
   r = await chamar(ag, { body: pedido({ pergunta: "como estão as ações?" }) });

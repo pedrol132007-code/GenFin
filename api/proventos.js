@@ -20,7 +20,6 @@ const isoDe = s => { const m = /^(\d\d)\/(\d\d)\/(\d{4})$/.exec(String(s || "").
 const tipoDe = rotulo => { const r = String(rotulo || "").toUpperCase(); return /JRS|JUROS/.test(r) ? "jcp" : /DIVIDEND/.test(r) ? "dividendo" : /RENDIMENTO/.test(r) ? "rendimento" : "outro"; };
 
 // Só o que ainda vai ser pago ou foi pago há pouco (para o app sugerir o registro), do mais novo para o mais antigo.
-// O agente pede o histórico inteiro: {dias: Infinity, max: Infinity}.
 function lerProventos(lista, aceita, agora = Date.now(), { dias = DIAS, max = MAX_ITENS } = {}) {
   const limite = dias === Infinity ? "" : new Date(agora - dias * 864e5).toISOString().slice(0, 10), vistos = new Set(), itens = [];
   for (const d of Array.isArray(lista) ? lista : []) {
@@ -54,8 +53,6 @@ async function listaB3(t, classe) {
 }
 // Proventos recentes e a receber (rota /api/proventos)
 async function recentes(t, classe) { const b = await listaB3(t, classe); return b ? lerProventos(b.lista, b.aceita) : []; }
-// Histórico inteiro, para o agente calcular o DY de cada ano
-async function cashDividends(t, classe) { const b = await listaB3(t, classe); return b ? lerProventos(b.lista, b.aceita, Date.now(), { dias: Infinity, max: Infinity }) : []; }
 
 module.exports = async (req, res) => {
   const origem = req.headers.origin || "";
@@ -77,4 +74,3 @@ module.exports = async (req, res) => {
   }
 };
 module.exports.lerProventos = lerProventos;
-module.exports.cashDividends = cashDividends;

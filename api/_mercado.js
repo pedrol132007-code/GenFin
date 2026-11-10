@@ -50,7 +50,7 @@ function lerDetalhe(html) {
 // Yahoo: preço atual, faixa de 52 semanas e fechamento de cada mês (AAAA-MM no fuso da bolsa)
 function lerPrecos(json) {
   const r = json && json.chart && Array.isArray(json.chart.result) ? json.chart.result[0] : null;
-  if (!r) return { preco: null, max52: null, min52: null, mensal: [] };
+  if (!r) return { preco: null, max52: null, min52: null, mensal: [], dividendos: [] };
   const meta = r.meta || {}, ts = r.timestamp || [], fech = (((r.indicators || {}).quote || [])[0] || {}).close || [];
   const off = Number(meta.gmtoffset) || 0, mensal = [];
   ts.forEach((t, i) => {
@@ -59,7 +59,10 @@ function lerPrecos(json) {
     if (mensal.length && mensal[mensal.length - 1].mes === mes) mensal[mensal.length - 1].fech = fech[i];
     else mensal.push({ mes, fech: fech[i] });
   });
-  return { preco: meta.regularMarketPrice ?? null, max52: meta.fiftyTwoWeekHigh ?? null, min52: meta.fiftyTwoWeekLow ?? null, mensal };
+  // Dividendos do Yahoo (events=div): valores já ajustados por desdobramento e grupamento, como os preços
+  const dividendos = Object.values((r.events && r.events.dividends) || {}).filter(d => d && d.amount > 0 && d.date)
+    .map(d => ({ valor: d.amount, dataCom: new Date((d.date + off) * 1000).toISOString().slice(0, 10) })).sort((a, b) => a.dataCom.localeCompare(b.dataCom));
+  return { preco: meta.regularMarketPrice ?? null, max52: meta.fiftyTwoWeekHigh ?? null, min52: meta.fiftyTwoWeekLow ?? null, mensal, dividendos };
 }
 
 // Focus: mediana mais recente de cada indicador e ano
@@ -74,13 +77,14 @@ function lerFocus(json) {
   return out;
 }
 
-// DY de cada ano: proventos com data com no ano ÷ média dos fechamentos mensais do ano (anos com ≥ 6 meses de preço)
-function dyPorAno(proventos, mensal) {
+// DY de cada ano completo: proventos com data com no ano ÷ média dos 12 fechamentos mensais do ano.
+// Só anos fechados (antes do corrente) e com os 12 meses de preço; ano sem provento conta como DY zero.
+function dyPorAno(proventos, mensal, anoAtual = new Date().getFullYear()) {
   const precos = {}, provs = {};
   for (const p of mensal || []) (precos[p.mes.slice(0, 4)] ||= []).push(p.fech);
   for (const p of proventos || []) { const a = String(p.dataCom || "").slice(0, 4); if (p.valor > 0) provs[a] = (provs[a] || 0) + p.valor; }
-  return Object.keys(precos).filter(a => precos[a].length >= 6 && provs[a]).sort()
-    .map(a => ({ ano: Number(a), dy: provs[a] / (precos[a].reduce((s, v) => s + v, 0) / precos[a].length) }));
+  return Object.keys(precos).filter(a => precos[a].length >= 12 && Number(a) < anoAtual).sort()
+    .map(a => ({ ano: Number(a), dy: (provs[a] || 0) / (precos[a].reduce((s, v) => s + v, 0) / precos[a].length) }));
 }
 
 /* Triagem: candidatos para o perfil "patrimônio no longo prazo + renda".
@@ -144,21 +148,19 @@ async function baixar(fonte, url, tipo) {
   return new TextDecoder(tipo === "latin1" ? "latin1" : "utf-8").decode(await r.arrayBuffer());
 }
 const FUND = "https://www.fundamentus.com.br/";
-const acoes = () => memo("acoes", 6 * H, async () => lerTabelaFundamentus(await baixar("fundamentus", FUND + "resultado.php", "latin1")));
-const fiis = () => memo("fiis", 6 * H, async () => lerTabelaFII(await baixar("fundamentus", FUND + "fii_resultado.php", "latin1")));
-const detalhe = t => memo("det:" + t, 24 * H, async () => lerDetalhe(await baixar("fundamentus", FUND + "detalhes.php?papel=" + encodeURIComponent(tickerBase(t)), "latin1")));
+// Página que veio sem a tabela (anti-robô ou layout novo) conta como falha: não vai para o cache e o agente avisa
+const exigir = (v, ok) => { if (!ok(v)) throw new Error("fonte:fundamentus"); return v; };
+const acoes = () => memo("acoes", 6 * H, async () => exigir(lerTabelaFundamentus(await baixar("fundamentus", FUND + "resultado.php", "latin1")), l => l.length > 0));
+const fiis = () => memo("fiis", 6 * H, async () => exigir(lerTabelaFII(await baixar("fundamentus", FUND + "fii_resultado.php", "latin1")), l => l.length > 0));
+const detalhe = t => memo("det:" + t, 24 * H, async () => exigir(lerDetalhe(await baixar("fundamentus", FUND + "detalhes.php?papel=" + encodeURIComponent(tickerBase(t)), "latin1")), d => d.setor || d.max52 != null));
 const precos = t => memo("prec:" + t, H, async () => lerPrecos(await baixar("yahoo",
-  "https://query1.finance.yahoo.com/v8/finance/chart/" + encodeURIComponent(tickerBase(t)) + ".SA?range=5y&interval=1mo", "json")));
+  "https://query1.finance.yahoo.com/v8/finance/chart/" + encodeURIComponent(tickerBase(t)) + ".SA?range=5y&interval=1mo&events=div", "json")));
 const focus = () => memo("focus", 6 * H, async () => lerFocus(await baixar("focus",
   "https://olinda.bcb.gov.br/olinda/servico/Expectativas/versao/v1/odata/ExpectativasMercadoAnuais?$top=40&$filter=" +
   encodeURIComponent("(Indicador eq 'Selic' or Indicador eq 'IPCA') and baseCalculo eq 0") + "&$orderby=Data%20desc&$format=json&$select=Indicador,Data,DataReferencia,Mediana", "json")));
-const historicoProventos = (t, classe) => memo("prov:" + t, 24 * H, async () => {
-  try { return await require("./proventos.js").cashDividends(tickerBase(t), classe); }
-  catch (e) { throw new Error("fonte:b3"); }
-});
 const manchetes = (t, n = 3) => memo("not:" + t + ":" + n, H / 2, () => require("./noticias.js").manchetes(tickerBase(t), n));
 
 const tickerBase = t => /^[A-Z0-9]{4}\d{1,2}F$/.test(String(t)) ? String(t).slice(0, -1) : String(t);
 
 module.exports = { numBR, lerTabelaFundamentus, lerTabelaFII, lerDetalhe, lerPrecos, lerFocus, dyPorAno, triagem, tickerBase,
-  acoes, fiis, detalhe, precos, focus, historicoProventos, manchetes, _limparCache };
+  acoes, fiis, detalhe, precos, focus, manchetes, _limparCache };
