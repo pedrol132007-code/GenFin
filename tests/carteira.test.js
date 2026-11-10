@@ -480,6 +480,62 @@ excluirBem(S.bens[1].id); ok(S.bens.length===1, "exclui o bem");
 const elRes = fakeEl(); abaAtual="ir"; rResumo(elRes);
 ok(/Investimentos hoje/.test(elRes.innerHTML) && /patrimônio total é/.test(elRes.innerHTML), "Resumo mostra o patrimônio total quando há bens");
 
+// 25. Agente: plano de aporte em cotas, imposto da venda e folha de compra preenchida
+{
+  S = vazio(); S.atualizado = 1; avisos2 = [];
+  add({classe:"acao",tipo:"compra",data:"2026-01-05",ticker:"PETR4",qtd:"100",preco:"10"});
+  S.precos.PETR4 = {v:10, em:hojeISO()};
+  S.metas = {acao:50,etf:0,fii:30,rf:20,cripto:0};
+  const dv = divisaoAporte(1000);
+  ok(dv && dv.porClasse.acao===0 && Math.abs(dv.porClasse.fii-600)<1e-9 && Math.abs(dv.porClasse.rf-400)<1e-9, "divisão do aporte pelas metas: primeiro as classes mais abaixo da meta");
+  S.metas = {acao:50,etf:0,fii:30,rf:0,cripto:0};
+  ok(divisaoAporte(1000)===null && divisaoAporte(0)===null, "sem metas fechando 100% (ou sem valor) não há divisão");
+
+  const compras = [{ticker:"ITSA4",classe:"acao",pct_do_aporte:50},{ticker:"BBAS3",classe:"acao",pct_do_aporte:50},{ticker:"MXRF11",classe:"fii",pct_do_aporte:100}];
+  const dados = {ITSA4:{preco:10.4},BBAS3:{preco:17.02},MXRF11:{preco:9.7}};
+  const pl = planoAporte(2000, compras, dados, {porClasse:{acao:1200,fii:800,etf:0,rf:0,cripto:0}});
+  const q = t => (pl.linhas.find(l=>l.ticker===t)||{}).qtd;
+  ok(q("ITSA4")===57 && q("BBAS3")===35 && q("MXRF11")===82, "plano: cotas inteiras pela parcela de cada classe");
+  ok(Math.abs(pl.sobra-16.10)<0.005 && pl.rf===0, "plano: sobra = aporte menos o que foi comprado ("+pl.sobra+")");
+  const caro = planoAporte(100, [{ticker:"BBAS3",classe:"acao",pct_do_aporte:100}], dados, {porClasse:{acao:10,fii:0,etf:0,rf:90,cripto:0}});
+  ok(!caro.linhas.length && caro.rf===90 && Math.abs(caro.sobra-10)<0.005, "plano: cota mais cara que a parcela não entra e vira sobra; renda fixa em linha própria");
+  const semMetas = planoAporte(1000, compras, dados, null);
+  ok(semMetas.linhas.every(l=>l.classe==="acao"||l.classe==="fii") && (semMetas.linhas.find(l=>l.ticker==="ITSA4")||{}).qtd===24 && (semMetas.linhas.find(l=>l.ticker==="MXRF11")||{}).qtd===51, "plano sem metas: metade em ações, metade em FIIs");
+  S.precos.HGLG11 = {v:150, em:hojeISO()};
+  ok(planoAporte(300, [{ticker:"HGLG11",classe:"fii",pct_do_aporte:100}], {}, {porClasse:{acao:0,fii:300,etf:0,rf:0,cripto:0}}).linhas[0].qtd===2, "plano: sem preço do agente usa a cotação guardada no app");
+  ok(aportePorClassePct(1000).acao===50 && aportePorClassePct(1000).fii===50, "sem metas, o agente recebe metade ações e metade FIIs");
+  S.metas = {acao:50,etf:0,fii:30,rf:20,cripto:0};
+  ok(aportePorClassePct(1000).fii===60 && aportePorClassePct(1000).rf===40, "com metas, o agente recebe a divisão em %, sem reais");
+
+  // Imposto de vender a posição inteira à cotação atual
+  S = vazio(); S.atualizado = 1;
+  add({classe:"acao",tipo:"compra",data:"2026-01-05",ticker:"PETR4",qtd:"500",preco:"20"});
+  add({classe:"acao",tipo:"compra",data:"2026-01-05",ticker:"VALE3",qtd:"500",preco:"40"});
+  add({classe:"fii",tipo:"compra",data:"2026-01-05",ticker:"HGLG11",qtd:"10",preco:"100"});
+  S.precos.PETR4 = {v:30, em:hojeISO()}; S.precos.VALE3 = {v:50, em:hojeISO()}; S.precos.HGLG11 = {v:150, em:hojeISO()};
+  const iP = impostoVenda("PETR4"), iV = impostoVenda("VALE3"), iH = impostoVenda("HGLG11");
+  ok(iP.isento && iP.imposto===0 && iP.lucro===5000, "ação: venda de R$ 15 mil no mês é isenta");
+  ok(!iV.isento && Math.abs(iV.imposto-750)<0.01, "ação: venda de R$ 25 mil paga 15% do lucro");
+  ok(!iH.isento && Math.abs(iH.imposto-100)<0.01, "FII: 20% do lucro, sem isenção");
+  S.precos.PETR4 = {v:15, em:hojeISO()};
+  ok(impostoVenda("PETR4").imposto===0 && /prejuízo/.test(impostoVenda("PETR4").motivo), "venda com prejuízo: sem imposto, e o texto diz isso");
+
+  // Aporte pela conversa: o valor fica no aparelho
+  let corpo25 = null; agente = [];
+  globalThis.__fetch = (url, op={}) => { corpo25 = op.body; return resp(200, {texto:"Plano", avisos:[], vendas:[], compras:[{ticker:"PETR4",classe:"acao",pct_do_aporte:100,novo:false}], dados:{PETR4:{preco:30}}, fontes_falharam:[], em:new Date().toISOString()}); };
+  await perguntarAgente(PERGUNTA_APORTE, {aporteValor:3210});
+  ok(corpo25 && !corpo25.includes("3210") && !corpo25.includes("3.210") && JSON.parse(corpo25).aporte_por_classe_pct.acao===50, "aporte: o agente recebe só a divisão em %, nunca o valor");
+  ok(agente[0].aporte===3210 && /53 ×/.test(htmlSugestoes(agente[0])) && /Definir metas/.test(htmlSugestoes(agente[0])) && /data-act="agente-comprar"/.test(htmlSugestoes(agente[0])), "aporte: a resposta vira plano em cotas com botão Comprar");
+  pedirPlanoAporte("abc"); ok(agente.length===1, "valor de aporte inválido não pergunta nada");
+  agente = []; gravarAgente();
+
+  // Folha de compra já preenchida
+  globalThis.__fetch = () => Promise.reject(new TypeError("offline"));
+  abrirOp("compra", "BBAS3", {qtd:35, classe:"acao", preco:17.02});
+  ok(op && op.classe==="acao" && op.preco===17.02 && $("#op-qtd").value==="35", "Comprar abre a folha com o ativo, a quantidade e o preço");
+  $("#dlg-op").close(); op = null;
+}
+
 // 24. Agente: aba, retrato da carteira, resumo do dia e conversa
 {
   S = vazio(); S.atualizado = 1; delete mem[LS_AGENTE]; delete mem[LS_AGENTE_DIA]; delete mem[LS_PERFIL]; agente = []; diaTentado = null;

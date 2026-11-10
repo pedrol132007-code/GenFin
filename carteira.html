@@ -203,7 +203,8 @@ body.privado input.valbem:not(:focus){-webkit-text-security:disc;color:var(--mut
 .sug{padding:8px 0;border-bottom:1px solid var(--line)}
 .sug-linha{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .sug-linha .tk{font-weight:700}
-.sug-linha .det{color:var(--muted);font-size:.85rem;margin-right:auto}
+.sug-linha .det{color:var(--muted);font-size:.85rem;flex:1 1 80px;min-width:0}
+.sug-linha .btn{flex:none}
 .selo-novo{font-size:.68rem;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--focus);border:1px solid currentColor;border-radius:6px;padding:0 5px}
 .porque{margin-top:4px;font-size:.85rem}
 .porque summary{cursor:pointer;color:var(--focus);width:max-content}
@@ -1881,7 +1882,13 @@ const PERFIL_PADRAO = "Investidor de longo prazo, com dinheiro que não é urgen
   + "ou o ativo ficou caro demais perto do próprio histórico, sempre olhando o imposto. Aceita mais risco em ações e FIIs, respeitando as metas de alocação. Quer diversificar setores.";
 const CHIPS_AGENTE = ["Como estão as ações?", "Como estão os FIIs?", "Algo para vender?"];
 let agente = (()=>{ try{ const v = JSON.parse(localStorage.getItem(LS_AGENTE)||"[]"); return Array.isArray(v) ? v : []; }catch(e){ return []; } })();
-let pensando = false, rascunhoAgente = "", gerandoDia = false, diaTentado = null;
+let pensando = false, rascunhoAgente = "", gerandoDia = false, diaTentado = null, aporteAberto = false;
+const PERGUNTA_APORTE = "Vou fazer um aporte. Como dividir entre os ativos?";
+function pedirPlanoAporte(valor){
+  const v = parseNum(valor);
+  if(!(v>0)){ toast("Digite quanto vai aportar"); return; }
+  aporteAberto = false; perguntarAgente(PERGUNTA_APORTE, {aporteValor:v});
+}
 function gravarAgente(){ try{ localStorage.setItem(LS_AGENTE, JSON.stringify(agente.filter(m=>m.r).slice(-20))); }catch(e){} }
 const perfilAgente = () => lerLS(LS_PERFIL) || PERFIL_PADRAO;
 function lerDia(){ try{ return JSON.parse(lerLS(LS_AGENTE_DIA)||"null"); }catch(e){ return null; } }
@@ -1933,8 +1940,11 @@ async function perguntarAgente(texto, extra={}){
   if(demo){ toast("No modo exemplo os dados são fictícios; saia do exemplo para conversar com o agente."); return; }
   if(!temDados(S)){ toast("Lance seus ativos primeiro para o agente ter o que analisar."); return; }
   const historico = agente.filter(m=>m.r).slice(-3).map(m=>({p:m.p, r:m.r.texto}));
-  const item = {p:q}; agente.push(item); pensando = true; rascunhoAgente = ""; atualizarVistasAgente();
-  try{ item.r = await pedirAgente("pergunta", {pergunta:q, historico, ...extra}); gravarAgente(); }
+  // O valor do aporte e a divisão em reais ficam só no aparelho; o agente recebe a divisão em %
+  const {aporteValor, ...enviar} = extra;
+  if(aporteValor>0) enviar.aporte_por_classe_pct = aportePorClassePct(aporteValor);
+  const item = {p:q, ...(aporteValor>0 ? {aporte:aporteValor, divisao:divisaoAporte(aporteValor)} : {})}; agente.push(item); pensando = true; rascunhoAgente = ""; atualizarVistasAgente();
+  try{ item.r = await pedirAgente("pergunta", {pergunta:q, historico, ...enviar}); gravarAgente(); }
   catch(e){ item.erro = msgAgente(e); rascunhoAgente = q; }
   finally{ pensando = false; atualizarVistasAgente(); rolarAgente(); }
 }
@@ -1966,12 +1976,66 @@ function porQue(r, t, motivo){
   return `<details class="porque"><summary>por quê?</summary>${motivo?`<p>${esc(motivo)}</p>`:""}
     ${nums.length?`<p class="nota">${esc(nums.join(" · "))}</p>`:""}<p class="nota">Dados de ${esc(quandoDados(r.em))}</p></details>`;
 }
-function htmlSugestoes(r){
+/* Plano de aporte e imposto da venda: calculados aqui no aparelho, com os valores em reais que não saem dele */
+const centavos = v => Math.round(v*100)/100;
+// Divisão do aporte em % por classe para o agente: pelas metas; sem metas, metade em ações e metade em FIIs
+function aportePorClassePct(ap){
+  const d = divisaoAporte(ap);
+  if(!d) return {acao:50, etf:0, fii:50, rf:0, cripto:0};
+  return Object.fromEntries(ORDEM.map(k=>[k, Math.round(d.porClasse[k]/ap*1000)/10]));
+}
+// compras: [{ticker, classe, pct_do_aporte}] (percentuais dentro da classe); dados: preços do agente; divisao: divisaoAporte() ou null
+function planoAporte(ap, compras, dados, divisao){
+  const por = {}; ORDEM.forEach(k=>por[k] = 0);
+  if(divisao) ORDEM.forEach(k=>por[k] = divisao.porClasse[k]||0);
+  else { por.acao = ap/2; por.fii = ap/2; }
   const linhas = [];
-  for(const c of r.compras||[]) linhas.push(`<div class="sug"><div class="sug-linha"><span class="tk">${esc(c.ticker)}</span>${c.novo?'<span class="selo-novo">novo</span>':""}
-    <span class="det">${fmtPct(c.pct_do_aporte)} do aporte em ${esc((CLASSES[c.classe]||{}).nome||"")}</span></div>${porQue(r, c.ticker, c.motivo)}</div>`);
-  for(const v of r.vendas||[]) linhas.push(`<div class="sug"><div class="sug-linha"><span class="tk">${esc(v.ticker)}</span>
-    <span class="det">${v.acao==="vender"?"Considerar vender":"Considerar reduzir"}</span></div>${porQue(r, v.ticker, v.motivo)}</div>`);
+  for(const c of compras||[]){
+    if(!por[c.classe] || c.classe==="rf") continue;
+    const preco = ((dados||{})[c.ticker]||{}).preco || (S.precos[c.ticker]||{}).v || (posDe(c.ticker)||{}).cot;
+    if(!(preco>0)) continue;
+    const alvo = por[c.classe]*c.pct_do_aporte/100;
+    const qtd = c.classe==="cripto" ? Math.floor(alvo/preco*1e8)/1e8 : Math.floor(alvo/preco+1e-9);
+    if(qtd>0) linhas.push({ticker:c.ticker, classe:c.classe, qtd, preco, valor:centavos(qtd*preco), novo:!!c.novo});
+  }
+  const rf = centavos(por.rf);
+  return {linhas, rf, sobra: centavos(ap - rf - linhas.reduce((s,l)=>s+l.valor,0))};
+}
+// Imposto de vender a posição inteira agora, pela cotação atual e pelas vendas do mês
+function impostoVenda(t){
+  const c = calcular(), p = c.lista.find(x=>x.ticker===t && x.qtd>0);
+  if(!p || p.classe==="rf") return null;
+  const preco = p.cot || p.pm, venda = preco*p.qtd, lucro = centavos(venda - p.custo);
+  if(lucro<=0) return {lucro, imposto:0, isento:false, motivo:`Vendendo tudo agora: sem imposto, com prejuízo de ${brl(-lucro)}, que pode abater lucros futuros.`};
+  const mes = hojeISO().slice(0,7), noMes = c.vendas.filter(v=>v.mes===mes && v.classe===p.classe).reduce((s,v)=>s+v.venda,0);
+  let isento = false, imposto = 0;
+  if(p.classe==="acao"){ isento = noMes+venda<=20000; imposto = isento ? 0 : lucro*0.15; }
+  else if(p.classe==="cripto"){ isento = noMes+venda<=35000; imposto = isento ? 0 : ircripto(lucro); }
+  else imposto = lucro*(p.classe==="fii" ? 0.20 : 0.15);
+  const apur = apurarIR(), ult = apur[Object.keys(apur).sort().pop()], prej = ult ? (p.classe==="fii" ? ult.prejFII : ult.prejRV) : 0;
+  const motivo = isento ? `Vendendo tudo agora: isento, as vendas de ${CLASSES[p.classe].nome.toLowerCase()} no mês ficam em ${brl(noMes+venda)}, abaixo do limite.`
+    : `Vendendo tudo agora: cerca de ${brl(imposto)} de imposto sobre ${brl(lucro)} de lucro${prej>0?`, antes de compensar ${brl(prej)} de prejuízos`:""}.`;
+  return {lucro, imposto: centavos(imposto), isento, motivo};
+}
+const botaoComprar = (t, classe, qtd, preco) => `<button class="btn peq pri" data-act="agente-comprar" data-t="${esc(t)}" data-c="${esc(classe)}"${qtd?` data-q="${qtd}"`:""}${preco?` data-p="${preco}"`:""}>Comprar</button>`;
+function htmlSugestoes(m){
+  const r = m.r, linhas = [];
+  if(m.aporte && (r.compras||[]).length){
+    const pl = planoAporte(m.aporte, r.compras, r.dados, m.divisao || null);
+    const novo = t => (r.compras.find(c=>c.ticker===t)||{}).novo;
+    for(const l of pl.linhas) linhas.push(`<div class="sug"><div class="sug-linha"><span class="tk">${esc(l.ticker)}</span>${novo(l.ticker)?'<span class="selo-novo">novo</span>':""}
+      <span class="det">${qtdFmt(l.qtd)} × ${brl(l.preco)} = ${brl(l.valor)}</span>${botaoComprar(l.ticker, l.classe, l.qtd, l.preco)}</div>${porQue(r, l.ticker, (r.compras.find(c=>c.ticker===l.ticker)||{}).motivo)}</div>`);
+    if(pl.rf>0) linhas.push(`<div class="sug"><div class="sug-linha"><span class="tk">Renda fixa</span><span class="det">${brl(pl.rf)}: escolha o título</span></div></div>`);
+    linhas.push(`<div class="sug"><div class="sug-linha"><span class="det">Sobra de ${brl(pl.sobra)} de ${brl(m.aporte)}</span></div></div>`);
+    if(!m.divisao) linhas.push(`<p class="nota">Com metas definidas o plano fica mais certeiro. <button class="link" data-act="ir-aba" data-aba="rebalancear">Definir metas</button></p>`);
+  } else for(const c of r.compras||[]) linhas.push(`<div class="sug"><div class="sug-linha"><span class="tk">${esc(c.ticker)}</span>${c.novo?'<span class="selo-novo">novo</span>':""}
+    <span class="det">${fmtPct(c.pct_do_aporte)} da parte de ${esc((CLASSES[c.classe]||{}).nome||"")}</span>${botaoComprar(c.ticker, c.classe, 0, ((r.dados||{})[c.ticker]||{}).preco)}</div>${porQue(r, c.ticker, c.motivo)}</div>`);
+  for(const v of r.vendas||[]){
+    const ir = impostoVenda(v.ticker);
+    linhas.push(`<div class="sug"><div class="sug-linha"><span class="tk">${esc(v.ticker)}</span>
+      <span class="det">${v.acao==="vender"?"Considerar vender":"Considerar reduzir"}</span>${posDe(v.ticker)?`<button class="btn peq" data-act="op-venda" data-t="${esc(v.ticker)}">Vender</button>`:""}</div>
+      ${ir?`<p class="nota" style="margin:4px 0 0">${esc(ir.motivo)}</p>`:""}${porQue(r, v.ticker, v.motivo)}</div>`);
+  }
   return linhas.length ? `<div class="sug-lista">${linhas.join("")}</div>` : "";
 }
 function bolhaDia(d){
@@ -1981,7 +2045,7 @@ function bolhaDia(d){
     <p class="msg-rodape">${gerandoDia?"Atualizando…":(d.data===hojeISO()?"Hoje às "+hora:dataBR(d.data))}<button class="link" data-act="agente-dia"${gerandoDia?" disabled":""}>Atualizar</button></p></div>`;
 }
 function bolhasTroca(m){
-  const resp = m.r ? `<div class="msg ia">${textoIA(m.r.texto||"")}${htmlSugestoes(m.r)}${(m.r.fontes_falharam||[]).length?`<p class="nota">Sem dados agora de: ${esc(m.r.fontes_falharam.join(", "))}.</p>`:""}</div>`
+  const resp = m.r ? `<div class="msg ia">${textoIA(m.r.texto||"")}${htmlSugestoes(m)}${(m.r.fontes_falharam||[]).length?`<p class="nota">Sem dados agora de: ${esc(m.r.fontes_falharam.join(", "))}.</p>`:""}</div>`
     : m.erro ? `<div class="msg ia erro">${esc(m.erro)}</div>` : "";
   return `<div class="msg eu">${esc(m.p)}</div>${resp}`;
 }
@@ -1996,7 +2060,9 @@ function rAgente(el){
   const abertura = d ? bolhaDia(d) : `<div class="msg ia"><span class="carregando">${gerandoDia?"Olhando o mercado e a sua carteira…":"O resumo do dia aparece aqui."}</span></div>`;
   el.innerHTML = cab + `<div class="agente-chat" id="agente-chat" aria-live="polite">${abertura}${agente.map(bolhasTroca).join("")}
       ${pensando?'<div class="msg ia"><span class="carregando">Buscando os dados e pensando…</span></div>':""}</div>
-    <div class="sugestoes">${CHIPS_AGENTE.map(q=>`<button class="sugestao" data-act="agente-perguntar" data-q="${esc(q)}"${pensando?" disabled":""}>${esc(q)}</button>`).join("")}</div>
+    <div class="sugestoes"><button class="sugestao" data-act="agente-aporte" aria-expanded="${aporteAberto}"${pensando?" disabled":""}>Vou aportar…</button>${CHIPS_AGENTE.map(q=>`<button class="sugestao" data-act="agente-perguntar" data-q="${esc(q)}"${pensando?" disabled":""}>${esc(q)}</button>`).join("")}</div>
+    ${aporteAberto?`<form class="perguntar" id="f-aporte"><input name="v" inputmode="decimal" autocomplete="off" placeholder="Quanto vai aportar? Ex.: 2.000,00" aria-label="Valor do aporte (R$)"><button class="btn pri" type="submit">Montar plano</button></form>
+      <p class="nota" style="margin:4px 0 0">O valor fica neste aparelho: o agente recebe só a divisão em percentuais.</p>`:""}
     <form class="perguntar" id="f-agente"><input id="agente-q" name="q" maxlength="400" autocomplete="off" placeholder="Pergunte ao agente…" aria-label="Pergunta ao agente" value="${esc(rascunhoAgente)}"><button class="btn pri" type="submit"${pensando?" disabled":""}>Enviar</button></form>
     <p class="nota agente-aviso">Sugestões automáticas a partir de números públicos; a decisão é sua.</p>
     <details class="perfil-agente"><summary>Seu perfil</summary>
@@ -2146,13 +2212,15 @@ function salvarCotacao(inp){
 const LS_ULT_CLASSE = "genfin-ultima-classe";
 let op = null;
 const posDe = t => t ? calcular().lista.find(p=>p.ticker===t && p.qtd>0) || null : null;
-function abrirOp(modo, ticker){
+// extra (vindo do agente): {qtd, classe, preco} para abrir a folha já preenchida
+function abrirOp(modo, ticker, extra={}){
   if(demo){ toast("No modo exemplo nada é salvo. Saia do exemplo para registrar seus dados."); return; }
   const p = posDe(ticker), pr = ticker && S.precos[ticker];
-  const classe = p ? p.classe : (S.ativos[ticker]||{}).classe || lerLS(LS_ULT_CLASSE) || "acao";
+  const classe = p ? p.classe : (S.ativos[ticker]||{}).classe || extra.classe || lerLS(LS_ULT_CLASSE) || "acao";
   const fresca = pr && pr.ts && Date.now()-pr.ts < INTERVALO_AUTO;
-  op = {modo, ticker: ticker||"", classe, preco: pr ? pr.v : (p ? p.pm : null), precoTs: fresca ? pr.ts : null, precoEm: pr ? pr.em : null, precoEditado:false, buscando:false};
+  op = {modo, ticker: ticker||"", classe, preco: pr ? pr.v : extra.preco>0 ? extra.preco : (p ? p.pm : null), precoTs: fresca ? pr.ts : null, precoEm: pr ? pr.em : null, precoEditado:false, buscando:false};
   $("#dlg-op").showModal(); renderOp();
+  if(extra.qtd>0){ const i = $("#op-qtd"); if(i){ i.value = numInput(extra.qtd); atualizarOp(); } }
   if(ticker && classe!=="rf" && !fresca && modo!=="evento") buscarPrecoOp();
 }
 const tickerOp = () => op.ticker || normTicker(campoOp("op-ticker"), op.classe);
@@ -2592,6 +2660,17 @@ function delProv(id){ S.provs=S.provs.filter(p=>p.id!==id); salvar("proventos");
 
 /* ---------- Rebalancear ---------- */
 let aporteRebal = "";
+// Divisão de um aporte (R$) entre as classes, só com compras, priorizando as mais abaixo da meta. null sem metas fechando 100%.
+function divisaoAporte(ap){
+  const soma = ORDEM.reduce((s,k)=>s+(S.metas[k]||0),0);
+  if(!(ap>0) || Math.abs(soma-100)>=0.01) return null;
+  const c = calcular(), T = c.total+ap, falta = {}; let somaF = 0;
+  ORDEM.forEach(k=>{ falta[k] = Math.max(0, T*S.metas[k]/100 - c.porClasse[k]); somaF += falta[k]; });
+  const dist = {};
+  if(somaF>=ap) ORDEM.forEach(k=>dist[k] = somaF>0 ? ap*falta[k]/somaF : 0);
+  else { const sobra = ap-somaF; ORDEM.forEach(k=>dist[k] = falta[k]+sobra*S.metas[k]/100); }
+  return {porClasse: dist};
+}
 function rRebalancear(el){
   const c = calcular();
   const soma = ORDEM.reduce((s,k)=>s+(S.metas[k]||0),0);
@@ -2604,11 +2683,7 @@ function rRebalancear(el){
     </tbody></table></div>`;
     const ap = parseNum(aporteRebal);
     if(ap>0){
-      const T = c.total+ap; const falta={}; let somaF=0;
-      ORDEM.forEach(k=>{ falta[k]=Math.max(0, T*S.metas[k]/100 - c.porClasse[k]); somaF+=falta[k]; });
-      const dist={};
-      if(somaF>=ap){ ORDEM.forEach(k=>dist[k]= somaF>0 ? ap*falta[k]/somaF : 0); }
-      else { const sobra=ap-somaF; ORDEM.forEach(k=>dist[k]=falta[k]+sobra*S.metas[k]/100); }
+      const T = c.total+ap, dist = divisaoAporte(ap).porClasse;
       const depois={}; ORDEM.forEach(k=>depois[k]=c.porClasse[k]+dist[k]);
       sugest = `<div class="rolagem" style="margin-top:14px"><table><thead><tr><th>Classe</th><th>Aportar</th><th>% depois</th><th>Meta</th></tr></thead><tbody>
       ${ORDEM.filter(k=>S.metas[k]>0||dist[k]>0).map(k=>`<tr><td><i class="pinta" style="background:${corDe(k)};margin-right:8px"></i>${CLASSES[k].nome}</td><td><strong>${brl(dist[k])}</strong></td><td>${pct(depois[k]/T)}</td><td>${pct(S.metas[k]/100,0)}</td></tr>`).join("")}
@@ -3166,6 +3241,8 @@ document.addEventListener("click", e=>{
   else if(a==="agente-perguntar") perguntarAgente(b.dataset.q);
   else if(a==="agente-nova"){ agente = []; gravarAgente(); rascunhoAgente = ""; render("agente"); }
   else if(a==="agente-dia") resumoDoDia({forcar:true});
+  else if(a==="agente-aporte"){ aporteAberto = !aporteAberto; render("agente"); const f = document.querySelector("#f-aporte input"); if(f) f.focus(); }
+  else if(a==="agente-comprar") abrirOp("compra", b.dataset.t, {classe:b.dataset.c, qtd:Number(b.dataset.q)||0, preco:Number(b.dataset.p)||0});
   else if(a==="perfil-salvar"){ const t = $("#perfil-agente").value.trim().slice(0,800); gravarLS(LS_PERFIL, t && t!==PERFIL_PADRAO ? t : ""); toast("Perfil salvo. O agente segue ele a partir da próxima pergunta."); }
   else if(a==="perfil-restaurar"){ gravarLS(LS_PERFIL, ""); $("#perfil-agente").value = PERFIL_PADRAO; toast("Perfil padrão restaurado"); }
   else if(a==="filtro-noticias"){ filtroNoticias = b.dataset.k; render("noticias"); }
@@ -3230,6 +3307,7 @@ document.addEventListener("change", e=>{
   if(e.target.matches("select.imp-classe") && importacao) importacao.classes[e.target.dataset.t] = e.target.value;
 });
 document.addEventListener("submit", e=>{
+  if(e.target.id==="f-aporte"){ e.preventDefault(); pedirPlanoAporte(e.target.elements.namedItem("v").value); return; }
   if(e.target.id==="f-agente"){ e.preventDefault(); const i = e.target.elements.namedItem("q"), q = i.value; i.value = ""; perguntarAgente(q); return; }
   if(e.target.id!=="f-perguntar" && e.target.id!=="f-ia") return;
   e.preventDefault();
