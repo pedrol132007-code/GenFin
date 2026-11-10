@@ -18,3 +18,6 @@ android/
 
 .vercel
 .env*
+
+# Rascunhos de tela do brainstorming
+.superpowers/
