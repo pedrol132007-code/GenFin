@@ -25,6 +25,14 @@ function lerRSS(xml, agora = Date.now()) {
   return itens.sort((a, b) => b.data.localeCompare(a.data)).slice(0, MAX_ITENS);
 }
 
+const urlRSS = q => "https://news.google.com/rss/search?q=" + encodeURIComponent(q) + "&hl=pt-BR&gl=BR&ceid=BR:pt-419";
+// Para o agente: as n manchetes mais recentes de um ativo (lança erro se o Google não responder)
+async function manchetes(q, n = 3) {
+  const r = await fetch(urlRSS(q), { headers: { "User-Agent": "Mozilla/5.0 (GenFin)" }, signal: AbortSignal.timeout(8000) });
+  if (!r.ok) throw new Error("fonte:noticias");
+  return lerRSS(await r.text()).slice(0, n).map(({ titulo, fonte, data }) => ({ titulo, fonte, data }));
+}
+
 module.exports = async (req, res) => {
   const origem = req.headers.origin || "";
   if (ORIGENS.includes(origem) || /^https:\/\/genfin-[a-z0-9-]+\.vercel\.app$/.test(origem)) {
@@ -36,7 +44,7 @@ module.exports = async (req, res) => {
 
   const q = String((req.query && req.query.q) || "").trim();
   if (!/^[A-Za-z0-9][A-Za-z0-9 .-]{1,39}$/.test(q)) return res.status(400).json({ erro: "busca" });
-  const url = "https://news.google.com/rss/search?q=" + encodeURIComponent(q) + "&hl=pt-BR&gl=BR&ceid=BR:pt-419";
+  const url = urlRSS(q);
   try {
     const r = await fetch(url, { headers: { "User-Agent": "Mozilla/5.0 (GenFin)" }, signal: AbortSignal.timeout(8000) });
     if (!r.ok) return res.status(502).json({ erro: "servico" });
@@ -47,3 +55,4 @@ module.exports = async (req, res) => {
   }
 };
 module.exports.lerRSS = lerRSS;
+module.exports.manchetes = manchetes;

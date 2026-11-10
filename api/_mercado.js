@@ -122,6 +122,43 @@ function triagem(lista, classe, { excluir = [], n = 10 } = {}) {
     .sort((a, b) => b.nota - a.nota).slice(0, n);
 }
 
+/* Busca com cache em memória: a Vercel reaproveita a mesma instância entre pedidos, então o Fundamentus é lido
+   no máximo a cada 6 horas por instância. Erro nunca fica no cache. */
+const UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36";
+const H = 3600e3;
+let cache = new Map();
+const _limparCache = () => { cache = new Map(); };
+async function memo(chave, ttl, fn) {
+  const c = cache.get(chave);
+  if (c && c.ate > Date.now()) return c.v;
+  const v = await fn();
+  cache.set(chave, { v, ate: Date.now() + ttl });
+  return v;
+}
+async function baixar(fonte, url, tipo) {
+  let r;
+  try { r = await fetch(url, { headers: { "User-Agent": UA }, signal: AbortSignal.timeout(8000) }); }
+  catch (e) { throw new Error("fonte:" + fonte); }
+  if (!r.ok) throw new Error("fonte:" + fonte);
+  if (tipo === "json") return r.json();
+  return new TextDecoder(tipo === "latin1" ? "latin1" : "utf-8").decode(await r.arrayBuffer());
+}
+const FUND = "https://www.fundamentus.com.br/";
+const acoes = () => memo("acoes", 6 * H, async () => lerTabelaFundamentus(await baixar("fundamentus", FUND + "resultado.php", "latin1")));
+const fiis = () => memo("fiis", 6 * H, async () => lerTabelaFII(await baixar("fundamentus", FUND + "fii_resultado.php", "latin1")));
+const detalhe = t => memo("det:" + t, 24 * H, async () => lerDetalhe(await baixar("fundamentus", FUND + "detalhes.php?papel=" + encodeURIComponent(tickerBase(t)), "latin1")));
+const precos = t => memo("prec:" + t, H, async () => lerPrecos(await baixar("yahoo",
+  "https://query1.finance.yahoo.com/v8/finance/chart/" + encodeURIComponent(tickerBase(t)) + ".SA?range=5y&interval=1mo", "json")));
+const focus = () => memo("focus", 6 * H, async () => lerFocus(await baixar("focus",
+  "https://olinda.bcb.gov.br/olinda/servico/Expectativas/versao/v1/odata/ExpectativasMercadoAnuais?$top=40&$filter=" +
+  encodeURIComponent("(Indicador eq 'Selic' or Indicador eq 'IPCA') and baseCalculo eq 0") + "&$orderby=Data%20desc&$format=json&$select=Indicador,Data,DataReferencia,Mediana", "json")));
+const historicoProventos = (t, classe) => memo("prov:" + t, 24 * H, async () => {
+  try { return await require("./proventos.js").cashDividends(tickerBase(t), classe); }
+  catch (e) { throw new Error("fonte:b3"); }
+});
+const manchetes = (t, n = 3) => memo("not:" + t + ":" + n, H / 2, () => require("./noticias.js").manchetes(tickerBase(t), n));
+
 const tickerBase = t => /^[A-Z0-9]{4}\d{1,2}F$/.test(String(t)) ? String(t).slice(0, -1) : String(t);
 
-module.exports = { numBR, lerTabelaFundamentus, lerTabelaFII, lerDetalhe, lerPrecos, lerFocus, dyPorAno, triagem, tickerBase };
+module.exports = { numBR, lerTabelaFundamentus, lerTabelaFII, lerDetalhe, lerPrecos, lerFocus, dyPorAno, triagem, tickerBase,
+  acoes, fiis, detalhe, precos, focus, historicoProventos, manchetes, _limparCache };

@@ -19,9 +19,10 @@ async function lerB3(caminho, params) {
 const isoDe = s => { const m = /^(\d\d)\/(\d\d)\/(\d{4})$/.exec(String(s || "").trim()); return m && m[3] < "9000" ? `${m[3]}-${m[2]}-${m[1]}` : null; };
 const tipoDe = rotulo => { const r = String(rotulo || "").toUpperCase(); return /JRS|JUROS/.test(r) ? "jcp" : /DIVIDEND/.test(r) ? "dividendo" : /RENDIMENTO/.test(r) ? "rendimento" : "outro"; };
 
-// Só o que ainda vai ser pago ou foi pago há pouco (para o app sugerir o registro), do mais novo para o mais antigo
-function lerProventos(lista, aceita, agora = Date.now()) {
-  const limite = new Date(agora - DIAS * 864e5).toISOString().slice(0, 10), vistos = new Set(), itens = [];
+// Só o que ainda vai ser pago ou foi pago há pouco (para o app sugerir o registro), do mais novo para o mais antigo.
+// O agente pede o histórico inteiro: {dias: Infinity, max: Infinity}.
+function lerProventos(lista, aceita, agora = Date.now(), { dias = DIAS, max = MAX_ITENS } = {}) {
+  const limite = dias === Infinity ? "" : new Date(agora - dias * 864e5).toISOString().slice(0, 10), vistos = new Set(), itens = [];
   for (const d of Array.isArray(lista) ? lista : []) {
     if (!aceita(String(d.isinCode || d.assetIssued || ""))) continue;
     const valor = Number(String(d.rate || "").replace(/\./g, "").replace(",", "."));
@@ -33,23 +34,28 @@ function lerProventos(lista, aceita, agora = Date.now()) {
     vistos.add(chave);
     itens.push(item);
   }
-  return itens.sort((a, b) => (b.pagamento || b.dataCom).localeCompare(a.pagamento || a.dataCom)).slice(0, MAX_ITENS);
+  return itens.sort((a, b) => (b.pagamento || b.dataCom).localeCompare(a.pagamento || a.dataCom)).slice(0, max);
 }
 
-async function proventosAcao(t) {
+// Lista crua da B3 e o filtro de ISIN do ativo: ação pelo detalhe da empresa, FII só pelas cotas (CTF)
+async function listaB3(t, classe) {
+  if (classe === "fii") {
+    const fundo = await lerB3("fundsProxy/fundsCall/GetListedSupplementFunds", { cnpj: "0", identifierFund: t.slice(0, 4), typeFund: 7 });
+    // Só as cotas (ISIN com CTF); recibos de subscrição ficam de fora
+    return fundo ? { lista: fundo.cashDividends, aceita: i => /^BR[A-Z0-9]{4}CTF/.test(i) } : null;
+  }
   const sup = await lerB3("listedCompaniesProxy/CompanyCall/GetListedSupplementCompany", { issuingCompany: t.slice(0, 4), language: "pt-br" });
   const emp = Array.isArray(sup) ? sup[0] : null;
-  if (!emp || !emp.codeCVM) return [];
+  if (!emp || !emp.codeCVM) return null;
   // A empresa lista os proventos por ISIN; o detalhe diz qual ISIN é ITSA3, ITSA4 ou a unit
   const det = await lerB3("listedCompaniesProxy/CompanyCall/GetDetail", { codeCVM: String(emp.codeCVM), language: "pt-br" });
   const isin = ((det && det.otherCodes) || []).find(o => String(o.code).toUpperCase() === t);
-  return isin ? lerProventos(emp.cashDividends, i => i === isin.isin) : [];
+  return isin ? { lista: emp.cashDividends, aceita: i => i === isin.isin } : null;
 }
-async function proventosFII(t) {
-  const fundo = await lerB3("fundsProxy/fundsCall/GetListedSupplementFunds", { cnpj: "0", identifierFund: t.slice(0, 4), typeFund: 7 });
-  // Só as cotas (ISIN com CTF); recibos de subscrição ficam de fora
-  return fundo ? lerProventos(fundo.cashDividends, i => /^BR[A-Z0-9]{4}CTF/.test(i)) : [];
-}
+// Proventos recentes e a receber (rota /api/proventos)
+async function recentes(t, classe) { const b = await listaB3(t, classe); return b ? lerProventos(b.lista, b.aceita) : []; }
+// Histórico inteiro, para o agente calcular o DY de cada ano
+async function cashDividends(t, classe) { const b = await listaB3(t, classe); return b ? lerProventos(b.lista, b.aceita, Date.now(), { dias: Infinity, max: Infinity }) : []; }
 
 module.exports = async (req, res) => {
   const origem = req.headers.origin || "";
@@ -63,7 +69,7 @@ module.exports = async (req, res) => {
   const t = String((req.query && req.query.t) || "").trim().toUpperCase(), classe = String((req.query && req.query.c) || "");
   if (!/^[A-Z]{4}\d{1,2}$/.test(t) || !["acao", "fii"].includes(classe)) return res.status(400).json({ erro: "ativo" });
   try {
-    const itens = classe === "fii" ? await proventosFII(t) : await proventosAcao(t);
+    const itens = await recentes(t, classe);
     res.setHeader("Cache-Control", "public, s-maxage=21600, stale-while-revalidate=86400");
     return res.status(200).json({ itens });
   } catch (e) {
@@ -71,3 +77,4 @@ module.exports = async (req, res) => {
   }
 };
 module.exports.lerProventos = lerProventos;
+module.exports.cashDividends = cashDividends;
