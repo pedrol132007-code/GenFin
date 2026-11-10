@@ -1,7 +1,7 @@
 // Service worker do GenFin: guarda o app para abrir sem internet.
 // O app em si vem primeiro da rede (para receber atualizações) e cai no cache quando está offline.
 // As APIs de cotação e de IA nunca passam pelo cache.
-const CACHE = "genfin-v1";
+const CACHE = "genfin-v2";
 const APP = ["/", "/carteira.html", "/manifest.webmanifest", "/icons/icon-192.png", "/icons/icon-512.png", "/icons/icon-maskable-512.png", "/icons/apple-touch-icon.png"];
 const FONTES = ["fonts.googleapis.com", "fonts.gstatic.com"];
 

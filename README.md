@@ -45,6 +45,7 @@ Preço médio, alocação, proventos, rebalanceamento e imposto de renda para qu
 | | |
 |---|---|
 | 📊 **Resumo** | Patrimônio, valorização em aberto, lucro realizado, proventos e resultado sobre o total aportado. Alocação atual comparada com a meta, gráfico de evolução e comparação com o CDI e o Ibovespa. |
+| ✦ **Agente** | Conversa com um agente de investimentos que olha a sua carteira e o mercado: sugere onde aportar (ativos que você já tem e ativos novos), o que considerar vender e o que merece atenção, sempre mostrando os números que usou (P/L, P/VP, dividend yield, ROE, faixa de 52 semanas, dividend yield médio de 5 anos, distância do seu preço médio). Abre com o resumo do dia, que também vira a manchete do Resumo. "Vou aportar…" monta um plano em cotas inteiras, pela divisão das suas metas, com um botão **Comprar** em cada linha; na venda, mostra o imposto estimado. O perfil de investidor que o agente segue é editável. |
 | 🔎 **Análises** | Leituras automáticas feitas no aparelho: concentração, distância das metas, cotações antigas, limites de isenção e DARF do mês, desempenho contra o CDI, proventos e lembrete de backup. Resumo escrito por IA (Groq, gratuito), sem precisar de chave no aparelho. |
 | 💹 **Ativos** | Lista compacta por classe (com filtro), valor e resultado de cada ativo; tocar abre preço médio, peso, proventos e a cotação para corrigir. Botões **+** e **−** em cada ativo para comprar ou vender na hora, com o preço de agora, a prévia do novo preço médio e, na venda, o resultado e o limite de isenção do mês. Desdobramentos e grupamentos registrados no próprio ativo, com a nova quantidade e o novo preço médio. |
 | 🧾 **Lançamentos** | Compras e vendas com taxas da nota de corretagem, ou importadas do extrato da B3. Aplicações e resgates de renda fixa, com o indexador (% do CDI, prefixado ou IPCA +) para o valor se atualizar sozinho. Editar e excluir, sempre impedindo vendas maiores que o saldo, inclusive em datas retroativas. |
@@ -61,7 +62,10 @@ Cinco classes de ativo: **ações**, **ETFs**, **FIIs**, **renda fixa** e **crip
 
 <table>
   <tr>
+    <td width="50%"><img src="docs/img/agente.png" alt="Agente"><p align="center"><sub>Agente</sub></p></td>
     <td width="50%"><img src="docs/img/analises.png" alt="Análises"><p align="center"><sub>Análises</sub></p></td>
+  </tr>
+  <tr>
     <td width="50%"><img src="docs/img/ativos.png" alt="Ativos e cotações"><p align="center"><sub>Ativos e cotações</sub></p></td>
   </tr>
   <tr>
@@ -159,8 +163,9 @@ flowchart LR
 - **Sempre no aparelho**, na chave `carteira-v1` do `localStorage`. Com a sincronização ligada, uma cópia **cifrada** vai para a nuvem (veja Sincronizar celular e computador); sem ela, a carteira não sai do aparelho. Para as cotações, só os **códigos** dos ativos (como `PETR4` ou `BTC`) vão para a brapi e o Mercado Bitcoin; quantidades e valores nunca são enviados.
 - **Proventos anunciados:** só o código de cada ação e FII vai para a função `api/proventos.js`, que lê o site público da B3 (sem chave) e devolve o valor por ação, a data com e a data de pagamento, com cache de 6 horas. A quantidade e o valor estimado são calculados no aparelho.
 - **Notícias:** só o código de cada ativo de renda variável vai para a função `api/noticias.js`, que busca as manchetes no Google Notícias e devolve título, fonte, data e link. Nada é guardado lá.
+- **Agente:** vai para a função `api/agente.js` o mesmo tipo de retrato da IA (classes e metas em %, peso e resultado de cada ativo em %, distância da cotação ao preço médio em %), o texto do perfil e a pergunta. **Valores em reais e quantidades não saem do aparelho:** no "Vou aportar…", o valor fica no celular e o agente recebe só a divisão em percentuais; as cotas, o plano e o imposto da venda são calculados aqui. A função busca os dados de mercado em fontes públicas (Fundamentus, Yahoo Finanças, B3 e o boletim Focus do Banco Central), monta um resumo enxuto, chama o Groq e confere a resposta: só passam ativos que vieram dessas fontes ou da carteira. Nada é guardado lá.
 - **As chaves da brapi e do Groq** ficam só no navegador, separadas da carteira. Elas não entram no backup nem vão para a conta.
-- **Resumo com IA:** só vai para a IA o que aparece em "O que vai para a IA", na aba Análises: percentuais, códigos dos ativos e as leituras escritas sem valores em reais. Quantidades, preços e o patrimônio não saem do aparelho. Sem chave própria, os dados passam pela função `api/resumo.js` do GenFin na Vercel, que guarda a chave do Groq na variável de ambiente `GROQ_API_KEY`, aceita só esse formato de dados (e recusa valores em reais), usa uma instrução fixa e não guarda nada. Quem preferir pode colar a própria chave do Groq no app, que então fala direto com ele. A instrução pede que a IA explique os números e não recomende compra ou venda.
+- **Resumo com IA:** só vai para a IA o que aparece em "O que vai para a IA", na aba Análises: percentuais, códigos dos ativos e as leituras escritas sem valores em reais. Quantidades, preços e o patrimônio não saem do aparelho. Sem chave própria, os dados passam pela função `api/resumo.js` do GenFin na Vercel, que guarda a chave do Groq na variável de ambiente `GROQ_API_KEY`, aceita só esse formato de dados (e recusa valores em reais), usa uma instrução fixa e não guarda nada. Quem preferir pode colar a própria chave do Groq no app, que então fala direto com ele. No resumo, a instrução pede que a IA explique os números e não recomende compra ou venda; as sugestões ficam com o agente.
 - **No claude.ai**, também na conta do usuário, em quatro documentos (`carteira`, `lancamentos`, `proventos` e `historico`). Cada salvamento leva data e hora. Ao abrir, o lado mais recente vence, para não perder alterações feitas sem conexão.
 - **Backup:** o botão no topo exporta tudo em `.json`, exporta os lançamentos em `.csv` e restaura um backup. Os arquivos exportados estão no `.gitignore`, para não irem parar no repositório por engano.
 
@@ -202,6 +207,8 @@ Operações comuns de pessoa física, sem day trade:
 ├── icons/                 # ícones PNG do app instalado
 ├── vercel.json            # rota / → carteira.html e cabeçalhos
 ├── api/resumo.js          # função da Vercel: resumo com IA pelo Groq
+├── api/agente.js          # função da Vercel: agente de investimentos (dados de mercado + Groq)
+├── api/_mercado.js        # fontes de mercado, triagem e cache (usado pelo agente; não vira função)
 ├── api/noticias.js        # função da Vercel: manchetes do Google Notícias por ativo
 ├── api/proventos.js       # função da Vercel: proventos anunciados na B3 por ativo
 ├── api/sync.js            # função da Vercel: guarda a carteira cifrada (sincronização)
@@ -211,6 +218,9 @@ Operações comuns de pessoa física, sem day trade:
 ├── tests/
 │   ├── carteira.test.js   # testes da lógica, com um DOM falso
 │   ├── api.test.js        # testes das funções da Vercel, com o Groq e o Blob simulados
+│   ├── mercado.test.js    # leitores das fontes de mercado, triagem e cache
+│   ├── agente.test.js     # o agente, com o Groq e as fontes simulados
+│   ├── fixtures/          # páginas e respostas reais das fontes, recortadas
 │   └── blob-falso.js      # Vercel Blob em memória para os testes
 ├── scripts/
 │   ├── capturas.sh        # gera as imagens de docs/img
@@ -269,8 +279,8 @@ Fonte: [Bricolage Grotesque](https://fonts.google.com/specimen/Bricolage+Grotesq
 - [x] Importar extratos de Negociação e Movimentação da B3
 - [x] Proventos anunciados: dividendos, JCP e rendimentos já aprovados que vão cair, direto da B3
 - [x] Sincronizar celular e computador, cifrado e sem servidor pago
-- [ ] Importar a nota de corretagem em PDF, para trazer as taxas
+- [x] Agente de investimentos: sugestões de aporte, venda e ativos novos com dados de mercado
 
 ## Aviso
 
-O GenFin é uma ferramenta de organização e cálculo. Não é recomendação de investimento, e as estimativas de imposto não substituem a orientação de um profissional.
+O GenFin é uma ferramenta de organização e cálculo. Não é recomendação de investimento: as sugestões do agente são automáticas, feitas a partir de números públicos, e a decisão é sua. As estimativas de imposto não substituem a orientação de um profissional.
