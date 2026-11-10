@@ -191,6 +191,29 @@ body.privado input.valbem:not(:focus){-webkit-text-security:disc;color:var(--mut
 .msg.ia p{margin:3px 0} .msg.ia ul{margin:4px 0;padding-left:18px} .msg.ia li{margin:3px 0}
 .msg.erro{color:var(--neg)}
 
+/* Agente: conversa na própria aba */
+#v-agente{max-width:760px}
+.agente-cab{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+.agente-cab h2{margin:0 auto 0 0}
+.agente-chat{display:flex;flex-direction:column;gap:10px;margin-bottom:6px}
+.agente-chat .msg{max-width:94%}
+.msg.ia .avisos{margin:6px 0 2px;padding-left:18px}
+.msg-rodape{display:flex;align-items:center;gap:10px;margin:8px 0 0 !important;color:var(--muted);font-size:.78rem}
+.sug-lista{margin:8px 0 2px;border-top:1px solid var(--line)}
+.sug{padding:8px 0;border-bottom:1px solid var(--line)}
+.sug-linha{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.sug-linha .tk{font-weight:700}
+.sug-linha .det{color:var(--muted);font-size:.85rem;margin-right:auto}
+.selo-novo{font-size:.68rem;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--focus);border:1px solid currentColor;border-radius:6px;padding:0 5px}
+.porque{margin-top:4px;font-size:.85rem}
+.porque summary{cursor:pointer;color:var(--focus);width:max-content}
+.porque p{margin:4px 0}
+.agente-aviso{margin:8px 0 0}
+.perfil-agente{margin-top:22px;border-top:1px solid var(--line);padding-top:12px}
+.perfil-agente summary{cursor:pointer;font-weight:600}
+.perfil-agente textarea{width:100%;min-height:140px;border:1px solid var(--line);border-radius:10px;padding:10px 12px;background:var(--surface);color:var(--ink);font:inherit;font-size:.92rem;line-height:1.45;margin:6px 0 8px}
+.perfil-agente .botoes{display:flex;gap:8px;flex-wrap:wrap}
+
 /* Ativos: lista compacta */
 #v-ativos{max-width:860px}
 .ativos-topo{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px}
@@ -435,6 +458,7 @@ textarea{width:100%;min-height:140px;font:12px/1.4 ui-monospace,Menlo,monospace;
     </div>
     <nav class="abas" role="tablist" id="abas">
       <button role="tab" data-aba="resumo">Resumo</button>
+      <button role="tab" data-aba="agente">Agente</button>
       <button role="tab" data-aba="analises">Análises</button>
       <button role="tab" data-aba="ativos">Ativos</button>
       <button role="tab" data-aba="lancamentos">Lançamentos</button>
@@ -449,6 +473,7 @@ textarea{width:100%;min-height:140px;font:12px/1.4 ui-monospace,Menlo,monospace;
 
 <main class="wrap">
   <section id="v-resumo"></section>
+  <section id="v-agente" hidden></section>
   <section id="v-analises" hidden></section>
   <section id="v-ativos" hidden></section>
   <section id="v-lancamentos" hidden></section>
@@ -462,13 +487,14 @@ textarea{width:100%;min-height:140px;font:12px/1.4 ui-monospace,Menlo,monospace;
 <!-- Celular: barra de navegação embaixo (no computador continuam as abas do topo) -->
 <nav class="doca" aria-label="Navegação">
   <button data-aba="resumo"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="9" width="18" height="6" rx="1.5"/><path d="M9 9v6M14 9v6"/></svg>Resumo</button>
-  <button data-aba="analises"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></svg>Análises</button>
+  <button data-aba="agente"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5l1.9 5.6 5.6 1.9-5.6 1.9L12 18.5l-1.9-5.6L4.5 11l5.6-1.9z"/><path d="M18.5 15.5l.8 2.2 2.2.8-2.2.8-.8 2.2-.8-2.2-2.2-.8 2.2-.8z"/></svg>Agente</button>
   <button data-aba="lancamentos" class="lancar"><span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></span>Lançar</button>
   <button data-aba="ativos"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 17l5-5.5 4 3.5 7.5-8"/><path d="M15 7h5v5"/></svg>Ativos</button>
   <button data-act="abrir-mais" class="mais"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5.5" cy="12" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="18.5" cy="12" r="1.3"/></svg>Mais</button>
 </nav>
 <dialog id="dlg-mais" class="folha" aria-label="Mais opções">
   <div class="alca" tabindex="-1" autofocus aria-hidden="true"></div>
+  <button data-aba="analises"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></svg><span>Análises<small>Leituras da carteira e resumo da IA</small></span></button>
   <button data-aba="proventos"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8"/><path d="M14.5 9.2c-.5-.8-1.4-1.2-2.5-1.2-1.5 0-2.6.8-2.6 2s1 1.6 2.6 2 2.7.9 2.7 2.1-1.2 2-2.7 2c-1.2 0-2.2-.5-2.7-1.4M12 6.5v1.5M12 16v1.5"/></svg><span>Proventos<small>Dividendos, JCP e rendimentos</small></span></button>
   <button data-aba="rebalancear"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v16M6 20h12M5 8h14"/><path d="M5 8l-2.5 6h5L5 8zM19 8l-2.5 6h5L19 8z"/></svg><span>Rebalancear<small>Metas e divisão do aporte</small></span></button>
   <button data-aba="ir"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3.5h12v17l-3-2-3 2-3-2-3 2z"/><path d="M9 8.5h6M9 12h6"/></svg><span>Imposto de renda<small>Apuração, DARF e bens</small></span></button>
@@ -538,7 +564,7 @@ const ORDEM = ["acao","etf","fii","rf","cripto"];
 const MESES = ["jan","fev","mar","abr","mai","jun","jul","ago","set","out","nov","dez"];
 const TIPOS_PROV = { dividendo:"Dividendo", jcp:"JCP", rendimento:"Rendimento", outro:"Outro" };
 const LS_KEY = "carteira-v1";
-const ABAS = ["resumo","analises","ativos","lancamentos","proventos","rebalancear","ir","inventario","noticias"];
+const ABAS = ["resumo","agente","analises","ativos","lancamentos","proventos","rebalancear","ir","inventario","noticias"];
 
 const BRL = new Intl.NumberFormat("pt-BR",{style:"currency",currency:"BRL"});
 // Modo privacidade: valores em reais viram "R$ ••••" na tela (percentuais e quantidades continuam). Fica só neste aparelho.
@@ -1061,7 +1087,7 @@ function irPara(aba){
   atualizarContadorNoticias();
   document.querySelectorAll("#abas button").forEach(b=>b.setAttribute("aria-selected", b.dataset.aba===aba ? "true":"false"));
   // Barra do celular: as abas que moram em "Mais" acendem o botão Mais
-  const naDoca = ["resumo","analises","lancamentos","ativos"].includes(aba);
+  const naDoca = ["resumo","agente","lancamentos","ativos"].includes(aba);
   document.querySelectorAll(".doca button").forEach(b=>{ const ativo = b.dataset.aba ? b.dataset.aba===aba : !naDoca; if(ativo) b.setAttribute("aria-current","page"); else b.removeAttribute("aria-current"); });
   ABAS.forEach(a=>{ $("#v-"+a).hidden = a!==aba; });
   render(aba);
@@ -1099,7 +1125,7 @@ function rotularTabela(t){
   });
 }
 function render(aba){
-  const f = { resumo:rResumo, analises:rAnalises, ativos:rAtivos, lancamentos:rLancamentos, proventos:rProventos, rebalancear:rRebalancear, ir:rIR, inventario:rInventario, noticias:rNoticias }[aba];
+  const f = { resumo:rResumo, agente:rAgente, analises:rAnalises, ativos:rAtivos, lancamentos:rLancamentos, proventos:rProventos, rebalancear:rRebalancear, ir:rIR, inventario:rInventario, noticias:rNoticias }[aba];
   const el = $("#v-"+aba);
   f(el);
   el.querySelectorAll("table.cartoes").forEach(rotularTabela);
@@ -1847,6 +1873,140 @@ function textoIA(t){
   }
   return html + (lista ? "</ul>" : "");
 }
+/* ---------- Agente de investimentos: conversa com sugestões apoiadas em dados de mercado (api/agente.js) ---------- */
+const LS_AGENTE = "genfin-agente-conversa", LS_AGENTE_DIA = "genfin-agente-dia", LS_PERFIL = "genfin-agente-perfil";
+const PERFIL_PADRAO = "Investidor de longo prazo, com dinheiro que não é urgente. Quer construir patrimônio e também ter renda, multiplicando o que ganha. "
+  + "Mistura crescimento (empresas boas e baratas: lucro crescendo, ROE alto, dívida controlada, P/L razoável) com renda (boas pagadoras de dividendos e FIIs), "
+  + "sem perseguir o maior dividendo do momento. Reinveste os proventos. Vender é exceção: só quando o fundamento piorou (lucro caiu, dívida subiu, cortou dividendos) "
+  + "ou o ativo ficou caro demais perto do próprio histórico, sempre olhando o imposto. Aceita mais risco em ações e FIIs, respeitando as metas de alocação. Quer diversificar setores.";
+const CHIPS_AGENTE = ["Como estão as ações?", "Como estão os FIIs?", "Algo para vender?"];
+let agente = (()=>{ try{ const v = JSON.parse(localStorage.getItem(LS_AGENTE)||"[]"); return Array.isArray(v) ? v : []; }catch(e){ return []; } })();
+let pensando = false, rascunhoAgente = "", gerandoDia = false, diaTentado = null;
+function gravarAgente(){ try{ localStorage.setItem(LS_AGENTE, JSON.stringify(agente.filter(m=>m.r).slice(-20))); }catch(e){} }
+const perfilAgente = () => lerLS(LS_PERFIL) || PERFIL_PADRAO;
+function lerDia(){ try{ return JSON.parse(lerLS(LS_AGENTE_DIA)||"null"); }catch(e){ return null; } }
+// Retrato da carteira para o agente: percentuais e códigos, sem valores em reais nem quantidades
+function dadosParaAgente(){
+  const d = dadosParaIA(), c = calcular(), total = c.total, r1 = v => Math.round(v*1000)/10;
+  const soma = ORDEM.reduce((s,k)=>s+(S.metas[k]||0),0);
+  return {
+    classes: d.classes,
+    posicoes: c.lista.filter(p=>p.qtd>0).sort((a,b)=>b.valor-a.valor).slice(0,30).map(p=>({ativo:p.ticker, classe:p.classe,
+      peso_pct: total>0 ? r1(p.valor/total) : 0, resultado_pct: p.custo>0 ? r1(p.resultado/p.custo) : null,
+      dist_pm_pct: p.cot && p.pm>0 ? r1(p.cot/p.pm-1) : null})),
+    metas_ok: Math.abs(soma-100)<0.01,
+    ir: {vendas_acoes_pct_do_limite: d.ir.vendas_acoes_pct_do_limite, prejuizo_a_compensar: d.ir.prejuizo_a_compensar},
+    proventos_a_receber: d.proventos_a_receber
+  };
+}
+// O resumo do dia é refeito quando muda o dia ou a lista de ativos (não a cada cotação)
+const hashAgente = () => hashTexto(calcular().lista.filter(p=>p.qtd>0).map(p=>p.ticker).sort().join(","));
+async function pedirAgente(modo, extra={}){
+  let r; try{ r = await fetch(baseServidor()+"/api/agente", {method:"POST", headers:{"Content-Type":"application/json"},
+    body: JSON.stringify({modo, carteira: dadosParaAgente(), perfil: perfilAgente(), ...extra}), ...comPrazo()}); }
+  catch(e){ throw erroCot("rede"); }
+  let j = null; try{ j = await r.json(); }catch(e){}
+  if(r.status===503 && j && j.erro==="sem_chave") throw erroCot("semServidorAgente");
+  if(r.status===429) throw Object.assign(erroCot("limite"), {esperar: j && j.esperar_s});
+  if(!r.ok || !j || typeof j.texto!=="string") throw erroCot("servico");
+  return j;
+}
+function msgAgente(e){
+  if(e.tipo==="limite") return `A IA atingiu o limite do plano gratuito. Tente de novo em ${e.esperar||60} s.`;
+  if(e.tipo==="semServidorAgente") return "O agente precisa da IA do servidor do GenFin, que ainda não foi configurada.";
+  if(e.tipo==="rede") return "Não foi possível falar com o agente. Confira a internet.";
+  return "O agente não respondeu como esperado. Tente de novo.";
+}
+function atualizarVistasAgente(){ if(abaAtual==="agente") render("agente"); }
+async function resumoDoDia({forcar=false}={}){
+  if(demo || gerandoDia || !temDados(S)) return;
+  const h = hashAgente(), d = lerDia(), chave = h+"|"+hojeISO();
+  const velho = !d || d.hash!==h || d.data!==hojeISO();
+  if(!forcar && (!velho || diaTentado===chave)) return;   // uma tentativa por dia e versão da carteira, para não insistir sem internet
+  diaTentado = chave; gerandoDia = true; atualizarVistasAgente();
+  try{ const r = await pedirAgente("dia"); gravarLS(LS_AGENTE_DIA, JSON.stringify({data:hojeISO(), hash:h, em:Date.now(), resposta:r})); }
+  catch(e){ if(forcar) toast(msgAgente(e)); }
+  finally{ gerandoDia = false; atualizarVistasAgente(); }
+}
+async function perguntarAgente(texto, extra={}){
+  const q = String(texto||"").trim().slice(0,400); if(!q || pensando) return;
+  if(demo){ toast("No modo exemplo os dados são fictícios; saia do exemplo para conversar com o agente."); return; }
+  if(!temDados(S)){ toast("Lance seus ativos primeiro para o agente ter o que analisar."); return; }
+  const historico = agente.filter(m=>m.r).slice(-3).map(m=>({p:m.p, r:m.r.texto}));
+  const item = {p:q}; agente.push(item); pensando = true; rascunhoAgente = ""; atualizarVistasAgente();
+  try{ item.r = await pedirAgente("pergunta", {pergunta:q, historico, ...extra}); gravarAgente(); }
+  catch(e){ item.erro = msgAgente(e); rascunhoAgente = q; }
+  finally{ pensando = false; atualizarVistasAgente(); rolarAgente(); }
+}
+function rolarAgente(){ const c = $("#agente-chat"); const u = c && c.lastElementChild; if(u && u.scrollIntoView) u.scrollIntoView({block:"start", behavior:"smooth"}); }
+
+// "Por quê?": o motivo dado pela IA e os números que vieram das fontes
+const fmtNum = v => Number(v).toLocaleString("pt-BR",{maximumFractionDigits:2});
+const fmtPct = v => Number(v).toLocaleString("pt-BR",{maximumFractionDigits:1})+"%";
+function numerosDe(x){
+  if(!x) return [];
+  const n = [];
+  if(x.preco!=null) n.push("Preço "+brl(x.preco));
+  if(x.pl!=null) n.push("P/L "+fmtNum(x.pl));
+  if(x.pvp!=null) n.push("P/VP "+fmtNum(x.pvp));
+  if(x.dy_pct!=null) n.push("DY "+fmtPct(x.dy_pct));
+  if(x.dy_medio_5a_pct!=null) n.push("DY médio de 5 anos "+fmtPct(x.dy_medio_5a_pct));
+  if(x.roe_pct!=null) n.push("ROE "+fmtPct(x.roe_pct));
+  if(x.cresc_receita_5a_pct!=null) n.push("Receita em 5 anos "+fmtPct(x.cresc_receita_5a_pct));
+  if(x.div_liq_patrim!=null) n.push("Dív. líq./patrimônio "+fmtNum(x.div_liq_patrim));
+  if(x.vacancia_pct!=null) n.push("Vacância "+fmtPct(x.vacancia_pct));
+  if(x.min52!=null && x.max52!=null) n.push(`Faixa de 52 semanas ${brl(x.min52)} a ${brl(x.max52)}`);
+  if(x.var_12m_pct!=null) n.push("12 meses "+(x.var_12m_pct>0?"+":"")+fmtPct(x.var_12m_pct));
+  if(x.setor) n.push(x.setor); else if(x.segmento) n.push(x.segmento);
+  return n;
+}
+function quandoDados(em){ const d = new Date(em); return Number.isFinite(d.getTime()) ? `${dataBR(isoLocal(d)).slice(0,5)} às ${d.toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})}` : ""; }
+function porQue(r, t, motivo){
+  const nums = numerosDe((r.dados||{})[t]);
+  return `<details class="porque"><summary>por quê?</summary>${motivo?`<p>${esc(motivo)}</p>`:""}
+    ${nums.length?`<p class="nota">${esc(nums.join(" · "))}</p>`:""}<p class="nota">Dados de ${esc(quandoDados(r.em))}</p></details>`;
+}
+function htmlSugestoes(r){
+  const linhas = [];
+  for(const c of r.compras||[]) linhas.push(`<div class="sug"><div class="sug-linha"><span class="tk">${esc(c.ticker)}</span>${c.novo?'<span class="selo-novo">novo</span>':""}
+    <span class="det">${fmtPct(c.pct_do_aporte)} do aporte em ${esc((CLASSES[c.classe]||{}).nome||"")}</span></div>${porQue(r, c.ticker, c.motivo)}</div>`);
+  for(const v of r.vendas||[]) linhas.push(`<div class="sug"><div class="sug-linha"><span class="tk">${esc(v.ticker)}</span>
+    <span class="det">${v.acao==="vender"?"Considerar vender":"Considerar reduzir"}</span></div>${porQue(r, v.ticker, v.motivo)}</div>`);
+  return linhas.length ? `<div class="sug-lista">${linhas.join("")}</div>` : "";
+}
+function bolhaDia(d){
+  const r = d.resposta || {}, hora = new Date(d.em).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"});
+  const avisos = (r.avisos||[]).map(a=>`<li>${esc(a.texto)}${a.ticker?porQue(r, a.ticker, ""):""}</li>`).join("");
+  return `<div class="msg ia">${r.texto?`<p><strong>${esc(r.texto)}</strong></p>`:""}${avisos?`<ul class="avisos">${avisos}</ul>`:""}
+    <p class="msg-rodape">${gerandoDia?"Atualizando…":(d.data===hojeISO()?"Hoje às "+hora:dataBR(d.data))}<button class="link" data-act="agente-dia"${gerandoDia?" disabled":""}>Atualizar</button></p></div>`;
+}
+function bolhasTroca(m){
+  const resp = m.r ? `<div class="msg ia">${textoIA(m.r.texto||"")}${htmlSugestoes(m.r)}${(m.r.fontes_falharam||[]).length?`<p class="nota">Sem dados agora de: ${esc(m.r.fontes_falharam.join(", "))}.</p>`:""}</div>`
+    : m.erro ? `<div class="msg ia erro">${esc(m.erro)}</div>` : "";
+  return `<div class="msg eu">${esc(m.p)}</div>${resp}`;
+}
+function rAgente(el){
+  const cab = `<div class="agente-cab"><h2>Agente</h2><button class="btn peq" data-act="agente-nova"${agente.length?"":" disabled"}>Nova conversa</button></div>`;
+  if(demo || !temDados(S)){
+    el.innerHTML = cab + `<div class="agente-chat"><div class="msg ia">${demo ? "No modo exemplo os dados são fictícios. Saia do exemplo para o agente analisar a sua carteira."
+      : `Lance seus ativos e eu analiso a carteira, sugiro onde aportar e aviso o que merece atenção. <button class="link" data-act="ir-aba" data-aba="lancamentos">Adicionar lançamento</button>`}</div></div>`;
+    return;
+  }
+  const d = lerDia();
+  const abertura = d ? bolhaDia(d) : `<div class="msg ia"><span class="carregando">${gerandoDia?"Olhando o mercado e a sua carteira…":"O resumo do dia aparece aqui."}</span></div>`;
+  el.innerHTML = cab + `<div class="agente-chat" id="agente-chat" aria-live="polite">${abertura}${agente.map(bolhasTroca).join("")}
+      ${pensando?'<div class="msg ia"><span class="carregando">Buscando os dados e pensando…</span></div>':""}</div>
+    <div class="sugestoes">${CHIPS_AGENTE.map(q=>`<button class="sugestao" data-act="agente-perguntar" data-q="${esc(q)}"${pensando?" disabled":""}>${esc(q)}</button>`).join("")}</div>
+    <form class="perguntar" id="f-agente"><input id="agente-q" name="q" maxlength="400" autocomplete="off" placeholder="Pergunte ao agente…" aria-label="Pergunta ao agente" value="${esc(rascunhoAgente)}"><button class="btn pri" type="submit"${pensando?" disabled":""}>Enviar</button></form>
+    <p class="nota agente-aviso">Sugestões automáticas a partir de números públicos; a decisão é sua.</p>
+    <details class="perfil-agente"><summary>Seu perfil</summary>
+      <p class="nota">O agente segue este texto ao sugerir. Ajuste com as suas palavras.</p>
+      <textarea id="perfil-agente" maxlength="800" aria-label="Seu perfil de investidor">${esc(perfilAgente())}</textarea>
+      <div class="botoes"><button class="btn" data-act="perfil-salvar">Salvar perfil</button><button class="btn" data-act="perfil-restaurar">Restaurar o padrão</button></div>
+    </details>`;
+  if(abaAtual==="agente") setTimeout(()=>resumoDoDia(), 0);
+}
+
 function rAnalises(el){
   if(!temDados(S)){ el.innerHTML = `<h2>Análises</h2><p class="sub">As leituras aparecem depois do primeiro lançamento. <button class="link" data-act="ir-aba" data-aba="lancamentos">Adicionar lançamento</button></p>`; return; }
   const itens = analisar(), chave = lerLS(LS_GROQ);
@@ -3003,6 +3163,11 @@ document.addEventListener("click", e=>{
   else if(a==="remover-chave"){ gravarLS(LS_CHAVE, ""); render("ativos"); toast("Chave removida"); }
   else if(a==="abrir-mais") $("#dlg-mais").showModal();
   else if(a==="ia-perguntar") perguntarIA(b.dataset.q);
+  else if(a==="agente-perguntar") perguntarAgente(b.dataset.q);
+  else if(a==="agente-nova"){ agente = []; gravarAgente(); rascunhoAgente = ""; render("agente"); }
+  else if(a==="agente-dia") resumoDoDia({forcar:true});
+  else if(a==="perfil-salvar"){ const t = $("#perfil-agente").value.trim().slice(0,800); gravarLS(LS_PERFIL, t && t!==PERFIL_PADRAO ? t : ""); toast("Perfil salvo. O agente segue ele a partir da próxima pergunta."); }
+  else if(a==="perfil-restaurar"){ gravarLS(LS_PERFIL, ""); $("#perfil-agente").value = PERFIL_PADRAO; toast("Perfil padrão restaurado"); }
   else if(a==="filtro-noticias"){ filtroNoticias = b.dataset.k; render("noticias"); }
   else if(a==="noticias-atualizar") carregarNoticias({forcar:true});
   else if(a==="prov-atualizar") carregarAnunciados({forcar:true});
@@ -3065,6 +3230,7 @@ document.addEventListener("change", e=>{
   if(e.target.matches("select.imp-classe") && importacao) importacao.classes[e.target.dataset.t] = e.target.value;
 });
 document.addEventListener("submit", e=>{
+  if(e.target.id==="f-agente"){ e.preventDefault(); const i = e.target.elements.namedItem("q"), q = i.value; i.value = ""; perguntarAgente(q); return; }
   if(e.target.id!=="f-perguntar" && e.target.id!=="f-ia") return;
   e.preventDefault();
   const i = e.target.elements.namedItem("q"), q = i.value; i.value = "";

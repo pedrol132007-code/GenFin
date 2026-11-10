@@ -480,6 +480,59 @@ excluirBem(S.bens[1].id); ok(S.bens.length===1, "exclui o bem");
 const elRes = fakeEl(); abaAtual="ir"; rResumo(elRes);
 ok(/Investimentos hoje/.test(elRes.innerHTML) && /patrimônio total é/.test(elRes.innerHTML), "Resumo mostra o patrimônio total quando há bens");
 
+// 24. Agente: aba, retrato da carteira, resumo do dia e conversa
+{
+  S = vazio(); S.atualizado = 1; delete mem[LS_AGENTE]; delete mem[LS_AGENTE_DIA]; delete mem[LS_PERFIL]; agente = []; diaTentado = null;
+  ok(ABAS.includes("agente") && ABAS.indexOf("agente")===1, "Agente é a segunda aba");
+  add({classe:"acao",tipo:"compra",data:"2026-01-05",ticker:"PETR4",qtd:"100",preco:"30"});
+  add({classe:"fii",tipo:"compra",data:"2026-01-05",ticker:"HGLG11",qtd:"10",preco:"150"});
+  S.precos.PETR4 = {v:33, em:hojeISO()};
+  const dA = dadosParaAgente(), pA = dA.posicoes.find(p=>p.ativo==="PETR4");
+  ok(pA && pA.classe==="acao" && pA.dist_pm_pct===10 && typeof pA.peso_pct==="number", "retrato: PETR4 10% acima do preço médio, classe em código");
+  const jA = JSON.stringify(dA);
+  ok(!/R\\$/.test(jA) && !/"qtd"/.test(jA) && !jA.includes(String(calcular().total)) && dA.metas_ok===false, "retrato sem reais, sem quantidades e sem o total da carteira");
+  ok(perfilAgente()===PERFIL_PADRAO && /longo prazo/i.test(PERFIL_PADRAO), "perfil padrão é o aprovado");
+
+  let pedidos24 = [];
+  const respDia = {texto:"Bom dia", avisos:[{texto:"PETR4 10% acima do preço médio", ticker:"PETR4"}], compras:[], vendas:[], dados:{PETR4:{preco:33, pl:5}}, fontes_falharam:[], em:new Date().toISOString()};
+  globalThis.__fetch = (url, op={}) => { pedidos24.push({url, corpo: JSON.parse(op.body||"null")}); return resp(200, respDia); };
+  await resumoDoDia(); await resumoDoDia();
+  ok(pedidos24.length===1 && /\\/api\\/agente$/.test(pedidos24[0].url) && pedidos24[0].corpo.modo==="dia" && pedidos24[0].corpo.perfil===PERFIL_PADRAO, "resumo do dia: uma chamada por dia");
+  ok(lerDia().resposta.avisos[0].ticker==="PETR4", "resumo do dia fica guardado no aparelho");
+  S.precos.PETR4 = {v:35, em:hojeISO()}; await resumoDoDia();
+  ok(pedidos24.length===1, "cotação mudou: não pede de novo no mesmo dia");
+  add({classe:"acao",tipo:"compra",data:"2026-02-05",ticker:"VALE3",qtd:"10",preco:"60"});
+  await resumoDoDia();
+  ok(pedidos24.length===2, "ativo novo na carteira: refaz o resumo do dia");
+
+  pedidos24 = [];
+  const respP = {texto:"- As ações vão bem.", avisos:[], compras:[], vendas:[{ticker:"PETR4", acao:"reduzir", motivo:"P/L 5 e 30% acima do preço médio"}], dados:{PETR4:{preco:35, pl:5, dy_pct:12.1, max52:40, min52:28}}, fontes_falharam:[], em:new Date().toISOString()};
+  globalThis.__fetch = (url, op={}) => { pedidos24.push(JSON.parse(op.body||"null")); return resp(200, respP); };
+  await perguntarAgente("Como estão as ações?");
+  await perguntarAgente("E os FIIs?");
+  ok(agente.length===2 && pedidos24[1].modo==="pergunta" && pedidos24[1].historico.length===1 && pedidos24[1].historico[0].r==="- As ações vão bem.", "conversa manda o histórico das trocas");
+  ok(JSON.parse(mem[LS_AGENTE]).length===2, "conversa do agente fica guardada no aparelho");
+  abaAtual = "ir"; const elA = fakeEl(); rAgente(elA);
+  ok(/Bom dia/.test(elA.innerHTML) && /As ações vão bem/.test(elA.innerHTML) && /id="f-agente"/.test(elA.innerHTML), "aba mostra o resumo do dia, a conversa e a caixa de pergunta");
+  ok(/class="porque"/.test(elA.innerHTML) && /P\\/L 5/.test(elA.innerHTML) && /Faixa de 52 semanas/.test(elA.innerHTML), "sugestão tem o 'por quê?' com os números");
+  ok(/a decisão é sua/.test(elA.innerHTML) && /id="perfil-agente"/.test(elA.innerHTML), "aba tem a frase fixa e o perfil editável");
+
+  globalThis.__fetch = () => resp(429, {erro:"limite", esperar_s:20});
+  await perguntarAgente("Mais uma?");
+  ok(/20 s/.test(agente[2].erro||"") && rascunhoAgente==="Mais uma?" && JSON.parse(mem[LS_AGENTE]).length===2, "limite do Groq: diz quanto esperar e a pergunta volta para a caixa");
+  globalThis.__fetch = () => resp(503, {erro:"sem_chave"});
+  await perguntarAgente("Oi?");
+  ok(/servidor/.test(agente[3].erro||""), "sem IA no servidor: avisa que o agente precisa dela");
+
+  entrarDemo(); pedidos24 = []; globalThis.__fetch = (url, op={}) => { pedidos24.push(1); return resp(200, respP); };
+  await perguntarAgente("oi"); await resumoDoDia({forcar:true});
+  const elD = fakeEl(); rAgente(elD);
+  ok(!pedidos24.length && /modo exemplo/.test(elD.innerHTML), "modo exemplo: convite, sem chamar a IA"); sairDemo();
+  const vazioS = S; S = vazio(); const elV = fakeEl(); rAgente(elV); await perguntarAgente("oi");
+  ok(!pedidos24.length && /Lance seus ativos/.test(elV.innerHTML), "carteira vazia: convite, sem chamar a IA"); S = vazioS;
+  agente = []; gravarAgente(); rascunhoAgente = "";
+}
+
 // 23. Proventos anunciados na B3: a receber, já caiu e registrar com um toque
 {
   S = vazio(); S.atualizado = 1; avisos2 = []; delete mem[LS_ANUNCIADOS]; delete mem[LS_PROV_IGNORADOS];
