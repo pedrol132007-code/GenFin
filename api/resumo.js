@@ -2,7 +2,7 @@
 // A chave do Groq fica na variável de ambiente GROQ_API_KEY do projeto na Vercel; nada é guardado aqui.
 // Só aceita os dados que o app monta em dadosParaIA() (percentuais, códigos e leituras sem valores em reais)
 // e usa instruções fixas: não serve como IA genérica para quem descobrir o endereço.
-// Modos: "resumo" (tópicos), "manchete" (até 2 frases para o topo do Resumo) e "pergunta" (conversa curta).
+// Só o modo "resumo" (tópicos, na aba Análises). A manchete do dia e a conversa passaram para o agente (api/agente.js).
 
 // "null" é o carteira.html aberto direto do disco (file://). Liberar não expõe nada: não há cookies, e a
 // sincronização exige o token que só sai do código; o resumo só aceita o formato da carteira.
@@ -11,12 +11,10 @@ const TAMANHO_MAX = 24000;
 const REGRAS = "Você ajuda uma pessoa física no Brasil a entender a própria carteira de investimentos. Responda em português do Brasil. Use só os dados da mensagem, que vêm em percentuais, sem valores em reais; não invente números e use as diferenças que já vêm calculadas (diferenca_meta_pp) em vez de fazer contas. Não recomende comprar ou vender ativos específicos e não faça previsão de preços: explique o que os números mostram e o que vale a pessoa verificar.";
 const INSTRUCOES = {
   resumo: REGRAS + " Responda em no máximo 6 tópicos curtos, cada um começando com \"- \", cobrindo o que for relevante entre concentração, distância das metas, desempenho contra o CDI e o Ibovespa, proventos e imposto de renda.",
-  manchete: REGRAS + " Escreva só a manchete do dia: no máximo 2 frases curtas (até 40 palavras no total), com o ponto mais importante da carteira agora. Sem tópicos, sem título, sem saudação.",
-  pergunta: REGRAS + " Responda à pergunta da pessoa de forma direta, em até 120 palavras; use tópicos com \"- \" só se ajudar. Se a pergunta for sobre como dividir um aporte, explique pela distância de cada classe até a meta, sem citar ativos para comprar. Se a pergunta não for sobre a carteira ou finanças pessoais dela, responda apenas: \"Eu só respondo sobre a sua carteira.\""
 };
 // Os limites incluem o raciocínio dos modelos que pensam antes de responder (gpt-oss); o tamanho do texto
 // final quem controla é a instrução. Com 160 tokens, a manchete acabava no raciocínio e voltava vazia.
-const TOKENS = { resumo: 2000, manchete: 800, pergunta: 1500 };
+const TOKENS = { resumo: 2000 };
 const raciocinio = modelo => /gpt-oss/.test(modelo) ? { reasoning_effort: "low" } : {};
 
 const texto = (v, n = 120) => String(v ?? "").slice(0, n);
@@ -72,26 +70,16 @@ module.exports = async (req, res) => {
 
   let corpo = req.body;
   if (typeof corpo === "string") { try { corpo = JSON.parse(corpo); } catch (e) { corpo = null; } }
-  // Formato atual: {modo, dados, pergunta, historico}; o antigo mandava só os dados (modo resumo)
+  // Formato atual: {modo, dados}; o antigo mandava só os dados
   const novo = corpo && typeof corpo === "object" && corpo.dados;
-  const modo = novo && INSTRUCOES[corpo.modo] ? corpo.modo : "resumo";
+  if (novo && (corpo.modo === "pergunta" || corpo.modo === "manchete")) return res.status(400).json({ erro: "modo" });
+  const modo = "resumo";
   const dados = limpar(novo ? corpo.dados : corpo);
   const json = dados && JSON.stringify(dados);
   if (!dados || json.length > TAMANHO_MAX) return res.status(400).json({ erro: "dados" });
   if (/R\$/.test(json)) return res.status(400).json({ erro: "valores_em_reais" });   // o app nunca manda valores em reais
 
   const mensagens = [{ role: "system", content: INSTRUCOES[modo] }, { role: "user", content: "Dados da carteira:\n" + json }];
-  if (modo === "pergunta") {
-    const pergunta = texto(corpo.pergunta, 400).trim();
-    if (!pergunta) return res.status(400).json({ erro: "pergunta" });
-    const hist = Array.isArray(corpo.historico) ? corpo.historico.slice(-3) : [];
-    for (const h of hist) {
-      if (!h || !h.p || !h.r) continue;
-      mensagens.push({ role: "user", content: texto(h.p, 400) }, { role: "assistant", content: texto(h.r, 1200) });
-    }
-    mensagens.push({ role: "user", content: pergunta });
-  }
-
   try {
     const modelo = await escolherModelo(chave);
     if (!modelo) return res.status(502).json({ erro: "servico" });

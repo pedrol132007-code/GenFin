@@ -776,7 +776,7 @@ ok(/Investimentos hoje/.test(elRes.innerHTML) && /patrimônio total é/.test(elR
 
 // 18. IA no Resumo: manchete do dia, conversa e sugestões
 {
-  S = vazio(); S.atualizado = 1; mem[LS_GROQ] = ""; delete mem[LS_MANCHETE]; delete mem[LS_CONVERSA]; conversa = []; mancheteTentada = null;
+  S = vazio(); S.atualizado = 1; mem[LS_GROQ] = ""; delete mem[LS_AGENTE_DIA]; delete mem[LS_AGENTE]; agente = []; diaTentado = null;
   add({classe:"acao",tipo:"compra",data:"2026-01-05",ticker:"PETR4",qtd:"100",preco:"30"});
   add({classe:"fii",tipo:"compra",data:"2026-01-05",ticker:"HGLG11",qtd:"5",preco:"150"});
   S.hist = [{d:"2026-08-31", v:3600, c:3750}, {d:"2026-09-30", v:3900, c:3750}];
@@ -788,37 +788,22 @@ ok(/Investimentos hoje/.test(elRes.innerHTML) && /patrimônio total é/.test(elR
   S.metas = {acao:0,etf:0,fii:0,rf:0,cripto:0};
   ok(sugestoesIA().some(q=>/Por que PETR4 pesa tanto/.test(q)) && sugestoesIA().length<=4, "sugestões saem das leituras da carteira: "+sugestoesIA().join(" | "));
 
-  let pedidos18 = [];
-  globalThis.__fetch = (url, op={}) => { const b = JSON.parse(op.body||"{}"); pedidos18.push(b); return resp(200, {texto: b.modo==="manchete" ? "Carteira concentrada em PETR4." : "- Resposta "+pedidos18.length, modelo:"openai/gpt-oss-120b"}); };
-  await atualizarManchete();
-  const man = JSON.parse(mem[LS_MANCHETE]||"{}");
-  ok(pedidos18.length===1 && pedidos18[0].modo==="manchete" && man.texto==="Carteira concentrada em PETR4." && man.hash===hashCarteiraIA(), "manchete gerada e guardada com a versão da carteira");
-  await atualizarManchete();
-  ok(pedidos18.length===1, "carteira igual no mesmo dia: não pede de novo");
-  add({classe:"acao",tipo:"compra",data:"2026-02-05",ticker:"VALE3",qtd:"10",preco:"60"});
-  await atualizarManchete();
-  ok(pedidos18.length===2, "carteira mudou: gera manchete nova");
-  globalThis.__fetch = () => Promise.reject(new TypeError("offline"));
-  add({classe:"acao",tipo:"compra",data:"2026-02-06",ticker:"VALE3",qtd:"1",preco:"60"});
-  await atualizarManchete(); await atualizarManchete();
-  ok(JSON.parse(mem[LS_MANCHETE]).texto==="Carteira concentrada em PETR4." && gerandoManchete===false, "sem internet mantém a última manchete e não insiste");
-  ok(/Escrita pela IA hoje às/.test(htmlManchete()) && /manchete-atualizar/.test(htmlManchete()), "manchete mostra quando foi escrita e o botão de atualizar");
+  // Manchete do Resumo: primeiro aviso do resumo do dia do agente, sem chamada própria
+  ok(/manchete do dia aparece aqui/.test(htmlManchete()), "sem resumo do dia: texto de espera");
+  mem[LS_AGENTE_DIA] = JSON.stringify({data:hojeISO(), hash:hashAgente(), em:Date.now(), resposta:{texto:"Bom dia", avisos:[{texto:"PETR4 pesa 60% da carteira", ticker:"PETR4"}], compras:[], vendas:[], dados:{}}});
+  ok(/PETR4 pesa 60% da carteira/.test(htmlManchete()) && /Do agente, hoje às/.test(htmlManchete()) && /data-act="agente-dia"/.test(htmlManchete()) && /data-aba="agente"/.test(htmlManchete()), "manchete mostra o primeiro aviso do agente, com atualizar e o caminho para a aba");
+  mem[LS_AGENTE_DIA] = JSON.stringify({data:hojeISO(), hash:hashAgente(), em:Date.now(), resposta:{texto:"Carteira estável hoje.", avisos:[], compras:[], vendas:[], dados:{}}});
+  ok(/Carteira estável hoje/.test(htmlManchete()), "sem avisos, a manchete usa o texto do agente");
 
-  globalThis.__fetch = (url, op={}) => { const b = JSON.parse(op.body||"{}"); pedidos18.push(b); return resp(200, {texto:"- Resposta "+pedidos18.length}); };
-  pedidos18 = [];
-  await perguntarIA("Por que PETR4 pesa tanto na carteira?");
-  await perguntarIA("E se eu aportar em FIIs?");
-  ok(conversa.length===2 && conversa[1].r==="- Resposta 2" && pedidos18[1].modo==="pergunta" && pedidos18[1].historico.length===1 && pedidos18[1].historico[0].p==="Por que PETR4 pesa tanto na carteira?", "conversa manda a pergunta com o histórico das trocas anteriores");
-  ok(JSON.parse(mem[LS_CONVERSA]).length===2, "conversa fica guardada no aparelho");
-  renderConversa();
-  ok(/class="msg eu">E se eu aportar em FIIs\?/.test($("#ia-mensagens").innerHTML) && /Resposta 2/.test($("#ia-mensagens").innerHTML), "folha mostra as perguntas e as respostas");
-  globalThis.__fetch = () => resp(429, {erro:"limite"});
-  await perguntarIA("Mais uma?");
-  ok(/limite/.test(conversa[2].erro||"") && JSON.parse(mem[LS_CONVERSA]).length===2, "erro aparece na conversa e não é guardado");
-  await perguntarIA("   "); ok(conversa.length===3, "pergunta vazia é ignorada");
+  // Caixa do Resumo e botões ✦ levam à conversa do agente
+  let pedidos18 = [];
+  globalThis.__fetch = (url, op={}) => { pedidos18.push({url, corpo: JSON.parse(op.body||"null")}); return resp(200, {texto:"- Resposta", avisos:[], compras:[], vendas:[], dados:{}, fontes_falharam:[], em:new Date().toISOString()}); };
+  await abrirAgenteCom("Por que PETR4 pesa tanto na carteira?");
+  ok(abaAtual==="agente" && pedidos18.length===1 && /[/]api[/]agente$/.test(pedidos18[0].url) && pedidos18[0].corpo.pergunta==="Por que PETR4 pesa tanto na carteira?", "pergunta do Resumo abre a aba Agente e vai para o agente");
+  ok(typeof perguntarIA==="undefined" && typeof atualizarManchete==="undefined" && !IA_INSTRUCOES.pergunta && !IA_INSTRUCOES.manchete, "conversa e manchete antigas saíram do app");
   const elR18 = fakeEl(); abaAtual = "ir"; rResumo(elR18);
   ok(/id="manchete-ia"/.test(elR18.innerHTML) && /id="f-perguntar"/.test(elR18.innerHTML) && (elR18.innerHTML.match(/class="ia-mini"/g)||[]).length>=3, "Resumo tem a manchete, a caixa de pergunta e os botões ✦");
-  conversa = []; gravarConversa();
+  agente = []; gravarAgente(); delete mem[LS_AGENTE_DIA];
 }
 
 // 17. Ativos: compra e venda rápida pela folha do + e do −

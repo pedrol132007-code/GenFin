@@ -56,21 +56,20 @@ const dados = { data: "2026-10-28", classes: [{ classe: "Ações", carteira_pct:
   r = await chamar(carregar(), { body: dados });
   ok(r.statusCode === 502 && r.body.erro === "chave_invalida", "chave do servidor recusada vira 502");
 
-  // modos manchete e pergunta
+  // Só o modo resumo: manchete e conversa passaram para o agente (api/agente.js)
   let ultimo = null;
   global.fetch = async (url, op = {}) => {
     if (url.endsWith("/models")) return { ok: true, status: 200, json: async () => ({ data: [{ id: "openai/gpt-oss-120b" }] }) };
     ultimo = JSON.parse(op.body); return { ok: true, status: 200, json: async () => ({ choices: [{ message: { content: "Resposta." } }] }) };
   };
   const fnM = carregar();
-  r = await chamar(fnM, { body: { modo: "manchete", dados: { ...dados, evolucao: [{ mes: "2026-09", resultado_pct: 7.25 }], ir: { darf_a_pagar: true, extra: "x" } } } });
-  ok(r.statusCode === 200 && /manchete do dia: no máximo 2 frases/.test(ultimo.messages[0].content) && ultimo.max_tokens >= 600 && ultimo.reasoning_effort === "low", "modo manchete: instrução curta, raciocínio curto e folga de tokens (o gpt-oss pensa antes de responder)");
-  ok(/"evolucao":\[\{"mes":"2026-09","resultado_pct":7.3\}\]/.test(ultimo.messages[1].content) && /"darf_a_pagar":true/.test(ultimo.messages[1].content) && !/extra/.test(ultimo.messages[1].content), "campos novos passam pela limpeza");
-  r = await chamar(fnM, { body: { modo: "pergunta", dados, pergunta: "Por que PETR4 pesa tanto?", historico: [{ p: "Resuma", r: "- Tudo bem." }, { p: "só p" }] } });
-  const ms = ultimo.messages;
-  ok(r.statusCode === 200 && ms.length === 5 && ms[2].content === "Resuma" && ms[3].role === "assistant" && ms[4].content === "Por que PETR4 pesa tanto?" && /Eu só respondo sobre a sua carteira/.test(ms[0].content), "pergunta leva o histórico válido e a regra de só falar da carteira");
-  r = await chamar(fnM, { body: { modo: "pergunta", dados, pergunta: "   " } });
-  ok(r.statusCode === 400 && r.body.erro === "pergunta", "pergunta vazia é recusada");
+  r = await chamar(fnM, { body: { modo: "resumo", dados: { ...dados, evolucao: [{ mes: "2026-09", resultado_pct: 7.25 }], ir: { darf_a_pagar: true, extra: "x" } } } });
+  ok(r.statusCode === 200 && ultimo.messages[1].content.includes('"evolucao":[{"mes":"2026-09","resultado_pct":7.3}]') && /"darf_a_pagar":true/.test(ultimo.messages[1].content) && !/extra/.test(ultimo.messages[1].content), "campos novos passam pela limpeza");
+  ultimo = null;
+  r = await chamar(fnM, { body: { modo: "pergunta", dados, pergunta: "Por que PETR4 pesa tanto?" } });
+  ok(r.statusCode === 400 && r.body.erro === "modo" && !ultimo, "modo pergunta foi para o agente: recusado sem chamar o Groq");
+  r = await chamar(fnM, { body: { modo: "manchete", dados } });
+  ok(r.statusCode === 400 && r.body.erro === "modo" && !ultimo, "modo manchete foi para o agente: recusado sem chamar o Groq");
   r = await chamar(fnM, { body: { modo: "qualquer", dados } });
   ok(r.statusCode === 200 && /no máximo 6 tópicos/.test(ultimo.messages[0].content), "modo desconhecido vira resumo");
 

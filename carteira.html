@@ -163,7 +163,7 @@ body.privado input.valbem:not(:focus){-webkit-text-security:disc;color:var(--mut
 .atalhos-noticias{margin-top:22px}
 .atalhos-noticias summary{cursor:pointer;color:var(--focus);width:max-content;max-width:100%;margin-bottom:10px}
 
-/* IA no Resumo: manchete, pergunta e conversa */
+/* IA no Resumo: manchete do agente, caixa de pergunta e balões de conversa (usados pela aba Agente) */
 .ia-topo{max-width:760px;margin:2px 0 26px}
 .manchete{position:relative;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:16px 16px 12px;overflow:hidden}
 .manchete::before{content:"";position:absolute;inset:0 0 auto 0;height:3px;
@@ -181,10 +181,6 @@ body.privado input.valbem:not(:focus){-webkit-text-security:disc;color:var(--mut
 .sugestao{flex:none;border:1px solid var(--line);background:var(--bg);color:var(--ink);border-radius:999px;padding:6px 12px;font-size:.85rem;cursor:pointer;-webkit-tap-highlight-color:transparent}
 .sugestao:hover{border-color:var(--muted)}
 .ia-mini{border:0;background:none;color:var(--focus);cursor:pointer;font-size:.9rem;line-height:1;padding:2px 4px;margin-left:6px;vertical-align:1px;border-radius:6px}
-#dlg-ia{max-width:600px}
-.ia-cab{display:flex;align-items:center;gap:8px}
-.ia-cab h2{margin:0 auto 0 0;font-size:1.15rem}
-.ia-mensagens{display:flex;flex-direction:column;gap:8px;max-height:min(55vh,520px);overflow:auto;margin:12px 0 4px;padding:2px}
 .msg{max-width:88%;padding:9px 13px;border-radius:16px;font-size:.94rem;line-height:1.5}
 .msg.eu{align-self:flex-end;background:var(--ink);color:var(--bg);border-bottom-right-radius:5px}
 .msg.ia{align-self:flex-start;background:var(--soft);border-bottom-left-radius:5px}
@@ -507,14 +503,6 @@ textarea{width:100%;min-height:140px;font:12px/1.4 ui-monospace,Menlo,monospace;
 
 <datalist id="dl-ativos"></datalist>
 <div id="toast" role="status" aria-live="polite"></div>
-
-<dialog id="dlg-ia" class="folha folha-ia" aria-label="Pergunte à sua carteira">
-  <div class="alca" tabindex="-1" aria-hidden="true"></div>
-  <div class="ia-cab"><h2>✦ Pergunte à sua carteira</h2><button class="btn peq" data-act="ia-limpar">Nova conversa</button><button class="btn peq" data-act="ia-fechar">Fechar</button></div>
-  <div id="ia-mensagens" class="ia-mensagens" aria-live="polite"></div>
-  <div id="ia-sugestoes" class="sugestoes"></div>
-  <form id="f-ia" class="perguntar"><input name="q" maxlength="400" autocomplete="off" placeholder="Escreva a sua pergunta…" aria-label="Sua pergunta"><button class="btn pri" type="submit">Enviar</button></form>
-</dialog>
 
 <dialog id="dlg-op" class="folha folha-op" aria-label="Compra ou venda">
   <div class="alca" tabindex="-1" aria-hidden="true"></div>
@@ -1257,7 +1245,7 @@ function rResumo(el){
   </div>
   ${blocoComp}
 `;
-  if(abaAtual==="resumo") setTimeout(()=>atualizarManchete(), 0);   // gera a manchete se a carteira mudou ou passou um dia
+  if(abaAtual==="resumo") setTimeout(()=>resumoDoDia(), 0);   // gera a manchete se a carteira mudou ou passou um dia
 }
 
 /* ---------- Cotações automáticas ---------- */
@@ -1703,11 +1691,13 @@ function analisar(){
   return out.sort((a,b)=>ordem[a.nivel]-ordem[b.nivel]);
 }
 
-/* IA da carteira: resumo (Análises), manchete do dia e conversa (Resumo).
+/* IA da carteira: resumo (Análises). A manchete do Resumo e a conversa ficam com o agente (mais abaixo).
    Sem chave própria, vai pela função do GenFin na Vercel (api/resumo.js), que guarda a chave do Groq; com a chave
    gratuita da pessoa (guardada só neste aparelho), fala direto com o Groq usando as mesmas instruções.
    Em qualquer caso, vão só percentuais, códigos e as leituras na versão sem valores em reais. */
-const LS_GROQ = "genfin-groq-chave", LS_IA = "genfin-ia-resumo", LS_MANCHETE = "genfin-ia-manchete", LS_CONVERSA = "genfin-ia-conversa";
+const LS_GROQ = "genfin-groq-chave", LS_IA = "genfin-ia-resumo";
+// A manchete e a conversa antigas (antes do agente) eram guardadas nestas chaves: limpa ao abrir
+["genfin-ia-manchete", "genfin-ia-conversa"].forEach(k=>{ try{ localStorage.removeItem(k); }catch(e){} });
 let gerandoIA = false;
 function dadosParaIA(){
   const c = calcular(), total = c.total, comp = comparacao();
@@ -1745,11 +1735,9 @@ function dadosParaIA(){
 const IA_REGRAS = "Você ajuda uma pessoa física no Brasil a entender a própria carteira de investimentos. Responda em português do Brasil. Use só os dados da mensagem, que vêm em percentuais, sem valores em reais; não invente números e use as diferenças que já vêm calculadas (diferenca_meta_pp) em vez de fazer contas. Não recomende comprar ou vender ativos específicos e não faça previsão de preços: explique o que os números mostram e o que vale a pessoa verificar.";
 const IA_INSTRUCOES = {
   resumo: IA_REGRAS + " Responda em no máximo 6 tópicos curtos, cada um começando com \"- \", cobrindo o que for relevante entre concentração, distância das metas, desempenho contra o CDI e o Ibovespa, proventos e imposto de renda.",
-  manchete: IA_REGRAS + " Escreva só a manchete do dia: no máximo 2 frases curtas (até 40 palavras no total), com o ponto mais importante da carteira agora. Sem tópicos, sem título, sem saudação.",
-  pergunta: IA_REGRAS + " Responda à pergunta da pessoa de forma direta, em até 120 palavras; use tópicos com \"- \" só se ajudar. Se a pergunta for sobre como dividir um aporte, explique pela distância de cada classe até a meta, sem citar ativos para comprar. Se a pergunta não for sobre a carteira ou finanças pessoais dela, responda apenas: \"Eu só respondo sobre a sua carteira.\""
 };
 // Mesmos limites do servidor: incluem o raciocínio dos modelos gpt-oss, que pensam antes de responder
-const IA_TOKENS = {resumo:2000, manchete:800, pergunta:1500};
+const IA_TOKENS = {resumo:2000};
 async function modeloGroq(chave){
   let r; try{ r = await fetch("https://api.groq.com/openai/v1/models", {headers:{Authorization:"Bearer "+chave}, ...comPrazo()}); }
   catch(e){ throw erroCot("rede"); }
@@ -1765,11 +1753,11 @@ async function modeloGroq(chave){
 const SERVIDOR = "https://genfin-rose.vercel.app";
 const baseServidor = () => (!nativo() && /\.vercel\.app$/.test(location.hostname)) ? location.origin : SERVIDOR;
 let iaSemServidor = false;   // a função respondeu que não tem chave configurada: mostra a opção de colar a própria
-// Um pedido à IA em qualquer modo. extra: {pergunta, historico:[{p,r}]} no modo pergunta. Devolve {texto, modelo}.
-async function pedirIA(modo, extra={}){
+// Um pedido de resumo à IA. Devolve {texto, modelo}.
+async function pedirIA(modo){
   const dados = dadosParaIA(), chave = lerLS(LS_GROQ);
   if(!chave){
-    let r; try{ r = await fetch(baseServidor()+"/api/resumo", {method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({modo, dados, ...extra}), ...comPrazo()}); }
+    let r; try{ r = await fetch(baseServidor()+"/api/resumo", {method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({modo, dados}), ...comPrazo()}); }
     catch(e){ throw erroCot("rede"); }
     let j = null; try{ j = await r.json(); }catch(e){}
     if(r.status===503 && j && j.erro==="sem_chave"){ iaSemServidor = true; throw erroCot("semServidor"); }
@@ -1780,7 +1768,6 @@ async function pedirIA(modo, extra={}){
   const modelo = await modeloGroq(chave);
   if(!modelo) throw erroCot("servico");
   const mensagens = [{role:"system", content:IA_INSTRUCOES[modo]}, {role:"user", content:"Dados da carteira:\n"+JSON.stringify(dados)}];
-  if(modo==="pergunta"){ (extra.historico||[]).slice(-3).forEach(h=>mensagens.push({role:"user", content:h.p}, {role:"assistant", content:h.r})); mensagens.push({role:"user", content:extra.pergunta}); }
   let r; try{
     r = await fetch("https://api.groq.com/openai/v1/chat/completions", {method:"POST", headers:{Authorization:"Bearer "+chave, "Content-Type":"application/json"},
       body: JSON.stringify({model:modelo, temperature:0.3, max_tokens:IA_TOKENS[modo], ...(/gpt-oss/.test(modelo) ? {reasoning_effort:"low"} : {}), messages:mensagens}), ...comPrazo()});
@@ -1803,35 +1790,20 @@ async function gerarResumoIA(){
   finally{ gerandoIA = false; if(abaAtual==="analises") render("analises"); }
 }
 
-/* Manchete do dia, no topo do Resumo: gerada sozinha quando a carteira muda ou uma vez por dia, e guardada no aparelho */
-let gerandoManchete = false, mancheteTentada = null;
+/* Manchete do dia, no topo do Resumo: o primeiro aviso do resumo do dia do agente (sem chamada própria à IA) */
 function hashTexto(s){ let h = 5381; for(let i=0;i<s.length;i++) h = (h*33 ^ s.charCodeAt(i)) >>> 0; return h.toString(36); }
-function hashCarteiraIA(){ const d = dadosParaIA(); delete d.data; return hashTexto(JSON.stringify(d)); }
-function lerManchete(){ try{ return JSON.parse(lerLS(LS_MANCHETE)||"null"); }catch(e){ return null; } }
 function htmlManchete(){
-  const m = lerManchete();
   if(demo) return `<p class="manchete-texto">No modo exemplo, a manchete aparece com os seus dados.</p>`;
-  if(gerandoManchete && !m) return `<p class="manchete-texto carregando">Lendo a sua carteira…</p>`;
-  if(!m) return `<p class="manchete-texto">A manchete do dia aparece aqui quando a IA ler a sua carteira.</p>`;
-  const hora = new Date(m.em), quando = isoLocal(hora)===hojeISO() ? "hoje às "+hora.toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"}) : dataBR(isoLocal(hora));
-  return `<p class="manchete-texto">${esc(m.texto.replace(/\*\*/g,"").replace(/^[-•]\s*/,""))}</p>
-    <p class="manchete-rodape">${gerandoManchete ? "Atualizando…" : "Escrita pela IA "+quando}<button class="link" data-act="manchete-atualizar"${gerandoManchete?" disabled":""}>Atualizar</button></p>`;
+  const d = lerDia(), r = d && d.resposta;
+  if(!r) return gerandoDia ? `<p class="manchete-texto carregando">Lendo o mercado e a sua carteira…</p>`
+    : `<p class="manchete-texto">A manchete do dia aparece aqui quando o agente ler a sua carteira.</p>`;
+  const texto = (r.avisos && r.avisos[0] && r.avisos[0].texto) || r.texto || "";
+  const hora = new Date(d.em), quando = d.data===hojeISO() ? "hoje às "+hora.toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"}) : "em "+dataBR(d.data);
+  return `<p class="manchete-texto">${esc(texto.replace(/\*\*/g,"").replace(/^[-•]\s*/,""))}</p>
+    <p class="manchete-rodape">${gerandoDia ? "Atualizando…" : "Do agente, "+quando}<button class="link" data-act="agente-dia"${gerandoDia?" disabled":""}>Atualizar</button><button class="link" data-act="ir-aba" data-aba="agente">Abrir o agente</button></p>`;
 }
-async function atualizarManchete({forcar=false}={}){
-  if(demo || gerandoManchete || !temDados(S)) return;
-  const h = hashCarteiraIA(), m = lerManchete();
-  const velha = !m || m.hash!==h || Date.now()-m.em > 20*3600e3;
-  if(!forcar && (!velha || mancheteTentada===h)) return;   // uma tentativa por versão da carteira, para não insistir sem internet
-  mancheteTentada = h; gerandoManchete = true;
-  const el = $("#manchete-ia"); if(el) el.innerHTML = htmlManchete();
-  try{ const r = await pedirIA("manchete"); gravarLS(LS_MANCHETE, JSON.stringify({texto:r.texto, hash:h, em:Date.now()})); }
-  catch(e){ if(forcar) toast(MSG_IA[e.tipo] || "A IA não respondeu como esperado. Tente de novo."); }
-  finally{ gerandoManchete = false; const el2 = $("#manchete-ia"); if(el2) el2.innerHTML = htmlManchete(); }
-}
-
-/* Conversa com a carteira: folha que abre do Resumo, com as últimas trocas guardadas no aparelho */
-let conversa = (()=>{ try{ return JSON.parse(localStorage.getItem(LS_CONVERSA)||"[]"); }catch(e){ return []; } })();
-function gravarConversa(){ try{ localStorage.setItem(LS_CONVERSA, JSON.stringify(conversa.filter(m=>m.r).slice(-10))); }catch(e){} }
+// Caixa "Pergunte à sua carteira" e botões ✦: abrem a aba Agente com a pergunta
+async function abrirAgenteCom(q){ irPara("agente"); await perguntarAgente(q); }
 // Sugestões de pergunta tiradas das leituras da própria carteira
 function sugestoesIA(){
   const s = [], leit = analisar(), achou = re => leit.find(i=>re.test(i.titulo));
@@ -1845,24 +1817,6 @@ function sugestoesIA(){
   return [...new Set(s)].slice(0,4);
 }
 function chipsSugestoes(){ return sugestoesIA().map(q=>`<button class="sugestao" data-act="ia-perguntar" data-q="${esc(q)}">${esc(q)}</button>`).join(""); }
-function renderConversa(){
-  const el = $("#ia-mensagens"); if(!el) return;
-  el.innerHTML = conversa.length ? conversa.map(m=>`<div class="msg eu">${esc(m.p)}</div>
-    <div class="msg ia${m.erro?" erro":""}">${m.r ? textoIA(m.r) : m.erro ? esc(m.erro) : '<span class="carregando">Pensando…</span>'}</div>`).join("")
-    : `<p class="nota">Pergunte o que quiser sobre a sua carteira. A IA vê só percentuais e códigos, nunca valores em reais, e explica os números sem recomendar compra ou venda.</p>`;
-  $("#ia-sugestoes").innerHTML = chipsSugestoes();
-  el.scrollTop = el.scrollHeight;
-}
-async function perguntarIA(texto){
-  const q = String(texto||"").trim().slice(0,400); if(!q) return;
-  if(demo){ toast("No modo exemplo os dados são fictícios; saia do exemplo para conversar com a IA."); return; }
-  const dlg = $("#dlg-ia"); if(!dlg.open) dlg.showModal();
-  const historico = conversa.filter(m=>m.r).slice(-3).map(m=>({p:m.p, r:m.r}));
-  const item = {p:q}; conversa.push(item); renderConversa();
-  try{ item.r = (await pedirIA("pergunta", {pergunta:q, historico})).texto; gravarConversa(); }
-  catch(e){ item.erro = MSG_IA[e.tipo] || "A IA não respondeu como esperado. Tente de novo."; }
-  renderConversa();
-}
 // Texto da IA: escapado e com os tópicos "- " virando lista
 function textoIA(t){
   const linhas = String(t).replace(/\*\*/g,"").split("\n").map(l=>l.trim()).filter(Boolean);
@@ -1924,7 +1878,7 @@ function msgAgente(e){
   if(e.tipo==="rede") return "Não foi possível falar com o agente. Confira a internet.";
   return "O agente não respondeu como esperado. Tente de novo.";
 }
-function atualizarVistasAgente(){ if(abaAtual==="agente") render("agente"); }
+function atualizarVistasAgente(){ if(abaAtual==="agente") render("agente"); const m = $("#manchete-ia"); if(m) m.innerHTML = htmlManchete(); }
 async function resumoDoDia({forcar=false}={}){
   if(demo || gerandoDia || !temDados(S)) return;
   const h = hashAgente(), d = lerDia(), chave = h+"|"+hojeISO();
@@ -3237,7 +3191,7 @@ document.addEventListener("click", e=>{
   }
   else if(a==="remover-chave"){ gravarLS(LS_CHAVE, ""); render("ativos"); toast("Chave removida"); }
   else if(a==="abrir-mais") $("#dlg-mais").showModal();
-  else if(a==="ia-perguntar") perguntarIA(b.dataset.q);
+  else if(a==="ia-perguntar") abrirAgenteCom(b.dataset.q);
   else if(a==="agente-perguntar") perguntarAgente(b.dataset.q);
   else if(a==="agente-nova"){ agente = []; gravarAgente(); rascunhoAgente = ""; render("agente"); }
   else if(a==="agente-dia") resumoDoDia({forcar:true});
@@ -3250,9 +3204,6 @@ document.addEventListener("click", e=>{
   else if(a==="prov-atualizar") carregarAnunciados({forcar:true});
   else if(a==="prov-registrar") registrarAnunciado(b.dataset.id);
   else if(a==="prov-ignorar") ignorarAnunciado(b.dataset.id);
-  else if(a==="ia-fechar") $("#dlg-ia").close();
-  else if(a==="ia-limpar"){ conversa = []; gravarConversa(); renderConversa(); }
-  else if(a==="manchete-atualizar") atualizarManchete({forcar:true});
   else if(a==="abrir-ativo"){ abertoAtivo = abertoAtivo===b.dataset.t ? null : b.dataset.t; const y = window.scrollY; render("ativos"); window.scrollTo(0,y); }
   else if(a==="filtro-ativos"){ filtroAtivos = b.dataset.k; abertoAtivo = null; render("ativos"); }
   else if(a==="op-compra" || a==="op-venda") abrirOp(a==="op-venda" ? "venda" : "compra", b.dataset.t);
@@ -3309,10 +3260,10 @@ document.addEventListener("change", e=>{
 document.addEventListener("submit", e=>{
   if(e.target.id==="f-aporte"){ e.preventDefault(); pedirPlanoAporte(e.target.elements.namedItem("v").value); return; }
   if(e.target.id==="f-agente"){ e.preventDefault(); const i = e.target.elements.namedItem("q"), q = i.value; i.value = ""; perguntarAgente(q); return; }
-  if(e.target.id!=="f-perguntar" && e.target.id!=="f-ia") return;
+  if(e.target.id!=="f-perguntar") return;
   e.preventDefault();
   const i = e.target.elements.namedItem("q"), q = i.value; i.value = "";
-  perguntarIA(q);
+  abrirAgenteCom(q);
 });
 document.addEventListener("input", e=>{
   if(!op || !e.target.closest("#dlg-op")) return;
