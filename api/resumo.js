@@ -112,3 +112,7 @@ module.exports = async (req, res) => {
     return res.status(502).json({ erro: "servico" });
   }
 };
+// Reaproveitados por api/agente.js
+module.exports.escolherModelo = escolherModelo;
+module.exports.ORIGENS = ORIGENS;
+module.exports.raciocinio = raciocinio;

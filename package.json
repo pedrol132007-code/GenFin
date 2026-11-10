@@ -4,7 +4,7 @@
   "private": true,
   "description": "Carteira de investimentos pessoal: preço médio, alocação, proventos, rebalanceamento e imposto de renda",
   "scripts": {
-    "test": "node tests/carteira.test.js && node tests/api.test.js && node tests/mercado.test.js",
+    "test": "node tests/carteira.test.js && node tests/api.test.js && node tests/mercado.test.js && node tests/agente.test.js",
     "capturas": "bash scripts/capturas.sh",
     "logo": "node scripts/logo.js",
     "icones": "bash scripts/icones.sh",
