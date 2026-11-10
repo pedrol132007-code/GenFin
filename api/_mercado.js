@@ -83,6 +83,45 @@ function dyPorAno(proventos, mensal) {
     .map(a => ({ ano: Number(a), dy: provs[a] / (precos[a].reduce((s, v) => s + v, 0) / precos[a].length) }));
 }
 
+/* Triagem: candidatos para o perfil "patrimônio no longo prazo + renda".
+   Filtros de sanidade (fora disso o número costuma enganar):
+   - ações: liquidez de 2 meses ≥ R$ 1 mi/dia, P/L entre 0 e 25, P/VP > 0, ROE > 0, DY ≤ 20% (acima disso é provento extraordinário);
+   - FIIs: liquidez ≥ R$ 500 mil/dia, P/VP entre 0,7 e 1,3, DY entre 0 e 16% (DY muito alto com P/VP baixo costuma ser fundo em apuros).
+   Nota: média dos percentis dentro do grupo filtrado. Ações: lucro barato (1/P/L), ROE, DY, crescimento de receita em 5 anos e
+   dívida baixa. FIIs: DY, desconto (1/P/VP) e vacância baixa. Nos dois, liquidez também conta: no longo prazo, empresa e fundo
+   grandes e muito negociados tendem a ser mais estáveis. */
+const FILTROS = {
+  acao: a => a.liq2m >= 1e6 && a.pl > 0 && a.pl <= 25 && a.pvp > 0 && a.roe > 0 && a.dy != null && a.dy <= 0.20,
+  fii: f => f.liquidez >= 5e5 && f.pvp >= 0.7 && f.pvp <= 1.3 && f.dy > 0 && f.dy <= 0.16
+};
+const CRITERIOS = {
+  acao: [a => 1 / a.pl, a => a.roe, a => a.dy, a => a.crescRec5a, a => a.divLiqPatrim == null ? null : -a.divLiqPatrim, a => Math.log10(a.liq2m)],
+  fii: [f => f.dy, f => 1 / f.pvp, f => f.vacancia == null ? null : -f.vacancia, f => Math.log10(f.liquidez)]
+};
+const fmtN = v => Number(v).toLocaleString("pt-BR", { maximumFractionDigits: 1 });
+const fmtP = v => fmtN(v * 100) + "%";
+const MOTIVOS = {
+  acao: a => [`P/L ${fmtN(a.pl)}`, `ROE ${fmtP(a.roe)}`, `DY ${fmtP(a.dy)}`],
+  fii: f => [`DY ${fmtP(f.dy)}`, `P/VP ${fmtN(f.pvp)}`, ...(f.segmento ? [f.segmento] : [])]
+};
+// Percentil de cada valor no grupo (0 = pior, 1 = melhor); valor ausente fica no meio
+function percentis(vals) {
+  const ok = vals.filter(v => v != null && Number.isFinite(v)).sort((a, b) => a - b);
+  return vals.map(v => {
+    if (v == null || !Number.isFinite(v) || ok.length < 2) return ok.length < 2 && v != null ? 1 : 0.5;
+    const menores = ok.filter(x => x < v).length, iguais = ok.filter(x => x === v).length;
+    return (menores + (iguais - 1) / 2) / (ok.length - 1);
+  });
+}
+function triagem(lista, classe, { excluir = [], n = 10 } = {}) {
+  const fora = new Set(excluir.map(tickerBase));
+  const grupo = (lista || []).filter(x => FILTROS[classe](x) && !fora.has(x.ticker));
+  if (!grupo.length) return [];
+  const cols = CRITERIOS[classe].map(f => percentis(grupo.map(f)));
+  return grupo.map((x, i) => ({ ...x, nota: cols.reduce((s, c) => s + c[i], 0) / cols.length, motivos: MOTIVOS[classe](x) }))
+    .sort((a, b) => b.nota - a.nota).slice(0, n);
+}
+
 const tickerBase = t => /^[A-Z0-9]{4}\d{1,2}F$/.test(String(t)) ? String(t).slice(0, -1) : String(t);
 
-module.exports = { numBR, lerTabelaFundamentus, lerTabelaFII, lerDetalhe, lerPrecos, lerFocus, dyPorAno, tickerBase };
+module.exports = { numBR, lerTabelaFundamentus, lerTabelaFII, lerDetalhe, lerPrecos, lerFocus, dyPorAno, triagem, tickerBase };

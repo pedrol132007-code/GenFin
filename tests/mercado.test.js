@@ -29,6 +29,30 @@ const lat = b => new TextDecoder("latin1").decode(b);
   ok(m.dyPorAno([{ valor: 1, dataCom: "2024-03-10" }], [{ mes: "2024-01", fech: 20 }]).length === 0, "ano com menos de 6 meses de preço fica de fora");
   ok(m.tickerBase("ITSA4F") === "ITSA4" && m.tickerBase("MXRF11") === "MXRF11", "fracionário vira o lote");
 
+  // Triagem
+  const base = { cotacao: 10, pvp: 1, evEbit: 5, margemLiq: .1, roic: .1, divLiqPatrim: .5, crescRec5a: .1 };
+  const lista = [
+    { ...base, ticker: "BOA3", pl: 5, roe: .25, dy: .09, liq2m: 5e6 },
+    { ...base, ticker: "MEIA3", pl: 12, roe: .12, dy: .05, liq2m: 5e6 },
+    { ...base, ticker: "ILIQ3", pl: 4, roe: .30, dy: .10, liq2m: 1e4 },
+    { ...base, ticker: "PREJ3", pl: -3, roe: -.1, dy: 0, liq2m: 5e6 },
+    { ...base, ticker: "XTRA3", pl: 6, roe: .2, dy: .45, liq2m: 5e6 }];
+  const t = m.triagem(lista, "acao");
+  ok(t[0].ticker === "BOA3" && t.length === 2, "melhor primeiro; ilíquida, com prejuízo e DY anômalo ficam fora");
+  ok(m.triagem(lista, "acao", { excluir: ["BOA3"] })[0].ticker === "MEIA3", "exclui o que já está na carteira");
+  ok(t[0].motivos.some(s => /P\/L 5/.test(s)) && t[0].nota >= 0 && t[0].nota <= 1, "motivos citam os números e a nota vai de 0 a 1");
+  const fiis = [
+    { ticker: "BOM11", segmento: "Logística", dy: .11, pvp: .85, vacancia: .02, liquidez: 2e6 },
+    { ticker: "CARO11", segmento: "Logística", dy: .07, pvp: 1.25, vacancia: .10, liquidez: 2e6 },
+    { ticker: "PEQ11", segmento: "Lajes", dy: .12, pvp: .8, vacancia: 0, liquidez: 1e5 },
+    { ticker: "PAGA11", segmento: "Papel", dy: .30, pvp: .9, vacancia: 0, liquidez: 2e6 }];
+  const tf = m.triagem(fiis, "fii", { n: 1 });
+  ok(tf.length === 1 && tf[0].ticker === "BOM11", "FIIs: DY alto, P/VP baixo e vacância baixa primeiro; n limita a lista");
+  const armadilha = m.triagem([...fiis, { ticker: "RISCO11", segmento: "Outros", dy: .18, pvp: .6, vacancia: 0, liquidez: 2e6 }], "fii");
+  ok(!armadilha.some(f => f.ticker === "RISCO11"), "FII com DY de 18% e P/VP 0,6 (fundo em apuros) fica fora");
+  const grandes = m.triagem([{ ...base, ticker: "MICRO3", pl: 8, roe: .15, dy: .06, liq2m: 2e6 }, { ...base, ticker: "GRANDE3", pl: 8, roe: .15, dy: .06, liq2m: 2e8 }], "acao");
+  ok(grandes[0].ticker === "GRANDE3", "com o resto igual, a mais negociada vem primeiro");
+
   console.log(falhas ? `\n${falhas} teste(s) falharam` : "\nmercado: todos os testes passaram");
   process.exit(falhas ? 1 : 0);
 })();
