@@ -133,6 +133,26 @@ const pedido = extra => ({ modo: "pergunta", carteira, perfil: "Longo prazo, pat
   r = await chamar(ag, { body: { modo: "dia", carteira, perfil: "x" } });
   ok(r.statusCode === 200 && r.body.avisos[0].ticker === "ITSA4" && !pedidosGroq[0].tools, "modo dia: avisos, sem ferramentas");
 
+  // Resposta vazia ou embrulhada (visto em produção: 200 com texto vazio)
+  pedidosGroq = [];
+  groq = [msg({ name: "resposta", arguments: JSON.stringify({ texto: "FIIs estáveis.", avisos: [], compras: [], vendas: [] }) })];
+  r = await chamar(ag, { body: pedido({ pergunta: "como estão os FIIs?" }) });
+  ok(r.statusCode === 200 && r.body.texto === "FIIs estáveis." && pedidosGroq.length === 1, "resposta embrulhada como chamada de ferramenta: desembrulha");
+  pedidosGroq = [];
+  groq = [resp({ error: { code: "tool_use_failed", failed_generation: '{"classe": "fii", "n": 5}' } }, 400),
+    msg({ texto: "MXRF11 segue com P/VP abaixo de 1.", compras: [], vendas: [], avisos: [] })];
+  r = await chamar(ag, { body: pedido({ pergunta: "como estão os FIIs?" }) });
+  ok(r.statusCode === 200 && r.body.texto === "MXRF11 segue com P/VP abaixo de 1." && pedidosGroq.length === 2 && !pedidosGroq[1].tools,
+    "chamada de ferramenta malformada: tenta de novo sem ferramentas, sem mostrar os argumentos");
+  pedidosGroq = [];
+  groq = [msg({ texto: "", compras: [], vendas: [], avisos: [] }), msg({})];
+  r = await chamar(ag, { body: pedido({ pergunta: "algo para vender?" }) });
+  ok(r.statusCode === 502 && r.body.erro === "servico" && pedidosGroq.length === 2, "resposta vazia duas vezes: 502 (o app mostra 'tente de novo'), nunca bolha vazia");
+  pedidosGroq = [];
+  groq = [msg({})];
+  r = await chamar(ag, { body: { modo: "dia", carteira, perfil: "x" } });
+  ok(r.statusCode === 502 && pedidosGroq.length === 1, "modo dia vazio: 502 sem nova tentativa");
+
   // HTTP e CORS
   r = await chamar(ag, { method: "GET" });
   ok(r.statusCode === 405, "só aceita POST");

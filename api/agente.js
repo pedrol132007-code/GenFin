@@ -2,6 +2,7 @@
 // Para caber no plano gratuito (8 mil tokens por minuto), o código entende a pergunta, busca os dados certos já reduzidos
 // e faz uma chamada ao modelo, com no máximo uma rodada extra de ferramenta.
 // Recebe o retrato da carteira em percentuais (sem valores em reais nem quantidades) e não guarda nada.
+const { barrar } = require("./_limite.js");
 const mercado = require("./_mercado.js");
 const { escolherModelo, ORIGENS, raciocinio } = require("./resumo.js");
 
@@ -199,6 +200,23 @@ function lerJSON(conteudo) {
   if (i >= 0 && f > i) { try { return JSON.parse(s.slice(i, f + 1)); } catch (e) { /* não era JSON */ } }
   return null;
 }
+// Acha a resposta mesmo quando a IA a embrulha (como {"name": …, "arguments": {…}}, às vezes com os argumentos em texto)
+function respostaDe(v, nivel = 0) {
+  if (nivel > 4) return null;
+  if (typeof v === "string") return /^\s*\{/.test(v) ? respostaDe(lerJSON(v), nivel + 1) : null;
+  if (!v || typeof v !== "object" || Array.isArray(v)) return null;
+  if (typeof v.texto === "string" || Array.isArray(v.compras) || Array.isArray(v.vendas) || Array.isArray(v.avisos)) return v;
+  for (const k of Object.keys(v)) { const r = respostaDe(v[k], nivel + 1); if (r) return r; }
+  return null;
+}
+// Lê a mensagem da IA: JSON (mesmo embrulhado), JSON quebrado ou texto solto. JSON válido sem resposta (só argumentos
+// de ferramenta, por exemplo) vira vazio, para não mostrar pedaços dele na conversa.
+function interpretar(conteudo) {
+  if (!conteudo) return {};
+  const lido = lerJSON(conteudo);
+  return lido ? respostaDe(lido) || {} : { texto: textoDeJSONQuebrado(conteudo) };
+}
+const vazia = s => !s.texto && !s.avisos.length && !s.compras.length && !s.vendas.length;
 // Quando nem o JSON fecha, tira só o campo "texto" (melhor que mostrar pedaços de JSON na conversa)
 function textoDeJSONQuebrado(conteudo) {
   const m = /"texto"\s*:\s*"((?:[^"\\]|\\.)*)"/.exec(String(conteudo || ""));
@@ -263,6 +281,7 @@ module.exports = async (req, res) => {
   res.setHeader("Cache-Control", "no-store");
   if (req.method === "OPTIONS") return res.status(204).end();
   if (req.method !== "POST") return res.status(405).json({ erro: "metodo" });
+  if (barrar(req, res, "agente", 40, 3600)) return;   // por IP, por hora
 
   const chave = process.env.GROQ_API_KEY;
   if (!chave) return res.status(503).json({ erro: "sem_chave" });
@@ -298,11 +317,18 @@ module.exports = async (req, res) => {
       }
       escolha = mensagemDe(await chamarGroq(chave, { ...comum, messages: mensagens, response_format: { type: "json_object" } }));
     }
-    const conteudo = escolha.message && escolha.message.content;
-    if (!conteudo) return res.status(502).json({ erro: "servico", motivo: escolha.finish_reason || null });
-
-    const lido = lerJSON(conteudo);
-    const saida = validarSaida(lido || { texto: textoDeJSONQuebrado(conteudo) }, ctx.permitidos, ped.carteira);
+    const ler = e => validarSaida(interpretar(e.message && e.message.content), ctx.permitidos, ped.carteira);
+    let saida = ler(escolha);
+    if (vazia(saida) && comFerramentas && !chamadas.length) {
+      // Com ferramentas, às vezes a IA tenta uma chamada malformada e não responde nada: uma nova tentativa, já sem
+      // ferramentas (os dados pré-buscados bastam), mantém o máximo de duas chamadas por pergunta
+      escolha = mensagemDe(await chamarGroq(chave, { ...comum, messages: mensagens, response_format: { type: "json_object" } }));
+      saida = ler(escolha);
+    }
+    if (vazia(saida)) {
+      console.warn("agente: resposta vazia", escolha.finish_reason || "", String((escolha.message && escolha.message.content) || "").slice(0, 300));
+      return res.status(502).json({ erro: "servico", motivo: escolha.finish_reason || null });
+    }
     return res.status(200).json({ ...saida, dados: ctx.dados, fontes_falharam: [...ctx.falhas], em: new Date().toISOString(), modelo });
   } catch (e) {
     if (e.status === 429) return res.status(429).json({ erro: "limite", esperar_s: e.esperar });

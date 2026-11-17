@@ -95,7 +95,10 @@ Não há instalação nem build. O app inteiro é o [`carteira.html`](carteira.h
 
 O GenFin tem um app Android de verdade (APK), que abre sem internet e guarda os dados no aparelho. Ele é compilado pelo GitHub Actions a cada mudança e publicado em **[Releases](../../releases/latest)**.
 
-1. No celular, abra a página de Releases do repositório (logado no GitHub, porque ele é privado) e toque em `GenFin-<versão>.apk`.
+> [!NOTE]
+> Desde 30/09/2026 o Android passou a exigir verificação de desenvolvedor para apps instalados fora da Play Store, e o APK pode ser barrado em alguns aparelhos. Nesse caso, use o app pelo navegador (PWA, abaixo): ele instala pelo Chrome e funciona igual.
+
+1. No celular, abra a página de Releases do repositório e toque em `GenFin-<versão>.apk`.
 2. Quando o Android pedir, permita instalar apps dessa origem (o navegador ou o app do GitHub).
 3. Versões novas instalam por cima e mantêm os dados, porque todas são assinadas com a mesma chave.
 4. Para levar a carteira do computador para o celular: **Backup → Exportar backup** num e **Restaurar backup** no outro. No app, exportar abre a folha de compartilhar do Android (Drive, Arquivos, WhatsApp). As chaves da brapi e do Groq não vão no backup: cole de novo no celular.
@@ -104,7 +107,18 @@ Como o app é montado: `npm run www` copia o `carteira.html` para `www/` com a f
 
 ### No navegador (opcional)
 
-O mesmo arquivo também funciona como app instalável pelo navegador (PWA), por exemplo hospedado de graça na [Vercel](https://vercel.com): importe o repositório como projeto, com *Framework Preset* em **Other**. O `.vercelignore` publica só a página, o manifesto, o service worker e os ícones.
+O mesmo arquivo também funciona como app instalável pelo navegador (PWA), por exemplo hospedado de graça na [Vercel](https://vercel.com): importe o repositório como projeto, com *Framework Preset* em **Other**. O `.vercelignore` publica só a página, o manifesto, o service worker, os ícones e as funções de `api/`.
+
+### Sua própria cópia na Vercel
+
+As funções de `api/` (agente, resumo com IA, sincronização, notícias e proventos) da instância do autor são para uso pessoal e têm limite de chamadas por IP. Para usar com folga, publique a sua cópia, também de graça:
+
+1. Faça um fork e importe na Vercel como descrito acima.
+2. Em **Settings → Environment Variables**, crie `GROQ_API_KEY` com uma chave gratuita do [Groq](https://console.groq.com/keys). Ela liga o agente e o resumo com IA.
+3. Para a sincronização, crie um **Blob** privado em **Storage** e conecte ao projeto. A Vercel cria a `BLOB_READ_WRITE_TOKEN` sozinha.
+4. Aberto pelo seu endereço `*.vercel.app`, o app já fala com as suas funções. No app Android ou no arquivo local, troque a constante `SERVIDOR` no `carteira.html` pelo seu endereço.
+
+Notícias, proventos e cotações de cripto não precisam de chave.
 
 ### Sincronizar celular e computador
 
@@ -209,6 +223,7 @@ Operações comuns de pessoa física, sem day trade:
 ├── api/resumo.js          # função da Vercel: resumo com IA pelo Groq
 ├── api/agente.js          # função da Vercel: agente de investimentos (dados de mercado + Groq)
 ├── api/_mercado.js        # fontes de mercado, triagem e cache (usado pelo agente; não vira função)
+├── api/_limite.js         # limite de chamadas por IP do agente, do resumo e da sincronização
 ├── api/noticias.js        # função da Vercel: manchetes do Google Notícias por ativo
 ├── api/proventos.js       # função da Vercel: proventos anunciados na B3 por ativo
 ├── api/sync.js            # função da Vercel: guarda a carteira cifrada (sincronização)
@@ -283,4 +298,4 @@ Fonte: [Bricolage Grotesque](https://fonts.google.com/specimen/Bricolage+Grotesq
 
 ## Aviso
 
-O GenFin é uma ferramenta de organização e cálculo. Não é recomendação de investimento: as sugestões do agente são automáticas, feitas a partir de números públicos, e a decisão é sua. As estimativas de imposto não substituem a orientação de um profissional.
+O GenFin é um projeto pessoal, uma ferramenta de organização e cálculo. Não é recomendação de investimento: as sugestões do agente são automáticas, feitas a partir de números públicos, e a decisão é sua. As estimativas de imposto não substituem a orientação de um profissional.

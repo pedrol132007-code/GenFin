@@ -172,6 +172,22 @@ const dados = { data: "2026-10-28", classes: [{ classe: "Ações", carteira_pct:
   r = await chamar(carregar(), { method: "OPTIONS", origin: "null" });
   ok(r.headers["access-control-allow-origin"] === "null", "resumo: arquivo local (origem null) pode chamar");
 
+  // Limite por IP (o repositório é público: o endereço das funções está no código)
+  const limite = require("../api/_limite.js");
+  const req = ip => ({ headers: { "x-forwarded-for": ip + ", 10.0.0.1" } });
+  let seq = []; for (let i = 0; i < 4; i++) seq.push(limite.esperar(req("1.1.1.1"), "teste", 3, 60));
+  ok(seq.slice(0, 3).every(s => s === 0) && seq[3] > 0 && seq[3] <= 60, "limite: a 4ª chamada na janela espera, com o tempo restante");
+  ok(limite.esperar(req("2.2.2.2"), "teste", 3, 60) === 0 && limite.esperar(req("1.1.1.1"), "outro", 3, 60) === 0, "limite: conta por IP e por função");
+  ok(limite.esperar({ headers: {} }, "teste", 0, 60) === 0, "limite: sem IP (teste local) não limita");
+  process.env.GROQ_API_KEY = "gsk-servidor";
+  const resumo = carregar(); let ult;
+  for (let i = 0; i < 31; i++) ult = await new Promise(resolve => {
+    const res = { headers: {}, statusCode: 200, setHeader(k, v) { this.headers[k.toLowerCase()] = v; }, status(c) { this.statusCode = c; return this; },
+      json(o) { this.body = o; resolve(this); return this; }, end() { resolve(this); return this; } };
+    resumo({ method: "POST", headers: { origin: "https://genfin-rose.vercel.app", "x-forwarded-for": "9.9.9.9" }, body: dados }, res);
+  });
+  ok(ult.statusCode === 429 && ult.body.erro === "limite" && ult.body.esperar_s > 0 && ult.headers["retry-after"], "resumo: passou de 30 por hora no mesmo IP, 429 no formato que o app entende");
+
   console.log(falhas ? falhas + " falha(s)" : "todos passaram");
   if (falhas) process.exitCode = 1;
 })().catch(e => { console.error("ERRO:", e); process.exit(1); });

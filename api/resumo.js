@@ -6,6 +6,7 @@
 
 // "null" é o carteira.html aberto direto do disco (file://). Liberar não expõe nada: não há cookies, e a
 // sincronização exige o token que só sai do código; o resumo só aceita o formato da carteira.
+const { barrar } = require("./_limite.js");
 const ORIGENS = ["https://genfin-rose.vercel.app", "https://localhost", "http://localhost", "capacitor://localhost", "null"];
 const TAMANHO_MAX = 24000;
 const REGRAS = "Você ajuda uma pessoa física no Brasil a entender a própria carteira de investimentos. Responda em português do Brasil. Use só os dados da mensagem, que vêm em percentuais, sem valores em reais; não invente números e use as diferenças que já vêm calculadas (diferenca_meta_pp) em vez de fazer contas. Não recomende comprar ou vender ativos específicos e não faça previsão de preços: explique o que os números mostram e o que vale a pessoa verificar.";
@@ -64,6 +65,7 @@ module.exports = async (req, res) => {
   res.setHeader("Cache-Control", "no-store");
   if (req.method === "OPTIONS") return res.status(204).end();
   if (req.method !== "POST") return res.status(405).json({ erro: "metodo" });
+  if (barrar(req, res, "resumo", 30, 3600)) return;   // por IP, por hora
 
   const chave = process.env.GROQ_API_KEY;
   if (!chave) return res.status(503).json({ erro: "sem_chave" });

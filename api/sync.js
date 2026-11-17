@@ -2,6 +2,7 @@
 // código de sincronização, que nunca sai do aparelho); aqui só ficam blocos cifrados, num Blob privado.
 // Do código também saem o id (escolhe o arquivo) e o token (o hash dele autoriza ler, gravar e apagar).
 // A ETag do Blob serve de versão: quem grava diz qual versão viu, e uma gravação concorrente vira conflito.
+const { barrar } = require("./_limite.js");
 const crypto = require("crypto");
 const { put, get, del, BlobPreconditionFailedError } = require("@vercel/blob");
 
@@ -29,6 +30,7 @@ module.exports = async (req, res) => {
   res.setHeader("Cache-Control", "no-store");
   if (req.method === "OPTIONS") return res.status(204).end();
   if (req.method !== "POST") return res.status(405).json({ erro: "metodo" });
+  if (barrar(req, res, "sync", 600, 3600)) return;   // por IP, por hora
 
   let b = req.body;
   if (typeof b === "string") { try { b = JSON.parse(b); } catch (e) { b = null; } }
