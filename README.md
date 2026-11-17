@@ -78,10 +78,14 @@ Cinco classes de ativo: **ações**, **ETFs**, **FIIs**, **renda fixa** e **crip
   </tr>
 </table>
 
-<p align="center">
-  <img src="docs/img/celular.png" alt="Resumo no celular" width="280"><br>
-  <sub>No celular: barra de navegação embaixo, tabelas viram cartões, tema claro e escuro automáticos</sub>
-</p>
+<table>
+  <tr>
+    <td width="50%" align="center"><img src="docs/img/celular.png" alt="Resumo no celular" width="280"><br>
+      <sub>No celular: barra de navegação embaixo, tabelas viram cartões, tema claro e escuro automáticos</sub></td>
+    <td width="50%" align="center"><img src="docs/img/agente-celular.png" alt="Plano de aporte do agente no celular" width="280"><br>
+      <sub>Plano de aporte do agente, com resposta real da IA e dados de mercado do dia, numa carteira fictícia</sub></td>
+  </tr>
+</table>
 
 ## Como usar
 

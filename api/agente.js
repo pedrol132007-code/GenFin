@@ -247,7 +247,9 @@ function validarSaida(s, permitidos, carteira) {
     const t = typeof a === "string" ? a : texto(a && a.texto, 300), tick = a && typeof a === "object" ? tk(a.ticker) : "";
     return { texto: texto(t, 300).trim(), ...(tick && (permitidos.has(tick) || tem.has(tick)) ? { ticker: tick } : {}) };
   }).filter(a => a.texto);
-  return { texto: texto(s.texto, 3000).trim(), avisos, compras: comprasOk, vendas };
+  // Tópicos que a IA escreve emendados numa linha ("…frase. - Outro tópico") voltam a ser uma linha cada
+  const t = texto(s.texto, 3000).trim().replace(/([.!?:;])[ \t]+-[ \t]+(?=\S)/g, "$1\n- ");
+  return { texto: t, avisos, compras: comprasOk, vendas };
 }
 
 /* ---------- Groq ---------- */

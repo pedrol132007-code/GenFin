@@ -73,6 +73,8 @@ const pedido = extra => ({ modo: "pergunta", carteira, perfil: "Longo prazo, pat
   ok(v.compras.find(c => c.ticker === "BBAS3").novo === true && v.compras.find(c => c.ticker === "ITSA4").novo === false && v.compras.find(c => c.ticker === "BBAS3").classe === "acao", "validarSaida: classe e 'novo' decididos pelo servidor");
   ok(v.vendas.length === 1 && v.vendas[0].ticker === "PETR4", "validarSaida: só vende o que a pessoa tem");
   ok(v.avisos.length === 3, "validarSaida: no máximo 3 avisos");
+  ok(ag.validarSaida({ texto: "- Ações primeiro. - FIIs depois: renda. - Fim" }, permitidos, carteira).texto === "- Ações primeiro.\n- FIIs depois: renda.\n- Fim"
+    && ag.validarSaida({ texto: "Varia de -3% a 5%. Ok" }, permitidos, carteira).texto === "Varia de -3% a 5%. Ok", "validarSaida: tópicos emendados numa linha voltam a ser linhas; sinal de menos não");
 
   // aporte: dados certos e sem reais
   groq = [msg({ texto: "Plano", compras: [{ ticker: "BBAS3", pct_do_aporte: 100, motivo: "barato" }], vendas: [], avisos: [] })]; pedidosGroq = [];
