@@ -31,7 +31,8 @@ const INSTRUCOES = {
   pergunta: " Responda à pergunta em \"texto\" (até 150 palavras; tópicos com \"- \" se ajudar). Se a pessoa for aportar, preencha \"compras\": para cada " +
     "classe com parcela maior que zero em aporte_por_classe_pct, escolha de 1 a 3 ativos (da carteira ou dos candidatos) e dê pct_do_aporte DENTRO da " +
     "classe (somando 100 em cada classe). Renda fixa não entra em compras. Sem aporte_por_classe_pct, use só ações e FIIs, divididos pelo perfil. " +
-    "Se sugerir vender ou reduzir, use \"vendas\"."
+    "Se sugerir vender ou reduzir, use \"vendas\". Quando preencher \"compras\", o app mostra o plano com cotas e valores: em \"texto\" " +
+    "explique só o raciocínio da divisão em até 3 frases, sem listar os ativos com percentuais."
 };
 const FERRAMENTAS = [
   { type: "function", function: { name: "fundamentos", description: "Indicadores atuais (preço, P/L, P/VP, DY, ROE) e histórico (faixa de 52 semanas, DY médio de 5 anos) de até 3 ações ou FIIs da bolsa brasileira.",
